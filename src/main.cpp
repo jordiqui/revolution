@@ -25,8 +25,8 @@
 #include "position.h"
 
 #ifndef ENGINE_BUILD_DATE
-// yymmdd; override at build time with:  -DENGINE_BUILD_DATE=250822
-#define ENGINE_BUILD_DATE "120825"
+// ddmmyy; override at build time with:  -DENGINE_BUILD_DATE=270825
+#define ENGINE_BUILD_DATE "000000"
 #endif
 
 #ifndef ENGINE_NAME

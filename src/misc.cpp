@@ -37,7 +37,7 @@
 
 #include "types.h"
 #ifndef ENGINE_BUILD_DATE
-#define ENGINE_BUILD_DATE "120825"
+#define ENGINE_BUILD_DATE "000000"
 #endif
 
 namespace Stockfish {

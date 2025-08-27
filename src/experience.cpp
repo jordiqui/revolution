@@ -17,6 +17,8 @@ void Experience::clear() { table.clear(); }
 
 void Experience::load(const std::string& file) {
     std::string path = file;
+    std::ifstream in;
+    bool        convertBin = false;
 
     if (path.size() >= 4) {
         std::string ext = path.substr(path.size() - 4);
@@ -25,17 +27,21 @@ void Experience::load(const std::string& file) {
         });
 
         if (ext == ".bin") {
+            convertBin = true;
+            in.open(path);
             path = path.substr(0, path.size() - 4) + ".exp";
-            sync_cout << "info string '.bin' experience files are deprecated; trying '" << path
-                      << "'" << sync_endl;
+            sync_cout << "info string '.bin' experience files are deprecated; converting to '"
+                      << path << "'" << sync_endl;
         }
     }
+
+    if (!convertBin)
+        in.open(path);
 
     std::string display = path;
     if (path != file)
         display += " (from " + file + ")";
 
-    std::ifstream in(path);
     if (!in) {
         sync_cout << "info string Could not open " << display << sync_endl;
         return;
@@ -75,6 +81,9 @@ void Experience::load(const std::string& file) {
               << ". Duplicate moves: " << duplicateMoves
               << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
               << sync_endl;
+
+    if (convertBin)
+        save(path);
 }
 
 void Experience::save(const std::string& file) const {
