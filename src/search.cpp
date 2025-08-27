@@ -860,7 +860,9 @@ Value Search::Worker::search(
     // bigger than the previous static evaluation at our turn (if we were in
     // check at our previous move we go back until we weren't in check) and is
     // false otherwise. The improving flag is used in various pruning heuristics.
-    improving         = ss->staticEval > (ss - 2)->staticEval;
+    // Allow a small margin so that minor setbacks are still considered
+    // improving which helps to avoid over-pruning in quiet positions.
+    improving         = ss->staticEval >= (ss - 2)->staticEval - 45;
     opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
 
     if (priorReduction >= (depth < 10 ? 1 : 3) && !opponentWorsening)
@@ -1761,7 +1763,12 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
 Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
     int reductionScale = reductions[d] * reductions[mn];
-    return reductionScale - delta * 731 / rootDelta + !i * reductionScale * 216 / 512 + 1089;
+    // Increase the difference between improving and non-improving lines.
+    // Improving moves get a slightly smaller reduction while non-improving
+    // moves are reduced more aggressively to speed up the search without
+    // harming tactical strength at longer time controls.
+    int improvingBonus = i ? -reductionScale * 57 / 512 : reductionScale * 273 / 512;
+    return reductionScale - delta * 731 / rootDelta + improvingBonus + 1089;
 }
 
 // elapsed() returns the time elapsed since the search started. If the
