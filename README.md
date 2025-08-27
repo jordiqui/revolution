@@ -8,7 +8,7 @@
   <br>
   <strong><a href="#">Explore Revolution Documentation »</a>
 
-  <em>Author: Jorge Ruiz Centelles</em>
+  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.s</em>
   
 </div>
 
