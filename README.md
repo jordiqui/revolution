@@ -1,5 +1,7 @@
 # Revolution Chess Engine
 
+**Version 1.0**
+
 <div align="center">
   <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
   <h3>Revolution</h3>
@@ -8,13 +10,13 @@
   <br>
   <strong><a href="#">Explore Revolution Documentation »</a>
 
-  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.s</em>
+  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.</em>
   
 </div>
 
 ## Overview
 
-**Revolution** is a free, open-source UCI chess engine derived from **Stockfish** and informed by ideas from **Berserk** and **Obsidian**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
+**Revolution** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
 
 As a UCI-compliant engine, Revolution operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
 
@@ -26,7 +28,7 @@ Revolution's architecture features:
 - SMP parallelization with YBWC (Young Brothers Wait Concept)
 - Advanced pruning techniques (Reverse Futility Pruning, Late Move Pruning)
 - Efficient move ordering with history heuristics and killer moves
-- Tuned search parameters through reinforcement learning
+- Optional root experience book storing previously played moves
 
 ## Files
 
@@ -84,11 +86,13 @@ expense of additional startup time and memory usage.
 
 ## Experience Book
 
-Revolution can learn from previous games by storing data in a `.bin` file.
-The following UCI options control this system:
+Revolution includes a simple text-based cache that stores root moves from
+previous games. It functions as a lightweight opening book and does not
+influence the internal search beyond the root. The following UCI options
+control this system:
 
 - `Experience Enabled`: enables or disables the experience feature (default `true`).
-- `Experience File`: name of the file where the experience data is stored (default `revolution.bin`).
+- `Experience File`: name of the file where the experience data is stored (default `revolution.exp`; legacy `.bin` files are converted automatically).
 - `Experience Readonly`: if `true`, no changes are written to the file.
 - `Experience Book`: uses the experience data as an opening book.
 - `Experience Book Width`: number of principal moves to consider (1–20).
@@ -104,10 +108,8 @@ Revolution is distributed under the **[GNU General Public License v3][gpl-link]*
 It integrates source code from:
 
 - [Stockfish](https://github.com/official-stockfish/Stockfish)
-- [Berserk](https://github.com/jhonnold/berserk/tree/main/src)
-- [Obsidian](https://github.com/gab8192/Obsidian)
 
-Because these projects are GPLv3, any distribution of Revolution must also comply with GPLv3.
+Because Stockfish is GPLv3, any distribution of Revolution must also comply with GPLv3.
 For a summary of your obligations under GPLv3 see <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
 When redistributing, you must:
 1. Include the original license text (`COPYING.txt`)
