@@ -30,8 +30,8 @@
 #endif
 
 #ifndef ENGINE_NAME
-// override at build time with:  -DENGINE_NAME="\"Revolution 1.0 dev\""
-#define ENGINE_NAME "Revolution 1.0 dev"
+// override at build time with:  -DENGINE_NAME="\"Revolution 1.0\""
+#define ENGINE_NAME "Revolution 1.0"
 #endif
 
 using namespace Stockfish;
