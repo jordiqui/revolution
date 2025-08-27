@@ -24,7 +24,7 @@
 #define ENGINE_NAME "Revolution 1.0"
 #endif
 #ifndef ENGINE_BUILD_DATE
-#define ENGINE_BUILD_DATE "120825"  // yymmdd; overridden by Makefile if provided
+#define ENGINE_BUILD_DATE "000000"  // ddmmyy; overridden by Makefile if provided
 #endif
 
 
