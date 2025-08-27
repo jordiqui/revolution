@@ -1272,7 +1272,7 @@ moves_loop:  // When in check, search starts here
             {
                 // Adjust full-depth search based on LMR results - if the result was
                 // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
+                const bool doDeeperSearch    = value > (bestValue + 43 + 2 * newDepth);
                 const bool doShallowerSearch = value < bestValue + 9;
 
                 newDepth += doDeeperSearch - doShallowerSearch;
@@ -1292,13 +1292,9 @@ moves_loop:  // When in check, search starts here
             if (!ttData.move)
                 r += 1139;
 
-            const int threshold1 = depth <= 4 ? 2000 : 3200;
-            const int threshold2 = depth <= 4 ? 3500 : 4600;
-
             // Note that if expected reduction is high, we reduce search depth here
             value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > threshold1) - (r > threshold2 && newDepth > 2),
-                                   !cutNode);
+                                   newDepth - (r > 3200) - (r > 4600 && newDepth > 2), !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,
