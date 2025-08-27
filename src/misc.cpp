@@ -126,7 +126,7 @@ std::string engine_version_info() {
 // Update author information
 std::string engine_info(bool to_uci) {
     return engine_version_info() + (to_uci ? "\nid author " : " by ")
-           + "Jorge Ruiz Centelles y los desarrolladores de Stockfish (ver archivo AUTHORS)";
+           + "Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)";
 }
 
 // Returns a string trying to describe the compiler we use
