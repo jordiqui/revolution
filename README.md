@@ -92,6 +92,7 @@ influence the internal search beyond the root. The following UCI options
 control this system:
 
 - `Experience Enabled`: enables or disables the experience feature (default `true`).
+- `Experience File`: name of the file where the experience data is stored (default `revolution.bin`).
 - `Experience File`: name of the file where the experience data is stored (default `revolution.exp`).
 - `Experience Readonly`: if `true`, no changes are written to the file.
 - `Experience Book`: uses the experience data as an opening book.
