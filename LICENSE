@@ -1,13 +1,16 @@
 Revolution Chess Engine
+Copyright (c)  Stockfish developers (see AUTHORS file)
 
-Copyright (c) 2024 Jorge Ruiz Centelles
+Revolution is a UCI chess engine derived from Stockfish. This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.
+
+
+Copyright (c) 2025 Jorge Ruiz Centelles
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 3 of the License, or
 (at your option) any later version.
 
-Revolution is a UCI chess engine derived from Stockfish. This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.
 
 Revolution incorporates code from the following GPLv3 project:
 
