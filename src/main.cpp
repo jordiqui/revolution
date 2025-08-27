@@ -25,13 +25,13 @@
 #include "position.h"
 
 #ifndef ENGINE_BUILD_DATE
-// ddmmyy; override at build time with:  -DENGINE_BUILD_DATE=270825
-#define ENGINE_BUILD_DATE "000000"
+    // yymmdd; override at build time with:  -DENGINE_BUILD_DATE=250827
+    #define ENGINE_BUILD_DATE "250827"
 #endif
 
 #ifndef ENGINE_NAME
-// override at build time with:  -DENGINE_NAME="\"Revolution 1.0\""
-#define ENGINE_NAME "Revolution 1.0"
+    // override at build time with:  -DENGINE_NAME="\"Revolution 1.0\""
+    #define ENGINE_NAME "Revolution 1.0"
 #endif
 
 using namespace Stockfish;
@@ -39,9 +39,9 @@ using namespace Stockfish;
 int main(int argc, char* argv[]) {
 
     // Clear, consistent banner (many GUIs echo this to their logs)
-    std::cout << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE
-              << ' ' << __DATE__ << ' ' << __TIME__
-              << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << std::endl;
+    std::cout << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << ' ' << __DATE__ << ' ' << __TIME__
+              << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
+              << std::endl;
 
     std::cout << compiler_info() << std::endl;
 
