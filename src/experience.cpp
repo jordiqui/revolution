@@ -23,6 +23,9 @@
 #include <algorithm>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
+#include "misc.h"
+#include <iostream>
 
 namespace Stockfish {
 
@@ -33,13 +36,47 @@ void Experience::clear() { table.clear(); }
 void Experience::load(const std::string& file) {
     std::ifstream in(file);
     if (!in)
+    {
+        sync_cout << "info string Could not open " << file << sync_endl;
         return;
+    }
+
     table.clear();
+
     uint64_t key;
     unsigned move;
     int      score, depth, count;
+
+    std::size_t totalMoves = 0;
+    std::size_t duplicateMoves = 0;
+
     while (in >> key >> move >> score >> depth >> count)
-        table[key].push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    {
+        totalMoves++;
+        auto& vec  = table[key];
+        bool  dup  = false;
+        for (auto& e : vec)
+            if (e.move.raw() == move)
+            {
+                dup        = true;
+                duplicateMoves++;
+                e.score = score;
+                e.depth = depth;
+                e.count += count;
+                break;
+            }
+        if (!dup)
+            vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    }
+
+    std::size_t totalPositions = table.size();
+    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+
+    sync_cout << "info string " << file << " -> Total moves: " << totalMoves
+              << ". Total positions: " << totalPositions
+              << ". Duplicate moves: " << duplicateMoves
+              << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
+              << sync_endl;
 }
 
 void Experience::save(const std::string& file) const {
