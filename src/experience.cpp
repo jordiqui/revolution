@@ -56,7 +56,11 @@ void Experience::load(const std::string& file) {
     std::ifstream in(path);
     if (!in)
     {
-        sync_cout << "info string Could not open " << path << sync_endl;
+        if (path != file)
+            sync_cout << "info string Could not open " << path << " (from " << file
+                      << ')' << sync_endl;
+        else
+            sync_cout << "info string Could not open " << file << sync_endl;
         return;
     }
 
