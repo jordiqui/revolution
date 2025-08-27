@@ -129,8 +129,7 @@ void Experience::save(const std::string& file) const {
               << ". Total positions: " << totalPositions << sync_endl;
 }
 
-Move Experience::probe(
-  Position& pos, [[maybe_unused]] int width, int evalImportance, int minDepth, int maxMoves) {
+Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
     auto it = table.find(pos.key());
     if (it == table.end())
         return Move::none();
@@ -143,12 +142,14 @@ Move Experience::probe(
         return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
     });
 
-    vec.resize(std::min<int>(maxMoves, static_cast<int>(vec.size())));
-    const auto& best = vec.front();
-    if (best.depth < minDepth)
+    vec.resize(std::min<int>({maxMoves, width, static_cast<int>(vec.size())}));
+
+    if (vec.empty() || vec.front().depth < minDepth)
         return Move::none();
 
-    return best.move;
+    PRNG        rng(now());
+    const auto& choice = vec[rng.rand<int>() % vec.size()];
+    return choice.move;
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
