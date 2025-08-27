@@ -14,7 +14,7 @@
 
 ## Overview
 
-**Revolution** is a free, open-source UCI chess engine derived from **Stockfish** and informed by ideas from **Berserk** and **Obsidian**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
+**Revolution** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
 
 As a UCI-compliant engine, Revolution operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
 
@@ -84,8 +84,10 @@ expense of additional startup time and memory usage.
 
 ## Experience Book
 
-Revolution can learn from previous games by storing data in a `.bin` file.
-The following UCI options control this system:
+Revolution includes a simple text-based cache that stores root moves from
+previous games. It functions as a lightweight opening book and does not
+influence the internal search beyond the root. The following UCI options
+control this system:
 
 - `Experience Enabled`: enables or disables the experience feature (default `true`).
 - `Experience File`: name of the file where the experience data is stored (default `revolution.bin`).
@@ -104,10 +106,10 @@ Revolution is distributed under the **[GNU General Public License v3][gpl-link]*
 It integrates source code from:
 
 - [Stockfish](https://github.com/official-stockfish/Stockfish)
-- [Berserk](https://github.com/jhonnold/berserk/tree/main/src)
-- [Obsidian](https://github.com/gab8192/Obsidian)
 
-Because these projects are GPLv3, any distribution of Revolution must also comply with GPLv3.
+No code from Berserk or Obsidian is currently included in Revolution.
+
+Because Stockfish is GPLv3, any distribution of Revolution must also comply with GPLv3.
 For a summary of your obligations under GPLv3 see <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
 When redistributing, you must:
 1. Include the original license text (`COPYING.txt`)
