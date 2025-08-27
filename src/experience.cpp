@@ -53,15 +53,14 @@ void Experience::load(const std::string& file) {
         }
     }
 
+    std::string display = path;
+    if (path != file)
+        display += " (from " + file + ")";
+
     std::ifstream in(path);
     if (!in)
     {
-        // Report both normalized path and original name if loading fails
-        if (path != file)
-            sync_cout << "info string Could not open " << path << " (from " << file
-                      << ')' << sync_endl;
-        else
-            sync_cout << "info string Could not open " << file << sync_endl;
+        sync_cout << "info string Could not open " << display << sync_endl;
         return;
     }
 
@@ -96,10 +95,7 @@ void Experience::load(const std::string& file) {
     std::size_t totalPositions = table.size();
     double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
-    sync_cout << "info string " << path;
-    if (path != file)
-        sync_cout << " (from " << file << ')';
-    sync_cout << " -> Total moves: " << totalMoves
+    sync_cout << "info string " << display << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions
               << ". Duplicate moves: " << duplicateMoves
               << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
