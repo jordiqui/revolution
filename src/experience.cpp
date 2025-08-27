@@ -23,10 +23,11 @@
 #include <algorithm>
 #include <cctype>
 #include <fstream>
-#include <sstream>
 #include <iomanip>
-#include "misc.h"
 #include <iostream>
+#include <sstream>
+
+#include "misc.h"
 
 namespace Stockfish {
 
