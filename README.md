@@ -28,7 +28,7 @@ Revolution's architecture features:
 - SMP parallelization with YBWC (Young Brothers Wait Concept)
 - Advanced pruning techniques (Reverse Futility Pruning, Late Move Pruning)
 - Efficient move ordering with history heuristics and killer moves
-- Tuned search parameters through reinforcement learning
+- Optional root experience book storing previously played moves
 
 ## Files
 
@@ -108,8 +108,6 @@ Revolution is distributed under the **[GNU General Public License v3][gpl-link]*
 It integrates source code from:
 
 - [Stockfish](https://github.com/official-stockfish/Stockfish)
-
-No code from Berserk or Obsidian is currently included in Revolution.
 
 Because Stockfish is GPLv3, any distribution of Revolution must also comply with GPLv3.
 For a summary of your obligations under GPLv3 see <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
