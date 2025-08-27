@@ -14,6 +14,8 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+  
+  Modifications Copyright (C) 2024 Jorge Ruiz Centelles
 */
 
 #include "uci.h"
@@ -114,9 +116,9 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0 dev <date>"
+            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0 <date>"
             sync_cout << "id name " << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << "\n"
-                << "id author Jorge Ruiz Centelles" << "\n"
+                << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << "\n"
                 << engine.get_options() << sync_endl;
 
             sync_cout << "uciok" << sync_endl;
