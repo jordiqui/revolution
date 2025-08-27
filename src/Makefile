@@ -842,12 +842,12 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "Revolution 1.0"
-#   - ENGINE_BUILD_DATE: system date in ddmmyy format
+#   - ENGINE_NAME: "revolution device v.1.0.0"
+#   - ENGINE_BUILD_DATE: fixed build identifier
 # You can override on the command line:
-#   make ENGINE_NAME="Revolution 1.0.2 beta" ENGINE_BUILD_DATE=251001
-ENGINE_NAME        ?= Revolution 1.0
-ENGINE_BUILD_DATE  ?= $(shell date +%d%m%y)
+#   make ENGINE_NAME="revolution device v.1.0.0" ENGINE_BUILD_DATE=2708225
+ENGINE_NAME        ?= revolution device v.1.0.0
+ENGINE_BUILD_DATE  ?= 2708225
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
 ### 3.9 Link Time Optimization

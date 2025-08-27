@@ -25,13 +25,13 @@
 #include "position.h"
 
 #ifndef ENGINE_BUILD_DATE
-    // yymmdd; override at build time with:  -DENGINE_BUILD_DATE=250827
-    #define ENGINE_BUILD_DATE "250827"
+    // Custom build identifier
+    #define ENGINE_BUILD_DATE "2708225"
 #endif
 
 #ifndef ENGINE_NAME
-    // override at build time with:  -DENGINE_NAME="\"Revolution 1.0\""
-    #define ENGINE_NAME "Revolution 1.0"
+    // override at build time with:  -DENGINE_NAME="\"revolution device v.1.0.0\""
+    #define ENGINE_NAME "revolution device v.1.0.0"
 #endif
 
 using namespace Stockfish;
