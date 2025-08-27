@@ -96,7 +96,10 @@ void Experience::load(const std::string& file) {
     std::size_t totalPositions = table.size();
     double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
-    sync_cout << "info string " << path << " -> Total moves: " << totalMoves
+    sync_cout << "info string " << path;
+    if (path != file)
+        sync_cout << " (from " << file << ')';
+    sync_cout << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions
               << ". Duplicate moves: " << duplicateMoves
               << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
