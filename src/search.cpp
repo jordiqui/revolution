@@ -1255,38 +1255,19 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
 
-        // Step 17. Late moves reduction / extension (LMR)
+        // Step 17. Late moves reduction (LMR)
         if (depth >= 2 && moveCount > 1)
         {
-            // In general we want to cap the LMR depth search at newDepth, but when
-            // reduction is negative, we allow this move a limited search extension
-            // beyond the first move depth.
-            // To prevent problems when the max value is less than the min value,
-            // std::clamp has been replaced by a more robust implementation.
-            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 1 + PvNode)) + PvNode;
+            // Apply a simple reduction limited between one ply and the remaining depth
+            Depth d = std::max(1, newDepth - r / 1024);
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
-            // (*Scaler) Usually doing more shallower searches
-            // doesn't scale well to longer TCs
             if (value > alpha)
-            {
-                // Adjust full-depth search based on LMR results - if the result was
-                // good enough search deeper, if it was bad enough search shallower.
-                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
-                const bool doShallowerSearch = value < bestValue + 9;
-
-                newDepth += doDeeperSearch - doShallowerSearch;
-
-                if (newDepth > d)
-                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
-
-                // Post LMR continuation history updates
-                update_continuation_histories(ss, movedPiece, move.to_sq(), 1412);
-            }
+                value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
         }
 
         // Step 18. Full-depth search when LMR is skipped

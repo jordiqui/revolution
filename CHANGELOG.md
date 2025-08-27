@@ -1,5 +1,10 @@
 # Changelog
 
+# [1.0.0-dev 2708225]
+### Changed
+- Simplified LMR logic to streamline search and improve speed.
+- Updated default engine name to "revolution device v.1.0.0" with build identifier 2708225.
+
 ## [1.0] - 2025-08-27
 ### Added
 - Initial public release of Revolution v1.0.
