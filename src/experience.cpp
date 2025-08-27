@@ -56,6 +56,7 @@ void Experience::load(const std::string& file) {
     std::ifstream in(path);
     if (!in)
     {
+        // Report both normalized path and original name if loading fails
         if (path != file)
             sync_cout << "info string Could not open " << path << " (from " << file
                       << ')' << sync_endl;
