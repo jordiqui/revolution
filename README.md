@@ -1,5 +1,7 @@
 # Revolution Chess Engine
 
+**Version 1.0**
+
 <div align="center">
   <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
   <h3>Revolution</h3>
@@ -8,7 +10,7 @@
   <br>
   <strong><a href="#">Explore Revolution Documentation »</a>
 
-  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.s</em>
+  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.</em>
   
 </div>
 
