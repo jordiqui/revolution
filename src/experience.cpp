@@ -21,8 +21,12 @@
 #include "experience.h"
 
 #include <algorithm>
+#include <cctype>
 #include <fstream>
 #include <sstream>
+#include <iomanip>
+#include "misc.h"
+#include <iostream>
 
 namespace Stockfish {
 
@@ -31,15 +35,66 @@ Experience experience;
 void Experience::clear() { table.clear(); }
 
 void Experience::load(const std::string& file) {
-    std::ifstream in(file);
+    std::string path = file;
+
+    if (path.size() >= 4)
+    {
+        std::string ext = path.substr(path.size() - 4);
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+            return char(std::tolower(c));
+        });
+
+        if (ext == ".bin")
+        {
+            path = path.substr(0, path.size() - 4) + ".exp";
+            sync_cout << "info string '.bin' experience files are deprecated; trying '" << path
+                      << "'" << sync_endl;
+        }
+    }
+
+    std::ifstream in(path);
     if (!in)
+    {
+        sync_cout << "info string Could not open " << path << sync_endl;
         return;
+    }
+
     table.clear();
+
     uint64_t key;
     unsigned move;
     int      score, depth, count;
+
+    std::size_t totalMoves = 0;
+    std::size_t duplicateMoves = 0;
+
     while (in >> key >> move >> score >> depth >> count)
-        table[key].push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    {
+        totalMoves++;
+        auto& vec  = table[key];
+        bool  dup  = false;
+        for (auto& e : vec)
+            if (e.move.raw() == move)
+            {
+                dup        = true;
+                duplicateMoves++;
+                e.score = score;
+                e.depth = depth;
+                e.count += count;
+                break;
+            }
+        if (!dup)
+            vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    }
+
+    std::size_t totalPositions = table.size();
+    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+
+    sync_cout << "info string " << path << " -> Total moves: " << totalMoves
+              << ". Total positions: " << totalPositions
+              << ". Duplicate moves: " << duplicateMoves
+              << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
+              << sync_endl;
 }
 
 void Experience::save(const std::string& file) const {
