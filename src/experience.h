@@ -42,8 +42,7 @@ class Experience {
     void clear();
     void load(const std::string& file);
     void save(const std::string& file) const;
-    Move probe(Position& pos, [[maybe_unused]] int width, int evalImportance,
-               int minDepth, int maxMoves);
+    Move probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves);
     void update(Position& pos, Move move, int score, int depth);
 
    private:
