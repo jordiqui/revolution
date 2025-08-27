@@ -14,7 +14,7 @@
 
 ## Overview
 
-**Revolution** is a free, open-source UCI chess engine implementing cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
+**Revolution** is a free, open-source UCI chess engine derived from **Stockfish** and informed by ideas from **Berserk** and **Obsidian**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
 
 As a UCI-compliant engine, Revolution operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
 
@@ -84,20 +84,19 @@ expense of additional startup time and memory usage.
 
 ## Experience Book
 
-Revolution puede aprender de partidas previas guardando datos en un archivo `.bin`.
-Las siguientes opciones UCI controlan este sistema:
+Revolution can learn from previous games by storing data in a `.bin` file.
+The following UCI options control this system:
 
-- `Experience Enabled`: activa o desactiva la experiencia (por defecto `true`).
-- `Experience File`: nombre del archivo donde se almacena la experiencia (por defecto `revolution.bin`).
-- `Experience Readonly`: si es `true`, no se escriben cambios en el archivo.
-- `Experience Book`: usa la experiencia como libro de aperturas.
-- `Experience Book Width`: número de movimientos principales a considerar (1–20).
-- `Experience Book Eval Importance`: ponderación de la evaluación al ordenar movimientos (0–10).
-- `Experience Book Min Depth`: profundidad mínima para almacenar un movimiento (4–64).
-- `Experience Book Max Moves`: máximo de movimientos guardados por posición (1–100).
+- `Experience Enabled`: enables or disables the experience feature (default `true`).
+- `Experience File`: name of the file where the experience data is stored (default `revolution.bin`).
+- `Experience Readonly`: if `true`, no changes are written to the file.
+- `Experience Book`: uses the experience data as an opening book.
+- `Experience Book Width`: number of principal moves to consider (1–20).
+- `Experience Book Eval Importance`: weighting of evaluation when ordering moves (0–10).
+- `Experience Book Min Depth`: minimum depth required to store a move (4–64).
+- `Experience Book Max Moves`: maximum number of moves saved per position (1–100).
 
-El archivo se carga al iniciar el motor y se actualiza tras cada partida si la opción
-`Experience Readonly` está desactivada.
+The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
 
 ## License
 
@@ -109,6 +108,7 @@ It integrates source code from:
 - [Obsidian](https://github.com/gab8192/Obsidian)
 
 Because these projects are GPLv3, any distribution of Revolution must also comply with GPLv3.
+For a summary of your obligations under GPLv3 see <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
 When redistributing, you must:
 1. Include the original license text (`COPYING.txt`)
 2. Provide complete corresponding source code
@@ -132,5 +132,3 @@ Revolution also benefits from:
 [lichess-db]: https://database.lichess.org
 [ccc-link]: https://www.chess.com/computer-chess-championship
 [cpw-link]: https://www.chessprogramming.org
-# revolution
-# revolution
