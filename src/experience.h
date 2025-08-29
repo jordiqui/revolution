@@ -24,6 +24,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <future>
 
 #include "position.h"
 #include "types.h"
@@ -41,6 +42,8 @@ class Experience {
    public:
     void clear();
     void load(const std::string& file);
+    void load_async(const std::string& file);
+    void wait_until_loaded();
     void save(const std::string& file) const;
     Move probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves);
     void update(Position& pos, Move move, int score, int depth);
@@ -48,6 +51,7 @@ class Experience {
    private:
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
     bool binaryFormat = false;
+    std::future<void> loader;
 };
 
 extern Experience experience;
