@@ -59,7 +59,7 @@ void Experience::load(const std::string& file) {
     in.seekg(0, std::ios::beg);
 
     table.clear();
-    isBinary = isV1 || isV2;
+    binaryFormat = isV1 || isV2;
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
@@ -82,7 +82,7 @@ void Experience::load(const std::string& file) {
             vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
     };
 
-    if (isBinary)
+    if (binaryFormat)
     {
         in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
 
@@ -183,7 +183,7 @@ void Experience::save(const std::string& file) const {
         }
     }
 
-    if (isBinary)
+    if (binaryFormat)
     {
         std::ofstream out(path, std::ios::binary);
         if (!out)
