@@ -181,6 +181,14 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Book Min Depth", Option(27, 4, 64));
     options.add("Experience Book Max Moves", Option(16, 1, 100));
 
+    // Optional experimental evaluation tweak that adapts weights based on
+    // simple positional cues. Disabled by default so it does not alter
+    // standard play unless explicitly requested by the user.
+    options.add("Adaptive Style", Option(false, [](const Option& o) {
+                    Eval::set_adaptive_style(bool(o));
+                    return std::nullopt;
+                }));
+
     options.add(  //
       "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {
           load_big_network(o);
