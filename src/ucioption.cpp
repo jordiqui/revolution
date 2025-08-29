@@ -24,7 +24,7 @@
 #define ENGINE_NAME "revolution dev 290825 v1.0.1"
 #endif
 #ifndef ENGINE_BUILD_DATE
-#define ENGINE_BUILD_DATE "2708225"  // build identifier
+#define ENGINE_BUILD_DATE ""  // build identifier
 #endif
 
 

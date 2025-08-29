@@ -41,6 +41,13 @@
 #include "types.h"
 #include "ucioption.h"
 
+#ifndef ENGINE_NAME
+#define ENGINE_NAME "revolution dev 290825 v1.0.1"
+#endif
+#ifndef ENGINE_BUILD_DATE
+#define ENGINE_BUILD_DATE ""
+#endif
+
 namespace Stockfish {
 
 constexpr auto BenchmarkCommand = "speedtest";
@@ -116,9 +123,11 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0 <date>"
-            sync_cout << "id name " << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << "\n"
-                << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << "\n"
+            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
+            sync_cout << "id name " << ENGINE_NAME;
+            if (*ENGINE_BUILD_DATE)
+                sync_cout << ' ' << ENGINE_BUILD_DATE;
+            sync_cout << "\n" << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << "\n"
                 << engine.get_options() << sync_endl;
 
             sync_cout << "uciok" << sync_endl;
