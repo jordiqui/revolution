@@ -162,7 +162,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Experience Enabled", Option(true, [this](const Option& o) {
                     if (bool(o))
-                        experience.load(options["Experience File"]);
+                        experience.load_async(options["Experience File"]);
                     else
                         experience.clear();
                     return std::nullopt;
@@ -170,7 +170,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Experience File", Option("revolution.exp", [this](const Option& o) {
                     if ((bool) options["Experience Enabled"])
-                        experience.load(o);
+                        experience.load_async(o);
                     return std::nullopt;
                 }));
 
@@ -202,7 +202,7 @@ Engine::Engine(std::optional<std::string> path) :
       }));
 
     if ((bool) options["Experience Enabled"])
-        experience.load(options["Experience File"]);
+        experience.load_async(options["Experience File"]);
 
     load_networks();
     resize_threads();
