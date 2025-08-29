@@ -38,6 +38,7 @@
 #include "position.h"
 #include "score.h"
 #include "search.h"
+#include "experience.h"
 #include "types.h"
 #include "ucioption.h"
 
@@ -131,6 +132,9 @@ void UCIEngine::loop() {
                 << engine.get_options() << sync_endl;
 
             sync_cout << "uciok" << sync_endl;
+
+            if ((bool)engine.get_options()["Experience Enabled"])
+                experience.load_async(engine.get_options()["Experience File"]);
         }
 
         else if (token == "setoption")

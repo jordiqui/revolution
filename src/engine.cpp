@@ -201,9 +201,6 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
-    if ((bool) options["Experience Enabled"])
-        experience.load_async(options["Experience File"]);
-
     load_networks();
     resize_threads();
 }
