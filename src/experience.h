@@ -43,12 +43,13 @@ class Experience {
     void clear();
     void load(const std::string& file);
     void load_async(const std::string& file);
-    void wait_until_loaded();
+    void wait_until_loaded() const;
     void save(const std::string& file) const;
     Move probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves);
     void update(Position& pos, Move move, int score, int depth);
 
    private:
+    bool is_ready() const;
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
     bool binaryFormat = false;
     std::future<void> loader;

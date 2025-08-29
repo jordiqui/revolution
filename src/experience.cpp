@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cctype>
 #include <future>
+#include <chrono>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -14,9 +15,14 @@ namespace Stockfish {
 
 Experience experience;
 
-void Experience::wait_until_loaded() {
+void Experience::wait_until_loaded() const {
     if (loader.valid())
         loader.wait();
+}
+
+bool Experience::is_ready() const {
+    return !loader.valid()
+        || loader.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
 }
 
 void Experience::clear() {
@@ -180,6 +186,7 @@ void Experience::load_async(const std::string& file) {
 }
 
 void Experience::save(const std::string& file) const {
+    wait_until_loaded();
     std::string path = file;
 
     if (path.size() >= 4)
@@ -257,7 +264,8 @@ void Experience::save(const std::string& file) const {
 }
 
 Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
-    wait_until_loaded();
+    if (!is_ready())
+        return Move::none();
     auto it = table.find(pos.key());
     if (it == table.end())
         return Move::none();
@@ -285,7 +293,8 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
-    wait_until_loaded();
+    if (!is_ready())
+        return;
     auto& vec = table[pos.key()];
     for (auto& e : vec)
         if (e.move == move)
