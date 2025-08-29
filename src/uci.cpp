@@ -43,10 +43,10 @@
 #include "ucioption.h"
 
 #ifndef ENGINE_NAME
-#define ENGINE_NAME "revolution dev 290825 v1.0.1"
+    #define ENGINE_NAME "revolution dev 290825 v1.0.1"
 #endif
 #ifndef ENGINE_BUILD_DATE
-#define ENGINE_BUILD_DATE ""
+    #define ENGINE_BUILD_DATE ""
 #endif
 
 namespace Stockfish {
@@ -125,15 +125,20 @@ void UCIEngine::loop() {
         else if (token == "uci")
         {
             // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
-            sync_cout << "id name " << ENGINE_NAME;
+            sync_cout_start();
+            std::cout << "id name " << ENGINE_NAME;
             if (*ENGINE_BUILD_DATE)
-                sync_cout << ' ' << ENGINE_BUILD_DATE;
-            sync_cout << "\n" << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << "\n"
-                << engine.get_options() << sync_endl;
+                std::cout << ' ' << ENGINE_BUILD_DATE;
+            std::cout
+              << "\n"
+              << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
+              << "\n"
+              << engine.get_options() << std::endl;
+            sync_cout_end();
 
             sync_cout << "uciok" << sync_endl;
 
-            if ((bool)engine.get_options()["Experience Enabled"])
+            if ((bool) engine.get_options()["Experience Enabled"])
                 experience.load_async(engine.get_options()["Experience File"]);
         }
 
