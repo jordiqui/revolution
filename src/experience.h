@@ -47,7 +47,7 @@ class Experience {
 
    private:
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
-    bool isBinary = false;
+    bool binaryFormat = false;
 };
 
 extern Experience experience;
