@@ -138,6 +138,10 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (vec.empty())
         return Move::none();
 
+    // Order moves by their historical evaluation and depth so that the most
+    // promising moves come first.  This allows the engine to "learn" from
+    // previous games by preferring moves with the best average score at the
+    // deepest search.
     std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
         return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
     });
@@ -147,9 +151,9 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (vec.empty() || vec.front().depth < minDepth)
         return Move::none();
 
-    PRNG        rng(now());
-    const auto& choice = vec[rng.rand<int>() % vec.size()];
-    return choice.move;
+    // Pick the best move deterministically instead of randomly.  The highest
+    // ranked move represents the one with the best historical evaluation.
+    return vec.front().move;
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
@@ -157,11 +161,15 @@ void Experience::update(Position& pos, Move move, int score, int depth) {
     for (auto& e : vec)
         if (e.move == move)
         {
-            e.score = score;
-            e.depth = depth;
+            // Update the stored statistics with a running average of the
+            // evaluation.  This simple learning mechanism increases the score
+            // reliability over time and retains the deepest search depth seen.
+            e.score = (e.score * e.count + score) / (e.count + 1);
+            e.depth = std::max(e.depth, depth);
             e.count++;
             return;
         }
+    // First encounter of this move in the current position.
     vec.push_back({move, score, depth, 1});
 }
 
