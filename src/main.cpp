@@ -25,8 +25,8 @@
 #include "position.h"
 
 #ifndef ENGINE_BUILD_DATE
-    // Custom build identifier
-    #define ENGINE_BUILD_DATE "2708225"
+    // Optional custom build identifier
+    #define ENGINE_BUILD_DATE ""
 #endif
 
 #ifndef ENGINE_NAME
@@ -39,7 +39,10 @@ using namespace Stockfish;
 int main(int argc, char* argv[]) {
 
     // Clear, consistent banner (many GUIs echo this to their logs)
-    std::cout << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << ' ' << __DATE__ << ' ' << __TIME__
+    std::cout << ENGINE_NAME;
+    if (*ENGINE_BUILD_DATE)
+        std::cout << ' ' << ENGINE_BUILD_DATE;
+    std::cout << ' ' << __DATE__ << ' ' << __TIME__
               << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
               << std::endl;
 

@@ -51,15 +51,37 @@ void Experience::load(const std::string& file) {
 
     table.clear();
 
-    uint64_t key;
-    unsigned move;
-    int      score, depth, count;
-
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
 
-    while (in >> key >> move >> score >> depth >> count)
+    std::string line;
+    while (std::getline(in, line))
     {
+        if (line.empty() || line[0] == '#')
+            continue;
+
+        std::istringstream iss(line);
+        std::string        keyStr, moveStr;
+        int                score, depth, count;
+
+        if (!(iss >> keyStr >> moveStr >> score >> depth >> count))
+            continue;
+
+        auto parse = [](const std::string& s, uint64_t& out) {
+            std::istringstream ss(s);
+            if (s.find_first_not_of("0123456789") == std::string::npos)
+                ss >> out;
+            else
+                ss >> std::hex >> out;
+            return !ss.fail();
+        };
+
+        uint64_t key64, move64;
+        if (!parse(keyStr, key64) || !parse(moveStr, move64))
+            continue;
+        uint64_t key  = key64;
+        unsigned move = static_cast<unsigned>(move64);
+
         totalMoves++;
         auto& vec = table[key];
         bool  dup = false;
