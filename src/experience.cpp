@@ -29,7 +29,7 @@ void Experience::load(const std::string& file) {
         if (ext == ".bin")
         {
             convertBin = true;
-            in.open(path);
+            in.open(path, std::ios::binary);
             path = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; converting to '"
                       << path << "'" << sync_endl;
@@ -37,7 +37,7 @@ void Experience::load(const std::string& file) {
     }
 
     if (!convertBin)
-        in.open(path);
+        in.open(path, std::ios::binary);
 
     std::string display = path;
     if (path != file)
@@ -49,39 +49,22 @@ void Experience::load(const std::string& file) {
         return;
     }
 
+    const std::string sigV2 = "SugaR Experience version 2";
+    const std::string sigV1 = "SugaR";
+    std::string       header(sigV2.size(), '\0');
+    in.read(header.data(), header.size());
+    bool isV2 = header == sigV2;
+    bool isV1 = !isV2 && header.substr(0, sigV1.size()) == sigV1;
+    in.clear();
+    in.seekg(0, std::ios::beg);
+
     table.clear();
+    binaryFormat = isV1 || isV2;
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
 
-    std::string line;
-    while (std::getline(in, line))
-    {
-        if (line.empty() || line[0] == '#')
-            continue;
-
-        std::istringstream iss(line);
-        std::string        keyStr, moveStr;
-        int                score, depth, count;
-
-        if (!(iss >> keyStr >> moveStr >> score >> depth >> count))
-            continue;
-
-        auto parse = [](const std::string& s, uint64_t& out) {
-            std::istringstream ss(s);
-            if (s.find_first_not_of("0123456789") == std::string::npos)
-                ss >> out;
-            else
-                ss >> std::hex >> out;
-            return !ss.fail();
-        };
-
-        uint64_t key64, move64;
-        if (!parse(keyStr, key64) || !parse(moveStr, move64))
-            continue;
-        uint64_t key  = key64;
-        unsigned move = static_cast<unsigned>(move64);
-
+    auto insert_entry = [&](uint64_t key, unsigned move, int score, int depth, int count) {
         totalMoves++;
         auto& vec = table[key];
         bool  dup = false;
@@ -97,10 +80,82 @@ void Experience::load(const std::string& file) {
             }
         if (!dup)
             vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    };
+
+    if (binaryFormat)
+    {
+        in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
+
+        struct BinV1 {
+            uint64_t key;
+            uint32_t move;
+            int32_t  value;
+            int32_t  depth;
+            uint8_t  pad[4];
+        };
+        struct BinV2 {
+            uint64_t key;
+            uint32_t move;
+            int32_t  value;
+            int32_t  depth;
+            uint16_t count;
+            uint8_t  pad[2];
+        };
+
+        if (isV2)
+        {
+            BinV2 e;
+            while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                insert_entry(e.key, e.move, e.value, e.depth, e.count);
+        }
+        else
+        {
+            BinV1 e;
+            while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                insert_entry(e.key, e.move, e.value, e.depth, 1);
+        }
+    }
+    else
+    {
+        in.close();
+        in.open(path); // reopen in text mode
+        if (!in)
+        {
+            sync_cout << "info string Could not open " << display << sync_endl;
+            return;
+        }
+
+        std::string line;
+        while (std::getline(in, line))
+        {
+            if (line.empty() || line[0] == '#')
+                continue;
+
+            std::istringstream iss(line);
+            std::string        keyStr, moveStr;
+            int                score, depth, count;
+
+            if (!(iss >> keyStr >> moveStr >> score >> depth >> count))
+                continue;
+
+            auto parse = [](const std::string& s, uint64_t& out) {
+                std::istringstream ss(s);
+                if (s.find_first_not_of("0123456789") == std::string::npos)
+                    ss >> out;
+                else
+                    ss >> std::hex >> out;
+                return !ss.fail();
+            };
+
+            uint64_t key64, move64;
+            if (!parse(keyStr, key64) || !parse(moveStr, move64))
+                continue;
+            insert_entry(key64, static_cast<unsigned>(move64), score, depth, count);
+        }
     }
 
     std::size_t totalPositions = table.size();
-    double      frag           = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
     sync_cout << "info string " << display << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << ". Duplicate moves: " << duplicateMoves
@@ -128,27 +183,64 @@ void Experience::save(const std::string& file) const {
         }
     }
 
-    std::ofstream out(path);
-    if (!out)
+    if (binaryFormat)
     {
-        sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
-        return;
-    }
-
-    std::size_t totalMoves = 0;
-
-    for (const auto& [key, vec] : table)
-        for (const auto& e : vec)
+        std::ofstream out(path, std::ios::binary);
+        if (!out)
         {
-            out << key << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' ' << e.count
-                << '\n';
-            totalMoves++;
+            sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
+            return;
         }
 
-    std::size_t totalPositions = table.size();
+        const std::string sig = "SugaR Experience version 2";
+        out.write(sig.c_str(), sig.size());
 
-    sync_cout << "info string " << path << " <- Total moves: " << totalMoves
-              << ". Total positions: " << totalPositions << sync_endl;
+        std::size_t totalMoves = 0;
+        for (const auto& [key, vec] : table)
+            for (const auto& e : vec)
+            {
+                struct BinV2 {
+                    uint64_t key;
+                    uint32_t move;
+                    int32_t  value;
+                    int32_t  depth;
+                    uint16_t count;
+                    uint8_t  pad[2];
+                } be{key, static_cast<uint32_t>(e.move.raw()), e.score, e.depth,
+                   static_cast<uint16_t>(std::min(e.count, 0xFFFF)), {0, 0}};
+                out.write(reinterpret_cast<const char*>(&be), sizeof(be));
+                totalMoves++;
+            }
+
+        std::size_t totalPositions = table.size();
+
+        sync_cout << "info string " << path << " <- Total moves: " << totalMoves
+                  << ". Total positions: " << totalPositions << sync_endl;
+    }
+    else
+    {
+        std::ofstream out(path);
+        if (!out)
+        {
+            sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
+            return;
+        }
+
+        std::size_t totalMoves = 0;
+
+        for (const auto& [key, vec] : table)
+            for (const auto& e : vec)
+            {
+                out << key << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' ' << e.count
+                    << '\n';
+                totalMoves++;
+            }
+
+        std::size_t totalPositions = table.size();
+
+        sync_cout << "info string " << path << " <- Total moves: " << totalMoves
+                  << ". Total positions: " << totalPositions << sync_endl;
+    }
 }
 
 Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
