@@ -21,7 +21,7 @@
 #include "ucioption.h"
 // --- Engine identity (fallbacks; Makefile can override) ---
 #ifndef ENGINE_NAME
-#define ENGINE_NAME "revolution device v.1.0.0"
+#define ENGINE_NAME "revolution dev 290825 v1.0.1"
 #endif
 #ifndef ENGINE_BUILD_DATE
 #define ENGINE_BUILD_DATE "2708225"  // build identifier
