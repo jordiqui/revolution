@@ -175,11 +175,11 @@ Engine::Engine(std::optional<std::string> path) :
                 }));
 
     options.add("Experience Readonly", Option(false));
-    options.add("Experience Book", Option(false));
-    options.add("Experience Book Width", Option(1, 1, 20));
-    options.add("Experience Book Eval Importance", Option(5, 0, 10));
-    options.add("Experience Book Min Depth", Option(27, 4, 64));
-    options.add("Experience Book Max Moves", Option(16, 1, 100));
+    options.add("Experience Prior", Option(true));
+    options.add("Experience Width", Option(1, 1, 20));
+    options.add("Experience Eval Weight", Option(5, 0, 10));
+    options.add("Experience Min Depth", Option(27, 4, 64));
+    options.add("Experience Max Moves", Option(16, 1, 100));
 
     // Optional experimental evaluation tweak that adapts weights based on
     // simple positional cues. Disabled by default so it does not alter
