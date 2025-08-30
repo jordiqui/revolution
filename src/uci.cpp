@@ -46,7 +46,7 @@
     #define ENGINE_NAME "revolution dev 290825 v1.0.1"
 #endif
 #ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE ""
+    #define ENGINE_BUILD_DATE __DATE__
 #endif
 
 namespace Stockfish {
