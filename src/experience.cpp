@@ -21,8 +21,7 @@ void Experience::wait_until_loaded() const {
 }
 
 bool Experience::is_ready() const {
-    return !loader.valid()
-        || loader.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
+    return !loader.valid() || loader.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
 }
 
 void Experience::clear() {
@@ -133,7 +132,7 @@ void Experience::load(const std::string& file) {
     else
     {
         in.close();
-        in.open(path); // reopen in text mode
+        in.open(path);  // reopen in text mode
         if (!in)
         {
             sync_cout << "info string Could not open " << display << sync_endl;
@@ -170,12 +169,14 @@ void Experience::load(const std::string& file) {
     }
 
     std::size_t totalPositions = table.size();
-    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+    double      frag           = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
     sync_cout << "info string " << display << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << ". Duplicate moves: " << duplicateMoves
               << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
               << sync_endl;
+
+    binaryFormat = true;
 
     if (convertBin)
         save(path);
@@ -203,66 +204,42 @@ void Experience::save(const std::string& file) const {
         }
     }
 
-    if (binaryFormat)
+    std::ofstream out(path, std::ios::binary);
+    if (!out)
     {
-        std::ofstream out(path, std::ios::binary);
-        if (!out)
+        sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
+        return;
+    }
+
+    const std::string sig = "SugaR Experience version 2";
+    out.write(sig.c_str(), sig.size());
+
+    std::size_t totalMoves = 0;
+    for (const auto& [key, vec] : table)
+        for (const auto& e : vec)
         {
-            sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
-            return;
+            struct BinV2 {
+                uint64_t key;
+                uint32_t move;
+                int32_t  value;
+                int32_t  depth;
+                uint16_t count;
+                uint8_t  pad[2];
+            } be{key,
+                 static_cast<uint32_t>(e.move.raw()),
+                 e.score,
+                 e.depth,
+                 static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
+                 {0, 0}};
+            out.write(reinterpret_cast<const char*>(&be), sizeof(be));
+            totalMoves++;
         }
 
-        const std::string sig = "SugaR Experience version 2";
-        out.write(sig.c_str(), sig.size());
+    std::size_t totalPositions = table.size();
 
-        std::size_t totalMoves = 0;
-        for (const auto& [key, vec] : table)
-            for (const auto& e : vec)
-            {
-                struct BinV2 {
-                    uint64_t key;
-                    uint32_t move;
-                    int32_t  value;
-                    int32_t  depth;
-                    uint16_t count;
-                    uint8_t  pad[2];
-                } be{key, static_cast<uint32_t>(e.move.raw()), e.score, e.depth,
-                   static_cast<uint16_t>(std::min(e.count, 0xFFFF)), {0, 0}};
-                out.write(reinterpret_cast<const char*>(&be), sizeof(be));
-                totalMoves++;
-            }
-
-        std::size_t totalPositions = table.size();
-
-        sync_cout << "info string " << path << " <- Total moves: " << totalMoves
-                  << ". Total positions: " << totalPositions << sync_endl;
-    }
-    else
-    {
-        std::ofstream out(path);
-        if (!out)
-        {
-            sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
-            return;
-        }
-
-        std::size_t totalMoves = 0;
-
-        for (const auto& [key, vec] : table)
-            for (const auto& e : vec)
-            {
-                out << key << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' ' << e.count
-                    << '\n';
-                totalMoves++;
-            }
-
-        std::size_t totalPositions = table.size();
-
-        sync_cout << "info string " << path << " <- Total moves: " << totalMoves
-                  << ". Total positions: " << totalPositions << sync_endl;
-    }
+    sync_cout << "info string " << path << " <- Total moves: " << totalMoves
+              << ". Total positions: " << totalPositions << sync_endl;
 }
-
 Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
     if (!is_ready())
         return Move::none();
