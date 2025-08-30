@@ -173,7 +173,8 @@ void Search::Worker::start_searching() {
                             main_manager()->originalTimeAdjust);
     tt.new_search();
 
-    Move bookMove = Move::none();
+    Move preferredMove = Move::none();
+    Move bookMove      = Move::none();
 
     if (rootMoves.empty())
     {
@@ -185,13 +186,14 @@ void Search::Worker::start_searching() {
     {
         if (!limits.infinite && !limits.mate)
         {
-            if ((bool) options["Experience Enabled"] && (bool) options["Experience Book"])
-                bookMove = experience.probe(rootPos, (int) options["Experience Book Width"],
-                                            (int) options["Experience Book Eval Importance"],
-                                            (int) options["Experience Book Min Depth"],
-                                            (int) options["Experience Book Max Moves"]);
+            if ((bool) options["Experience Enabled"] && (bool) options["Experience Prior"])
+                preferredMove =
+                  experience.probe(rootPos, (int) options["Experience Width"],
+                                   (int) options["Experience Eval Weight"],
+                                   (int) options["Experience Min Depth"],
+                                   (int) options["Experience Max Moves"]);
 
-            if (bookMove == Move::none() && (bool) options["Book1"]
+            if ((bool) options["Book1"]
                 && rootPos.game_ply() / 2 < (int) options["Book1 Depth"])
                 bookMove = polybook[0].probe(rootPos, (bool) options["Book1 BestBookMove"],
                                              (int) options["Book1 Width"]);
@@ -201,6 +203,13 @@ void Search::Worker::start_searching() {
                 bookMove = polybook[1].probe(rootPos, (bool) options["Book2 BestBookMove"],
                                              (int) options["Book2 Width"]);
         }
+
+        if (preferredMove != Move::none()
+            && std::find(rootMoves.begin(), rootMoves.end(), preferredMove) != rootMoves.end())
+            for (auto&& th : threads)
+                std::swap(th->worker.get()->rootMoves[0],
+                          *std::find(th->worker.get()->rootMoves.begin(),
+                                     th->worker.get()->rootMoves.end(), preferredMove));
 
         if (bookMove != Move::none()
             && std::find(rootMoves.begin(), rootMoves.end(), bookMove) != rootMoves.end())
