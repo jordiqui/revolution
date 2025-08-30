@@ -847,7 +847,7 @@ endif
 # You can override on the command line:
 #   make ENGINE_NAME="revolution dev 290825 v1.0.1" ENGINE_BUILD_DATE=20240829
 ENGINE_NAME        ?= revolution dev 290825 v1.0.1
-ENGINE_BUILD_DATE  ?=
+ENGINE_BUILD_DATE  ?= $(shell date +%Y-%m-%d)
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
 ### 3.9 Link Time Optimization

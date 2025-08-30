@@ -108,6 +108,8 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("nodestime", Option(0, 0, 10000));
 
+    options.add("Minimum Thinking Time", Option(20, 0, 5000));
+
     options.add("UCI_Chess960", Option(false));
 
     options.add("UCI_LimitStrength", Option(false));
@@ -213,6 +215,11 @@ std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960
 
 void Engine::go(Search::LimitsType& limits) {
     assert(limits.perft == 0);
+
+    TimePoint minTime = TimePoint(options["Minimum Thinking Time"]);
+    if (limits.movetime && limits.movetime < minTime)
+        limits.movetime = minTime;
+
     verify_networks();
 
     threads.start_thinking(options, pos, states, limits);
