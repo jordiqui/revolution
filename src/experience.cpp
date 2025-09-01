@@ -10,6 +10,7 @@
 #include <sstream>
 
 #include "misc.h"
+#include "uci.h"
 
 namespace Stockfish {
 
@@ -286,6 +287,32 @@ void Experience::update(Position& pos, Move move, int score, int depth) {
         }
     // First encounter of this move in the current position.
     vec.push_back({move, score, depth, 1});
+}
+
+void Experience::show(const Position& pos, int evalImportance, int maxMoves) const {
+    if (!is_ready())
+        return;
+    auto it = table.find(pos.key());
+    if (it == table.end())
+    {
+        sync_cout << "info string No experience available" << sync_endl;
+        return;
+    }
+    auto vec = it->second;
+    std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
+        return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
+    });
+    int shown = 0;
+    for (const auto& e : vec)
+    {
+        if (shown++ >= maxMoves)
+            break;
+        sync_cout << "info string "
+                  << UCIEngine::move(e.move, pos.is_chess960())
+                  << " score " << e.score
+                  << " depth " << e.depth
+                  << " count " << e.count << sync_endl;
+    }
 }
 
 }  // namespace Stockfish

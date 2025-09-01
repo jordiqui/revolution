@@ -28,6 +28,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <iomanip>
+#include <random>
 
 #include "evaluate.h"
 #include "misc.h"
@@ -173,6 +175,7 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience File", Option("revolution.exp", [this](const Option& o) {
                     if ((bool) options["Experience Enabled"])
                         experience.load_async(o);
+                    concurrentExperienceFile.clear();
                     return std::nullopt;
                 }));
 
@@ -182,6 +185,13 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Eval Weight", Option(5, 0, 10));
     options.add("Experience Min Depth", Option(27, 4, 64));
     options.add("Experience Max Moves", Option(16, 1, 100));
+    options.add("Experience Book", Option(false));
+    options.add("Experience Book Max Moves", Option(100, 1, 100));
+    options.add("Experience Book Min Depth", Option(4, 1, 255));
+    options.add("Experience Concurrent", Option(false, [this](const Option&) {
+                    concurrentExperienceFile.clear();
+                    return std::nullopt;
+                }));
 
     // Optional experimental evaluation tweak that adapts weights based on
     // simple positional cues. Disabled by default so it does not alter
@@ -237,7 +247,27 @@ void Engine::search_clear() {
     Tablebases::release();
 
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
-        experience.save(options["Experience File"]);
+    {
+        std::string file = options["Experience File"];
+        if ((bool) options["Experience Concurrent"])
+        {
+            if (concurrentExperienceFile.empty())
+            {
+                std::random_device rd;
+                uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
+                std::ostringstream oss;
+                oss << std::hex << std::setfill('0') << std::setw(16) << r;
+                std::string suffix = oss.str();
+                auto        p      = file.find_last_of('.');
+                if (p != std::string::npos)
+                    concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
+                else
+                    concurrentExperienceFile = file + "-" + suffix;
+            }
+            file = concurrentExperienceFile;
+        }
+        experience.save(file);
+    }
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
@@ -441,4 +471,6 @@ std::string Engine::thread_allocation_information_as_string() const {
 
     return ss.str();
 }
+
+const Position& Engine::position() const { return pos; }
 }
