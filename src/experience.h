@@ -50,10 +50,11 @@ class Experience {
     void show(const Position& pos, int evalImportance, int maxMoves) const;
 
    private:
-    bool is_ready() const;
+    bool                                                  is_ready() const;
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
-    bool binaryFormat = false;
-    std::future<void> loader;
+    bool                                                  binaryFormat     = false;
+    bool                                                  brainLearnFormat = true;
+    std::future<void>                                     loader;
 };
 
 extern Experience experience;
