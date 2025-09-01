@@ -91,7 +91,7 @@ previous games. Rather than forcing book moves, the cached information biases ro
 ordering during search. The following UCI options control this system:
 
 - `Experience Enabled`: enables or disables the experience feature (default `true`).
-- `Experience File`: name of the file where the experience data is stored (default `revolution.exp`; legacy `.bin` files are converted automatically).
+- `Experience File`: name of the file where the experience data is stored (default `revolution.ccz`; legacy `.bin` files are converted automatically and saved in compressed form).
 - `Experience Readonly`: if `true`, no changes are written to the file.
 - `Experience Prior`: uses stored experience to bias root move ordering.
 - `Experience Width`: number of principal moves to consider (1–20).
