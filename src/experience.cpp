@@ -4,6 +4,7 @@
 #include <cctype>
 #include <future>
 #include <chrono>
+#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -39,19 +40,23 @@ void Experience::load(const std::string& file) {
     bool        compressed = false;
     std::string display;
 
-    if (path.size() >= 4) {
+    if (path.size() >= 4)
+    {
         std::string ext = path.substr(path.size() - 4);
         std::transform(ext.begin(), ext.end(), ext.begin(),
                        [](unsigned char c) { return char(std::tolower(c)); });
 
-        if (ext == ".bin") {
+        if (ext == ".bin")
+        {
             convertBin = true;
             path       = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; converting to '"
                       << path << "'" << sync_endl;
-        } else if (ext == ".ccz")
+        }
+        else if (ext == ".ccz")
             compressed = true;
-        else if (ext == ".exp") {
+        else if (ext == ".exp")
+        {
             // Default uncompressed experience format
         }
     }
@@ -61,9 +66,11 @@ void Experience::load(const std::string& file) {
         display += " (from " + file + ")";
 
     std::string buffer;
-    if (compressed) {
+    if (compressed)
+    {
         gzFile gzin = gzopen(path.c_str(), "rb");
-        if (!gzin) {
+        if (!gzin)
+        {
             sync_cout << "info string Could not open " << display << sync_endl;
             return;
         }
@@ -72,9 +79,12 @@ void Experience::load(const std::string& file) {
         while ((bytes = gzread(gzin, tmp, sizeof(tmp))) > 0)
             buffer.append(tmp, bytes);
         gzclose(gzin);
-    } else {
+    }
+    else
+    {
         std::ifstream f(convertBin ? file : path, std::ios::binary);
-        if (!f) {
+        if (!f)
+        {
             sync_cout << "info string Could not open " << display << sync_endl;
             return;
         }
@@ -89,11 +99,13 @@ void Experience::load(const std::string& file) {
     in.read(header.data(), header.size());
     bool isV2 = header == sigV2;
     bool isV1 = !isV2 && header.substr(0, sigV1.size()) == sigV1;
+    bool isBL = !isV1 && !isV2 && buffer.size() >= 24 && (buffer.size() % 24 == 0);
     in.clear();
     in.seekg(0, std::ios::beg);
 
     table.clear();
-    binaryFormat = isV1 || isV2;
+    binaryFormat     = isV1 || isV2 || isBL;
+    brainLearnFormat = isBL;
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
@@ -118,35 +130,52 @@ void Experience::load(const std::string& file) {
 
     if (binaryFormat)
     {
-        in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
-
-        struct BinV1 {
-            uint64_t key;
-            uint32_t move;
-            int32_t  value;
-            int32_t  depth;
-            uint8_t  pad[4];
-        };
-        struct BinV2 {
-            uint64_t key;
-            uint32_t move;
-            int32_t  value;
-            int32_t  depth;
-            uint16_t count;
-            uint8_t  pad[2];
-        };
-
-        if (isV2)
+        if (isBL)
         {
-            BinV2 e;
+            struct BinBL {
+                uint64_t key;
+                int32_t  depth;
+                int32_t  value;
+                uint16_t move;
+                uint16_t pad;
+                int32_t  perf;
+            };
+            BinBL e;
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                insert_entry(e.key, e.move, e.value, e.depth, e.count);
+                insert_entry(e.key, e.move, e.value, e.depth, 1);
         }
         else
         {
-            BinV1 e;
-            while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                insert_entry(e.key, e.move, e.value, e.depth, 1);
+            in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
+
+            struct BinV1 {
+                uint64_t key;
+                uint32_t move;
+                int32_t  value;
+                int32_t  depth;
+                uint8_t  pad[4];
+            };
+            struct BinV2 {
+                uint64_t key;
+                uint32_t move;
+                int32_t  value;
+                int32_t  depth;
+                uint16_t count;
+                uint8_t  pad[2];
+            };
+
+            if (isV2)
+            {
+                BinV2 e;
+                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                    insert_entry(e.key, e.move, e.value, e.depth, e.count);
+            }
+            else
+            {
+                BinV1 e;
+                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                    insert_entry(e.key, e.move, e.value, e.depth, 1);
+            }
         }
     }
     else
@@ -203,63 +232,96 @@ void Experience::save(const std::string& file) const {
     std::string path       = file;
     bool        compressed = false;
 
-    if (path.size() >= 4) {
+    if (path.size() >= 4)
+    {
         std::string ext = path.substr(path.size() - 4);
         std::transform(ext.begin(), ext.end(), ext.begin(),
                        [](unsigned char c) { return char(std::tolower(c)); });
 
-        if (ext == ".bin") {
+        if (ext == ".bin")
+        {
             path = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; saving to '" << path
                       << "'" << sync_endl;
-        } else if (ext == ".ccz")
+        }
+        else if (ext == ".ccz")
             compressed = true;
-        else if (ext == ".exp") {
+        else if (ext == ".exp")
+        {
             // Default uncompressed experience format
         }
     }
 
-    const std::string sig = "SugaR Experience version 2";
-    std::string        buffer;
-    buffer.append(sig);
-
+    std::string buffer;
     std::size_t totalMoves = 0;
-    for (const auto& [key, vec] : table)
-        for (const auto& e : vec) {
-            struct BinV2 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
-            } be{key,
-                 static_cast<uint32_t>(e.move.raw()),
-                 e.score,
-                 e.depth,
-                 static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
-                 {0, 0}};
-            buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
-            totalMoves++;
-        }
+
+    if (brainLearnFormat)
+    {
+        struct BinBL {
+            uint64_t key;
+            int32_t  depth;
+            int32_t  value;
+            uint16_t move;
+            uint16_t pad;
+            int32_t  perf;
+        };
+        for (const auto& [key, vec] : table)
+            for (const auto& e : vec)
+            {
+                BinBL be{key, e.depth, e.score, static_cast<uint16_t>(e.move.raw()), 0, e.count};
+                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
+                totalMoves++;
+            }
+    }
+    else
+    {
+        const std::string sig = "SugaR Experience version 2";
+        buffer.append(sig);
+        struct BinV2 {
+            uint64_t key;
+            uint32_t move;
+            int32_t  value;
+            int32_t  depth;
+            uint16_t count;
+            uint8_t  pad[2];
+        };
+        for (const auto& [key, vec] : table)
+            for (const auto& e : vec)
+            {
+                BinV2 be{key,
+                         static_cast<uint32_t>(e.move.raw()),
+                         e.score,
+                         e.depth,
+                         static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
+                         {0, 0}};
+                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
+                totalMoves++;
+            }
+    }
 
     bool ok = false;
-    if (compressed) {
+    if (compressed)
+    {
         gzFile out = gzopen(path.c_str(), "wb9");
-        if (out) {
-            if (gzwrite(out, buffer.data(), buffer.size()) == (int)buffer.size())
+        if (out)
+        {
+            if (gzwrite(out, buffer.data(), buffer.size()) == (int) buffer.size())
                 ok = true;
             gzclose(out);
         }
-    } else {
+    }
+    else
+    {
         std::ofstream out(path, std::ios::binary);
-        if (out) {
+        if (out)
+        {
             out.write(buffer.data(), buffer.size());
             ok = bool(out);
         }
     }
 
-    if (!ok) {
+    if (!ok)
+    {
         sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
         return;
     }
@@ -335,11 +397,8 @@ void Experience::show(const Position& pos, int evalImportance, int maxMoves) con
     {
         if (shown++ >= maxMoves)
             break;
-        sync_cout << "info string "
-                  << UCIEngine::move(e.move, pos.is_chess960())
-                  << " score " << e.score
-                  << " depth " << e.depth
-                  << " count " << e.count << sync_endl;
+        sync_cout << "info string " << UCIEngine::move(e.move, pos.is_chess960()) << " score "
+                  << e.score << " depth " << e.depth << " count " << e.count << sync_endl;
     }
 }
 
