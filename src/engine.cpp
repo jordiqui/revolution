@@ -172,7 +172,7 @@ Engine::Engine(std::optional<std::string> path) :
                     return std::nullopt;
                 }));
 
-    options.add("Experience File", Option("revolution.exp", [this](const Option& o) {
+    options.add("Experience File", Option("revolution.ccz", [this](const Option& o) {
                     if ((bool) options["Experience Enabled"])
                         experience.load_async(o);
                     concurrentExperienceFile.clear();

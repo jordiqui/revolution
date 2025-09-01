@@ -7,7 +7,10 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
+#include <memory>
 #include <sstream>
+#include <zlib.h>
 
 #include "misc.h"
 #include "uci.h"
@@ -31,38 +34,51 @@ void Experience::clear() {
 }
 
 void Experience::load(const std::string& file) {
-    std::string   path = file;
-    std::ifstream in;
-    bool          convertBin = false;
+    std::string path = file;
+    bool        convertBin = false;
+    bool        compressed = false;
+    std::string display;
 
-    if (path.size() >= 4)
-    {
+    if (path.size() >= 4) {
         std::string ext = path.substr(path.size() - 4);
         std::transform(ext.begin(), ext.end(), ext.begin(),
                        [](unsigned char c) { return char(std::tolower(c)); });
 
-        if (ext == ".bin")
-        {
+        if (ext == ".bin") {
             convertBin = true;
-            in.open(path, std::ios::binary);
-            path = path.substr(0, path.size() - 4) + ".exp";
+            path       = path.substr(0, path.size() - 4) + ".ccz";
             sync_cout << "info string '.bin' experience files are deprecated; converting to '"
                       << path << "'" << sync_endl;
-        }
+        } else if (ext == ".ccz")
+            compressed = true;
     }
 
-    if (!convertBin)
-        in.open(path, std::ios::binary);
-
-    std::string display = path;
+    display = path;
     if (path != file)
         display += " (from " + file + ")";
 
-    if (!in)
-    {
-        sync_cout << "info string Could not open " << display << sync_endl;
-        return;
+    std::string buffer;
+    if (compressed) {
+        gzFile gzin = gzopen(path.c_str(), "rb");
+        if (!gzin) {
+            sync_cout << "info string Could not open " << display << sync_endl;
+            return;
+        }
+        char tmp[1 << 15];
+        int  bytes;
+        while ((bytes = gzread(gzin, tmp, sizeof(tmp))) > 0)
+            buffer.append(tmp, bytes);
+        gzclose(gzin);
+    } else {
+        std::ifstream f(convertBin ? file : path, std::ios::binary);
+        if (!f) {
+            sync_cout << "info string Could not open " << display << sync_endl;
+            return;
+        }
+        buffer.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
     }
+
+    std::istringstream in(buffer);
 
     const std::string sigV2 = "SugaR Experience version 2";
     const std::string sigV1 = "SugaR";
@@ -132,14 +148,6 @@ void Experience::load(const std::string& file) {
     }
     else
     {
-        in.close();
-        in.open(path);  // reopen in text mode
-        if (!in)
-        {
-            sync_cout << "info string Could not open " << display << sync_endl;
-            return;
-        }
-
         std::string line;
         while (std::getline(in, line))
         {
@@ -190,35 +198,29 @@ void Experience::load_async(const std::string& file) {
 void Experience::save(const std::string& file) const {
     wait_until_loaded();
     std::string path = file;
+    bool        compressed = false;
 
-    if (path.size() >= 4)
-    {
+    if (path.size() >= 4) {
         std::string ext = path.substr(path.size() - 4);
         std::transform(ext.begin(), ext.end(), ext.begin(),
                        [](unsigned char c) { return char(std::tolower(c)); });
 
-        if (ext == ".bin")
-        {
-            path = path.substr(0, path.size() - 4) + ".exp";
+        if (ext == ".bin") {
+            path = path.substr(0, path.size() - 4) + ".ccz";
             sync_cout << "info string '.bin' experience files are deprecated; saving to '" << path
                       << "'" << sync_endl;
-        }
-    }
-
-    std::ofstream out(path, std::ios::binary);
-    if (!out)
-    {
-        sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
-        return;
+            compressed = true;
+        } else if (ext == ".ccz")
+            compressed = true;
     }
 
     const std::string sig = "SugaR Experience version 2";
-    out.write(sig.c_str(), sig.size());
+    std::string        buffer;
+    buffer.append(sig);
 
     std::size_t totalMoves = 0;
     for (const auto& [key, vec] : table)
-        for (const auto& e : vec)
-        {
+        for (const auto& e : vec) {
             struct BinV2 {
                 uint64_t key;
                 uint32_t move;
@@ -232,9 +234,30 @@ void Experience::save(const std::string& file) const {
                  e.depth,
                  static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
                  {0, 0}};
-            out.write(reinterpret_cast<const char*>(&be), sizeof(be));
+            buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
             totalMoves++;
         }
+
+    bool ok = false;
+    if (compressed) {
+        gzFile out = gzopen(path.c_str(), "wb9");
+        if (out) {
+            if (gzwrite(out, buffer.data(), buffer.size()) == (int)buffer.size())
+                ok = true;
+            gzclose(out);
+        }
+    } else {
+        std::ofstream out(path, std::ios::binary);
+        if (out) {
+            out.write(buffer.data(), buffer.size());
+            ok = bool(out);
+        }
+    }
+
+    if (!ok) {
+        sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
+        return;
+    }
 
     std::size_t totalPositions = table.size();
 
