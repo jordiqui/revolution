@@ -34,7 +34,7 @@ void Experience::clear() {
 }
 
 void Experience::load(const std::string& file) {
-    std::string path = file;
+    std::string path       = file;
     bool        convertBin = false;
     bool        compressed = false;
     std::string display;
@@ -46,11 +46,14 @@ void Experience::load(const std::string& file) {
 
         if (ext == ".bin") {
             convertBin = true;
-            path       = path.substr(0, path.size() - 4) + ".ccz";
+            path       = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; converting to '"
                       << path << "'" << sync_endl;
         } else if (ext == ".ccz")
             compressed = true;
+        else if (ext == ".exp") {
+            // Default uncompressed experience format
+        }
     }
 
     display = path;
@@ -197,7 +200,7 @@ void Experience::load_async(const std::string& file) {
 
 void Experience::save(const std::string& file) const {
     wait_until_loaded();
-    std::string path = file;
+    std::string path       = file;
     bool        compressed = false;
 
     if (path.size() >= 4) {
@@ -206,12 +209,14 @@ void Experience::save(const std::string& file) const {
                        [](unsigned char c) { return char(std::tolower(c)); });
 
         if (ext == ".bin") {
-            path = path.substr(0, path.size() - 4) + ".ccz";
+            path = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; saving to '" << path
                       << "'" << sync_endl;
-            compressed = true;
         } else if (ext == ".ccz")
             compressed = true;
+        else if (ext == ".exp") {
+            // Default uncompressed experience format
+        }
     }
 
     const std::string sig = "SugaR Experience version 2";
