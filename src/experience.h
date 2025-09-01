@@ -47,6 +47,7 @@ class Experience {
     void save(const std::string& file) const;
     Move probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves);
     void update(Position& pos, Move move, int score, int depth);
+    void show(const Position& pos, int evalImportance, int maxMoves) const;
 
    private:
     bool is_ready() const;

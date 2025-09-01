@@ -186,15 +186,26 @@ void Search::Worker::start_searching() {
     {
         if (!limits.infinite && !limits.mate)
         {
-            if ((bool) options["Experience Enabled"] && (bool) options["Experience Prior"])
-                preferredMove =
-                  experience.probe(rootPos, (int) options["Experience Width"],
-                                   (int) options["Experience Eval Weight"],
-                                   (int) options["Experience Min Depth"],
-                                   (int) options["Experience Max Moves"]);
+            if ((bool) options["Experience Enabled"])
+            {
+                if ((bool) options["Experience Prior"])
+                    preferredMove =
+                      experience.probe(rootPos, (int) options["Experience Width"],
+                                       (int) options["Experience Eval Weight"],
+                                       (int) options["Experience Min Depth"],
+                                       (int) options["Experience Max Moves"]);
+
+                if ((bool) options["Experience Book"])
+                    bookMove = experience.probe(rootPos,
+                                               (int) options["Experience Book Max Moves"],
+                                               (int) options["Experience Eval Weight"],
+                                               (int) options["Experience Book Min Depth"],
+                                               (int) options["Experience Book Max Moves"]);
+            }
 
             if ((bool) options["Book1"]
-                && rootPos.game_ply() / 2 < (int) options["Book1 Depth"])
+                && rootPos.game_ply() / 2 < (int) options["Book1 Depth"]
+                && bookMove == Move::none())
                 bookMove = polybook[0].probe(rootPos, (bool) options["Book1 BestBookMove"],
                                              (int) options["Book1 Width"]);
 

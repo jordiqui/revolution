@@ -170,6 +170,10 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
+        else if (token == "showexp")
+            experience.show(engine.position(),
+                             (int) engine.get_options()["Experience Eval Weight"],
+                             (int) engine.get_options()["Experience Book Max Moves"]);
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
