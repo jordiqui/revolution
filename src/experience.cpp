@@ -18,7 +18,12 @@ void Experience::clear() { table.clear(); }
 void Experience::load(const std::string& file) {
     std::string   path = file;
     std::ifstream in;
-    bool          convertBin = false;
+    bool          convertBin   = false;
+    bool          binaryFormat = false;
+    bool          isBL         = false;
+    bool          isV2         = false;
+
+    const std::string sigV2 = "SugaR Experience version 2";
 
     if (path.size() >= 4)
     {
@@ -29,7 +34,7 @@ void Experience::load(const std::string& file) {
         if (ext == ".bin")
         {
             convertBin = true;
-            in.open(path);
+            in.open(path, std::ios::binary);
             path = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; converting to '"
                       << path << "'" << sync_endl;
@@ -37,7 +42,7 @@ void Experience::load(const std::string& file) {
     }
 
     if (!convertBin)
-        in.open(path);
+        in.open(path, std::ios::binary);
 
     std::string display = path;
     if (path != file)
@@ -49,17 +54,27 @@ void Experience::load(const std::string& file) {
         return;
     }
 
-    table.clear();
+    // Detect format: check for SugaR Experience v2 signature
+    std::string sig(sigV2.size(), '\0');
+    in.read(sig.data(), sig.size());
+    if (sig == sigV2)
+    {
+        binaryFormat = true;
+        isV2 = true;
+    }
+    else
+    {
+        // Fallback to text mode
+        in.close();
+        in.open(path);
+    }
 
-    uint64_t key;
-    unsigned move;
-    int      score, depth, count;
+    table.clear();
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
 
-    while (in >> key >> move >> score >> depth >> count)
-    {
+    auto insert_entry = [&](uint64_t key, uint16_t move, int32_t score, int32_t depth, int32_t count) {
         totalMoves++;
         auto& vec = table[key];
         bool  dup = false;
@@ -75,10 +90,111 @@ void Experience::load(const std::string& file) {
             }
         if (!dup)
             vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    };
+
+    if (binaryFormat)
+    {
+        if (isBL)
+        {
+            struct BinBL {
+                uint64_t key;
+                int32_t  depth;
+                int32_t  value;
+                uint16_t move;
+                uint16_t pad;
+                int32_t  perf;
+            };
+            BinBL e;
+            while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                insert_entry(e.key, e.move, e.value, e.depth, 1);
+        }
+        else if (isV2)
+        {
+            auto read_u8  = [&](uint8_t& x) { in.read(reinterpret_cast<char*>(&x), 1); };
+            auto read_u16 = [&](uint16_t& x) { in.read(reinterpret_cast<char*>(&x), 2); };
+            auto read_u32 = [&](uint32_t& x) { in.read(reinterpret_cast<char*>(&x), 4); };
+            auto read_u64 = [&](uint64_t& x) { in.read(reinterpret_cast<char*>(&x), 8); };
+            auto read_f32 = [&](float& x) { in.read(reinterpret_cast<char*>(&x), 4); };
+
+            uint8_t  version = 0;
+            uint64_t seed = 0;
+            uint32_t bucket_size = 0;
+            uint32_t entry_size  = 0;
+
+            read_u8(version);
+            read_u64(seed);
+            read_u32(bucket_size);
+            read_u32(entry_size);
+            if (!in)
+                return;
+
+            // Meta block #1
+            uint32_t hash_bits1 = 0, reserved1 = 0;
+            uint16_t endian_tag1 = 0;
+            float    k_factor1 = 0.f;
+            uint64_t counters1 = 0;
+            read_u32(hash_bits1);
+            read_u32(reserved1);
+            read_u16(endian_tag1);
+            read_f32(k_factor1);
+            read_u64(counters1);
+            if (!in)
+                return;
+
+            // Meta block #2
+            uint32_t hash_bits2 = 0, reserved2 = 0;
+            uint16_t endian_tag2 = 0;
+            float    k_factor2 = 0.f;
+            uint64_t counters2 = 0;
+            read_u32(hash_bits2);
+            read_u32(reserved2);
+            read_u16(endian_tag2);
+            read_f32(k_factor2);
+            read_u64(counters2);
+            if (!in)
+                return;
+
+            if (entry_size != 34 || endian_tag1 != 0x0002)
+                return;
+
+#pragma pack(push, 1)
+            struct EntryV2 {
+                uint64_t key;
+                uint16_t move;
+                int16_t  score;
+                int16_t  depth;
+                int16_t  count;
+                int32_t  wins;
+                int32_t  losses;
+                int32_t  draws;
+                int16_t  flags;
+                int16_t  age;
+                int16_t  pad;
+            };
+#pragma pack(pop)
+            static_assert(sizeof(EntryV2) == 34, "EntryV2 must be 34 bytes");
+
+            EntryV2 rec{};
+            while (in.read(reinterpret_cast<char*>(&rec), sizeof(rec)))
+            {
+                int32_t ct = rec.count <= 0 ? 1 : rec.count;
+                insert_entry(rec.key, rec.move, static_cast<int32_t>(rec.score),
+                             static_cast<int32_t>(rec.depth), ct);
+            }
+        }
+    }
+    else
+    {
+        uint64_t key;
+        unsigned move;
+        int      score, depth, count;
+
+        while (in >> key >> move >> score >> depth >> count)
+            insert_entry(key, static_cast<uint16_t>(move), score, depth, count);
     }
 
     std::size_t totalPositions = table.size();
-    double      frag           = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
     sync_cout << "info string " << display << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << ". Duplicate moves: " << duplicateMoves
