@@ -43,7 +43,7 @@
 #include "ucioption.h"
 
 #ifndef ENGINE_NAME
-    #define ENGINE_NAME "revolution dev 010925 v1.0.1"
+    #define ENGINE_NAME "revolution dev v1.2"
 #endif
 #ifndef ENGINE_BUILD_DATE
     #define ENGINE_BUILD_DATE __DATE__
