@@ -189,6 +189,18 @@ void Experience::load(const std::string& file) {
             if (entry_size != 34 || endian_tag1 != 0x0002)
                 return;
 
+            // Verify that the file body aligns to the declared entry size
+            std::streampos dataStart = in.tellg();
+            in.seekg(0, std::ios::end);
+            std::streampos fileEnd = in.tellg();
+            in.seekg(dataStart, std::ios::beg);
+            const auto body = static_cast<std::streamoff>(fileEnd - dataStart);
+            if (body % entry_size != 0)
+            {
+                sync_cout << "info string file not aligned to entry size" << sync_endl;
+                return;
+            }
+
 #pragma pack(push, 1)
             struct EntryV2 {
                 uint64_t key;
