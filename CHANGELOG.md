@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2] - 2025-09-03
+### Changed
+- Updated engine name to "revolution dev v1.2" and automated build date handling.
+
 ## [1.0.1] - 2025-09-01
 ### Added
 - UCI option `Minimum Thinking Time` to enforce a minimum search duration per move.

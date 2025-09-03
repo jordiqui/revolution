@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution_dev_010925_v1.0.1.exe
+        EXE = revolution_dev_$(ENGINE_BUILD_DATE)_v1.2.exe
 else
-        EXE = revolution_dev_010925_v1.0.1
+        EXE = revolution_dev_$(ENGINE_BUILD_DATE)_v1.2
 endif
 
 ### Installation dir definitions
@@ -842,12 +842,12 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "revolution dev 010925 v1.0.1"
-#   - ENGINE_BUILD_DATE: optional build identifier
+#   - ENGINE_NAME: "revolution dev v1.2"
+#   - ENGINE_BUILD_DATE: optional build identifier (defaults to today's date in DDMMYY format)
 # You can override on the command line:
-#   make ENGINE_NAME="revolution dev 010925 v1.0.1" ENGINE_BUILD_DATE=20250901
-ENGINE_NAME        ?= revolution dev 010925 v1.0.1
-ENGINE_BUILD_DATE  ?= $(shell date +%Y-%m-%d)
+#   make ENGINE_NAME="revolution dev v1.2" ENGINE_BUILD_DATE=030925
+ENGINE_NAME        ?= revolution dev v1.2
+ENGINE_BUILD_DATE  ?= $(shell date +%d%m%y)
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
 ### 3.9 Link Time Optimization
