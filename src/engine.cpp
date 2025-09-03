@@ -23,6 +23,7 @@
 #include <deque>
 #include <iosfwd>
 #include <memory>
+#include <mutex>
 #include <ostream>
 #include <sstream>
 #include <string_view>
@@ -180,6 +181,15 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Book Eval Importance", Option(5, 0, 10));
     options.add("Experience Book Min Depth", Option(27, 4, 64));
     options.add("Experience Book Max Moves", Option(16, 1, 100));
+    options.add("Experience Save Now", Option([this](const Option&) {
+                    if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+                    {
+                        std::lock_guard<std::mutex> lk(experience.mtx);
+                        experience.save(options["Experience File"]);
+                        experience.clear_dirty();
+                    }
+                    return std::nullopt;
+                }));
 
     options.add(  //
       "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {

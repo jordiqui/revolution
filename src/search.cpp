@@ -32,6 +32,7 @@
 #include <ratio>
 #include <string>
 #include <utility>
+#include <mutex>
 
 #include "bitboard.h"
 #include "evaluate.h"
@@ -263,8 +264,17 @@ void Search::Worker::start_searching() {
     main_manager()->updates.onBestmove(bestmove, ponder);
 
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+    {
+        const std::string path = options["Experience File"];
+        std::lock_guard<std::mutex> lk(experience.mtx);
         experience.update(rootPos, bestThread->rootMoves[0].pv[0], bestThread->rootMoves[0].score,
                           bestThread->completedDepth);
+        if (experience.dirty())
+        {
+            experience.save(path);
+            experience.clear_dirty();
+        }
+    }
 }
 
 // Main iterative deepening loop. It calls search()
@@ -472,6 +482,18 @@ void Search::Worker::iterative_deepening() {
 
         if (!mainThread)
             continue;
+
+        if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"]
+            && (bool) options["Experience Book"]
+            && rootDepth >= (int) options["Experience Book Min Depth"])
+        {
+            const Move best = rootMoves[0].pv[0];
+            if (best != Move::none())
+            {
+                std::lock_guard<std::mutex> lk(experience.mtx);
+                experience.update(rootPos, best, rootMoves[0].score, rootDepth);
+            }
+        }
 
         // Have we found a "mate in x"?
         if (limits.mate && rootMoves[0].score == rootMoves[0].uciScore

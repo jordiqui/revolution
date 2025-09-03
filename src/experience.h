@@ -24,6 +24,8 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
+#include <atomic>
+#include <mutex>
 
 #include "position.h"
 #include "types.h"
@@ -45,9 +47,20 @@ class Experience {
     Move probe(Position& pos, [[maybe_unused]] int width, int evalImportance,
                int minDepth, int maxMoves);
     void update(Position& pos, Move move, int score, int depth);
+    void insert_entry(uint64_t key, uint16_t move, int value, int depth, int count);
+
+    // Dirty / flush helpers
+    void mark_dirty()        { dirty_.store(true, std::memory_order_relaxed); }
+    void clear_dirty() const { dirty_.store(false, std::memory_order_relaxed); }
+    bool dirty()       const { return dirty_.load(std::memory_order_relaxed); }
+
+    static uint64_t compose_key(uint64_t posKey, uint16_t move16);
+
+    mutable std::mutex mtx;
 
    private:
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
+    mutable std::atomic<bool> dirty_{false};
 };
 
 extern Experience experience;
