@@ -6,6 +6,8 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <cstring>
+#include <array>
 
 #include "misc.h"
 
@@ -13,7 +15,36 @@ namespace Stockfish {
 
 Experience experience;
 
-void Experience::clear() { table.clear(); }
+void Experience::clear() { table.clear(); clear_dirty(); }
+
+// Mix 16-bit to 64-bit with simple avalanche
+static inline uint64_t mix16to64(uint16_t x) {
+    uint64_t z = x;
+    z ^= z << 25;
+    z *= 0x9E3779B97F4A7C15ULL;
+    z ^= z >> 33;
+    z *= 0xC2B2AE3D27D4EB4FULL;
+    z ^= z >> 29;
+    return z;
+}
+
+uint64_t Experience::compose_key(uint64_t posKey, uint16_t move16) {
+    return posKey ^ mix16to64(move16);
+}
+
+void Experience::insert_entry(uint64_t key, uint16_t move, int value, int depth, int count) {
+    uint64_t posKey = key ^ mix16to64(move);
+    auto&    vec    = table[posKey];
+    for (auto& e : vec)
+        if (e.move.raw() == move)
+        {
+            e.score = value;
+            e.depth = depth;
+            e.count += count;
+            return;
+        }
+    vec.push_back({Move(static_cast<uint16_t>(move)), value, depth, count});
+}
 
 void Experience::load(const std::string& file) {
     std::string   path = file;
@@ -74,10 +105,11 @@ void Experience::load(const std::string& file) {
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
 
-    auto insert_entry = [&](uint64_t key, uint16_t move, int32_t score, int32_t depth, int32_t count) {
+    auto add_entry = [&](uint64_t key, uint16_t move, int32_t score, int32_t depth, int32_t count) {
         totalMoves++;
-        auto& vec = table[key];
-        bool  dup = false;
+        uint64_t posKey = key ^ mix16to64(move);
+        auto&    vec    = table[posKey];
+        bool     dup    = false;
         for (auto& e : vec)
             if (e.move.raw() == move)
             {
@@ -106,7 +138,7 @@ void Experience::load(const std::string& file) {
             };
             BinBL e;
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                insert_entry(e.key, e.move, e.value, e.depth, 1);
+                add_entry(e.key, e.move, e.value, e.depth, 1);
         }
         else if (isV2)
         {
@@ -178,8 +210,8 @@ void Experience::load(const std::string& file) {
             while (in.read(reinterpret_cast<char*>(&rec), sizeof(rec)))
             {
                 int32_t ct = rec.count <= 0 ? 1 : rec.count;
-                insert_entry(rec.key, rec.move, static_cast<int32_t>(rec.score),
-                             static_cast<int32_t>(rec.depth), ct);
+                add_entry(rec.key, rec.move, static_cast<int32_t>(rec.score),
+                          static_cast<int32_t>(rec.depth), ct);
             }
         }
     }
@@ -190,7 +222,7 @@ void Experience::load(const std::string& file) {
         int      score, depth, count;
 
         while (in >> key >> move >> score >> depth >> count)
-            insert_entry(key, static_cast<uint16_t>(move), score, depth, count);
+            add_entry(key, static_cast<uint16_t>(move), score, depth, count);
     }
 
     std::size_t totalPositions = table.size();
@@ -234,8 +266,9 @@ void Experience::save(const std::string& file) const {
     for (const auto& [key, vec] : table)
         for (const auto& e : vec)
         {
-            out << key << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' ' << e.count
-                << '\n';
+            uint64_t composed = compose_key(key, e.move.raw());
+            out << composed << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' '
+                << e.count << '\n';
             totalMoves++;
         }
 
@@ -275,9 +308,11 @@ void Experience::update(Position& pos, Move move, int score, int depth) {
             e.score = score;
             e.depth = depth;
             e.count++;
+            mark_dirty();
             return;
         }
     vec.push_back({move, score, depth, 1});
+    mark_dirty();
 }
 
 }  // namespace Stockfish
