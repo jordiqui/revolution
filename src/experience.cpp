@@ -145,8 +145,19 @@ void Experience::load(const std::string& file) {
         }
         else if (isV2)
         {
-            const std::size_t headerExtra = 61;  // bytes después de la firma en v2
-            in.seekg(sigV2.size() + headerExtra, std::ios::beg);
+            std::array<unsigned char, 62> hdr{};
+            in.read(reinterpret_cast<char*>(hdr.data()), hdr.size());
+            if (!in)
+                return;
+
+            const unsigned char* p = hdr.data();
+            p += 1 + 8; // version + seed
+            uint32_t bucket_size = p[0] | (p[1] << 8) | (p[2] << 16);
+            p += 3;
+            uint32_t entry_size = p[0] | (p[1] << 8) | (p[2] << 16) | (p[3] << 24);
+            (void)bucket_size; // currently unused
+            if (entry_size != 34)
+                return;
 
             // Verificar que el cuerpo está alineado a 34B
             auto here = in.tellg();
@@ -225,12 +236,12 @@ void Experience::save(const std::string& file) const {
     std::string buffer;
     std::size_t totalMoves = 0;
 
-// --- Registro fijo de 34 bytes (BrainLearn/SugaR v2) ---
+    // === Registro fijo de 34 bytes (v2) ===
 #pragma pack(push, 1)
     struct EntryV2 {
-        uint64_t key;    // zobrist pos ^ mix(move16)
-        uint16_t move;   // 16-bit
-        int16_t  score;  // cp
+        uint64_t key;
+        uint16_t move;
+        int16_t  score;
         int16_t  depth;
         int16_t  count;
         int32_t  wins;
@@ -238,44 +249,57 @@ void Experience::save(const std::string& file) const {
         int32_t  draws;
         int16_t  flags;
         int16_t  age;
-        int16_t  pad;  // padding -> total 34
+        int16_t  pad;
     };
 #pragma pack(pop)
     static_assert(sizeof(EntryV2) == 34, "EntryV2 must be 34 bytes");
 
-    auto append_entry34 = [&](const uint64_t key, const ExperienceEntry& e) {
+    auto append_entry34 = [&](uint64_t key, uint16_t move16, int score, int depth, int count) {
         EntryV2 out{};
         out.key   = key;
-        out.move  = static_cast<uint16_t>(e.move.raw());
-        out.score = static_cast<int16_t>(e.score);
-        out.depth = static_cast<int16_t>(e.depth);
-        out.count = static_cast<int16_t>(e.count <= 0 ? 1 : e.count);
+        out.move  = move16;
+        out.score = static_cast<int16_t>(score);
+        out.depth = static_cast<int16_t>(depth);
+        out.count = static_cast<int16_t>(count <= 0 ? 1 : count);
         buffer.append(reinterpret_cast<const char*>(&out), sizeof(out));
         totalMoves++;
     };
 
-    // --- Cabecera exacta compatible HypnoS (87 bytes totales con firma) ---
-    const std::string sig = "SugaR Experience version 2";
+    const std::string sig = "SugaR Experience version 2";  // 26 bytes
     buffer.append(sig);
-    static const unsigned char hdr[] = {
-      0x02, 0x00, 0x80, 0xE2, 0x63, 0xA4, 0x80, 0x33, 0x10, 0x06, 0x00, 0x00, 0x00,
-      0x22, 0x00, 0x00, 0x00, 0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02,
-      0x00, 0xE4, 0x6C, 0x3F, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-      0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0xE4, 0x6C, 0x3F,
-      0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    buffer.append(reinterpret_cast<const char*>(hdr), sizeof(hdr));
+    static const unsigned char kExpHeader62[] = {
+        0x02,
+        0x00,0x80,0xE2,0x63,0xA4,0x80,0x33,0x10,
+        0x06,0x00,0x00,
+        0x22,0x00,0x00,0x00,
+        0x17,0x00,0x00,0x00, 0x01,0x00,0x00,0x00, 0x02,0x00, 0xE4,0x6C,0x3F,0x41, 0x8B,0x26,0x6D,0x09,0x00,0x00,0x19,0x00,
+        0x17,0x00,0x00,0x00, 0x01,0x00,0x00,0x00, 0x02,0x00, 0xE4,0x6C,0x3F,0x41, 0x8B,0x26,0xE7,0x0B,0x00,0x00,0x14,0x00,
+        0x00,0x00
+    };
+    buffer.append(reinterpret_cast<const char*>(kExpHeader62), sizeof(kExpHeader62));
 
+    bool wroteAny = false;
     for (const auto& [key, vec] : table)
         for (const auto& e : vec)
-            append_entry34(key, e);
+        {
+            append_entry34(key, static_cast<uint16_t>(e.move.raw()), e.score, e.depth, e.count);
+            wroteAny = true;
+        }
 
-    // --- Verificación de consistencia antes de escribir a disco ---
-    const size_t headerLen = sig.size() + sizeof(hdr);  // 26 + 61 = 87
-    if (buffer.size() < headerLen || ((buffer.size() - headerLen) % sizeof(EntryV2)) != 0)
+    if (!wroteAny)
     {
-        sync_cout << "info string not writing invalid exp (body not aligned to 34)" << sync_endl;
-        return;
+        const uint64_t key    = 0xA1B2C3D4E5F60789ULL;
+        const uint16_t move16 = 0x1234;
+        append_entry34(key, move16, 0, 20, 1);
+        wroteAny = true;
     }
+
+    const size_t headerLen = sig.size() + sizeof(kExpHeader62);  // 26 + 62 = 88
+    if (buffer.size() < headerLen)
+        return;
+    const size_t bodyLen = buffer.size() - headerLen;
+    if (bodyLen == 0 || (bodyLen % sizeof(EntryV2)) != 0)
+        return;
 
     std::ofstream out(path, std::ios::binary);
     if (!out)
