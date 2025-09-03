@@ -133,6 +133,15 @@ void TimeManagement::init(Search::LimitsType& limits,
     maximumTime =
       TimePoint(std::min(0.825179 * limits.time[us] - moveOverhead, maxScale * optimumTime)) - 10;
 
+    // Be extra careful for very short time controls (blitz and bullet).
+    // Scale down thinking time when little time is available to avoid flagging.
+    if (scaledTime < 30000)
+    {
+        double factor = scaledTime < 10000 ? 0.5 : 0.7;
+        optimumTime = TimePoint(optimumTime * factor);
+        maximumTime = TimePoint(maximumTime * factor);
+    }
+
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
 

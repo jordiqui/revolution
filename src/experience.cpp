@@ -146,7 +146,8 @@ void Experience::load(const std::string& file) {
         }
         else
         {
-            in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
+            const std::size_t headerExtra = 16;  // Additional bytes after text signature
+            in.seekg(isV2 ? sigV2.size() + headerExtra : sigV1.size(), std::ios::beg);
 
             struct BinV1 {
                 uint64_t key;
@@ -155,20 +156,36 @@ void Experience::load(const std::string& file) {
                 int32_t  depth;
                 uint8_t  pad[4];
             };
-            struct BinV2 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
+
+            struct BinSugV2 {
+                uint32_t move1;
+                uint32_t visits1;
+                uint32_t key1_lo;
+                uint32_t key1_hi;
+                int32_t  score1;
+                int32_t  depth1;
+                uint32_t move2;
+                uint32_t visits2;
+                uint32_t key2_lo;
+                uint32_t key2_hi;
+                int32_t  score2;
+                int32_t  depth2;
+                uint32_t extraA;
+                uint32_t extraB;
             };
 
             if (isV2)
             {
-                BinV2 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, e.count);
+                BinSugV2 r;
+                while (in.read(reinterpret_cast<char*>(&r), sizeof(r)))
+                {
+                    uint64_t key1 = (uint64_t(r.key1_hi) << 32) | r.key1_lo;
+                    if (r.move1)
+                        insert_entry(key1, r.move1, r.score1, r.depth1, r.visits1);
+                    uint64_t key2 = (uint64_t(r.key2_hi) << 32) | r.key2_lo;
+                    if (r.move2)
+                        insert_entry(key2, r.move2, r.score2, r.depth2, r.visits2);
+                }
             }
             else
             {
@@ -277,26 +294,61 @@ void Experience::save(const std::string& file) const {
     {
         const std::string sig = "SugaR Experience version 2";
         buffer.append(sig);
-        struct BinV2 {
-            uint64_t key;
-            uint32_t move;
-            int32_t  value;
-            int32_t  depth;
-            uint16_t count;
-            uint8_t  pad[2];
+        const unsigned char headerExtra[16] = {0x02, 0x00, 0x80, 0xE2, 0x63, 0xA4,
+                                               0x80, 0x33, 0x10, 0x06, 0x00, 0x00,
+                                               0x22, 0x00, 0x00, 0x00};
+        buffer.append(reinterpret_cast<const char*>(headerExtra), sizeof(headerExtra));
+
+        struct BinSugV2 {
+            uint32_t move1;
+            uint32_t visits1;
+            uint32_t key1_lo;
+            uint32_t key1_hi;
+            int32_t  score1;
+            int32_t  depth1;
+            uint32_t move2;
+            uint32_t visits2;
+            uint32_t key2_lo;
+            uint32_t key2_hi;
+            int32_t  score2;
+            int32_t  depth2;
+            uint32_t extraA;
+            uint32_t extraB;
         };
+
         for (const auto& [key, vec] : table)
-            for (const auto& e : vec)
+        {
+            BinSugV2 r{};
+            if (!vec.empty())
             {
-                BinV2 be{key,
-                         static_cast<uint32_t>(e.move.raw()),
-                         e.score,
-                         e.depth,
-                         static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
-                         {0, 0}};
-                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
-                totalMoves++;
+                const auto& e1 = vec[0];
+                r.move1   = static_cast<uint32_t>(e1.move.raw());
+                r.visits1 = static_cast<uint32_t>(e1.count);
+                r.key1_lo = static_cast<uint32_t>(key & 0xFFFFFFFFu);
+                r.key1_hi = static_cast<uint32_t>(key >> 32);
+                r.score1  = e1.score;
+                r.depth1  = e1.depth;
             }
+
+            if (vec.size() >= 2)
+            {
+                const auto& e2 = vec[1];
+                r.move2   = static_cast<uint32_t>(e2.move.raw());
+                r.visits2 = static_cast<uint32_t>(e2.count);
+                r.key2_lo = static_cast<uint32_t>(key & 0xFFFFFFFFu);
+                r.key2_hi = static_cast<uint32_t>(key >> 32);
+                r.score2  = e2.score;
+                r.depth2  = e2.depth;
+            }
+            else
+            {
+                r.key2_lo = static_cast<uint32_t>(key & 0xFFFFFFFFu);
+                r.key2_hi = static_cast<uint32_t>(key >> 32);
+            }
+
+            buffer.append(reinterpret_cast<const char*>(&r), sizeof(r));
+            totalMoves += std::min<std::size_t>(2, vec.size());
+        }
     }
 
     bool ok = false;
