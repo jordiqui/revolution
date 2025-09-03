@@ -146,7 +146,7 @@ void Experience::load(const std::string& file) {
         }
         else
         {
-            const std::size_t headerExtra = 16;  // Additional bytes after text signature
+            const std::size_t headerExtra = 61;  // Additional bytes after text signature
             in.seekg(isV2 ? sigV2.size() + headerExtra : sigV1.size(), std::ios::beg);
 
             struct BinV1 {
@@ -294,9 +294,24 @@ void Experience::save(const std::string& file) const {
     {
         const std::string sig = "SugaR Experience version 2";
         buffer.append(sig);
-        const unsigned char headerExtra[16] = {0x02, 0x00, 0x80, 0xE2, 0x63, 0xA4,
-                                               0x80, 0x33, 0x10, 0x06, 0x00, 0x00,
-                                               0x22, 0x00, 0x00, 0x00};
+        const unsigned char headerExtra[] = {
+            0x02,                                                          // version
+            0x00, 0x80, 0xE2, 0x63, 0xA4, 0x80, 0x33, 0x10,                  // seed
+            0x06, 0x00, 0x00, 0x00,                                          // bucket_size = 6
+            0x22, 0x00, 0x00, 0x00,                                          // entry_size  = 34
+            // First metadata block
+            0x17, 0x00, 0x00, 0x00,                                          // hash_bits = 23
+            0x01, 0x00, 0x00, 0x00,                                          // reserved
+            0x02, 0x00,                                                      // endian_tag = 0x0002
+            0xE4, 0x6C, 0x3F, 0x41,                                          // k_factor = 11.978f
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                  // counters = 0
+            // Second metadata block (duplicate of the first)
+            0x17, 0x00, 0x00, 0x00,                                          // hash_bits = 23
+            0x01, 0x00, 0x00, 0x00,                                          // reserved
+            0x02, 0x00,                                                      // endian_tag = 0x0002
+            0xE4, 0x6C, 0x3F, 0x41,                                          // k_factor = 11.978f
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                   // counters = 0
+        };
         buffer.append(reinterpret_cast<const char*>(headerExtra), sizeof(headerExtra));
 
         struct BinSugV2 {
