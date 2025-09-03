@@ -25,29 +25,25 @@
 #include "position.h"
 
 #ifndef ENGINE_BUILD_DATE
-    // Optional custom build identifier
-    #define ENGINE_BUILD_DATE ""
+    // yymmdd; override at build time with:  -DENGINE_BUILD_DATE=250827
+    #define ENGINE_BUILD_DATE "250827"
 #endif
 
 #ifndef ENGINE_NAME
-    // override at build time with:  -DENGINE_NAME="\"revolution dev v1.2\""
-    #define ENGINE_NAME "revolution dev v1.2"
+    // override at build time with:  -DENGINE_NAME="\"Revolution 1.0\""
+    #define ENGINE_NAME "Revolution 1.0"
 #endif
 
 using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
 
-    // Clear, consistent banner (many GUIs echo this to their logs).
-    // Send banner to stderr so it doesn't interfere with UCI handshake on stdout.
-    std::cerr << ENGINE_NAME;
-    if (*ENGINE_BUILD_DATE)
-        std::cerr << ' ' << ENGINE_BUILD_DATE;
-    std::cerr << ' ' << __DATE__ << ' ' << __TIME__
+    // Clear, consistent banner (many GUIs echo this to their logs)
+    std::cout << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << ' ' << __DATE__ << ' ' << __TIME__
               << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
               << std::endl;
 
-    std::cerr << compiler_info() << std::endl;
+    std::cout << compiler_info() << std::endl;
 
     Bitboards::init();
     Position::init();

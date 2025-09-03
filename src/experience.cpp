@@ -2,43 +2,28 @@
 
 #include <algorithm>
 #include <cctype>
-#include <future>
-#include <chrono>
-#include <cstdint>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <iterator>
-#include <memory>
 #include <sstream>
-#include <zlib.h>
 
 #include "misc.h"
-#include "uci.h"
 
 namespace Stockfish {
 
 Experience experience;
 
-void Experience::wait_until_loaded() const {
-    if (loader.valid())
-        loader.wait();
-}
-
-bool Experience::is_ready() const {
-    return !loader.valid() || loader.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
-}
-
-void Experience::clear() {
-    wait_until_loaded();
-    table.clear();
-}
+void Experience::clear() { table.clear(); }
 
 void Experience::load(const std::string& file) {
-    std::string path       = file;
-    bool        convertBin = false;
-    bool        compressed = false;
-    std::string display;
+    std::string   path = file;
+    std::ifstream in;
+    bool          convertBin   = false;
+    bool          binaryFormat = false;
+    bool          isBL         = false;
+    bool          isV2         = false;
+
+    const std::string sigV2 = "SugaR Experience version 2";
 
     if (path.size() >= 4)
     {
@@ -49,68 +34,47 @@ void Experience::load(const std::string& file) {
         if (ext == ".bin")
         {
             convertBin = true;
-            path       = path.substr(0, path.size() - 4) + ".exp";
+            in.open(path, std::ios::binary);
+            path = path.substr(0, path.size() - 4) + ".exp";
             sync_cout << "info string '.bin' experience files are deprecated; converting to '"
                       << path << "'" << sync_endl;
         }
-        else if (ext == ".ccz")
-            compressed = true;
-        else if (ext == ".exp")
-        {
-            // Default uncompressed experience format
-        }
     }
 
-    display = path;
+    if (!convertBin)
+        in.open(path, std::ios::binary);
+
+    std::string display = path;
     if (path != file)
         display += " (from " + file + ")";
 
-    std::string buffer;
-    if (compressed)
+    if (!in)
     {
-        gzFile gzin = gzopen(path.c_str(), "rb");
-        if (!gzin)
-        {
-            sync_cout << "info string Could not open " << display << sync_endl;
-            return;
-        }
-        char tmp[1 << 15];
-        int  bytes;
-        while ((bytes = gzread(gzin, tmp, sizeof(tmp))) > 0)
-            buffer.append(tmp, bytes);
-        gzclose(gzin);
+        sync_cout << "info string Could not open " << display << sync_endl;
+        return;
+    }
+
+    // Detect format: check for SugaR Experience v2 signature
+    std::string sig(sigV2.size(), '\0');
+    in.read(sig.data(), sig.size());
+    if (sig == sigV2)
+    {
+        binaryFormat = true;
+        isV2 = true;
     }
     else
     {
-        std::ifstream f(convertBin ? file : path, std::ios::binary);
-        if (!f)
-        {
-            sync_cout << "info string Could not open " << display << sync_endl;
-            return;
-        }
-        buffer.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+        // Fallback to text mode
+        in.close();
+        in.open(path);
     }
 
-    std::istringstream in(buffer);
-
-    const std::string sigV2 = "SugaR Experience version 2";
-    const std::string sigV1 = "SugaR";
-    std::string       header(sigV2.size(), '\0');
-    in.read(header.data(), header.size());
-    bool isV2 = header == sigV2;
-    bool isV1 = !isV2 && header.substr(0, sigV1.size()) == sigV1;
-    bool isBL = !isV1 && !isV2 && buffer.size() >= 24 && (buffer.size() % 24 == 0);
-    in.clear();
-    in.seekg(0, std::ios::beg);
-
     table.clear();
-    binaryFormat     = isV1 || isV2 || isBL;
-    brainLearnFormat = isBL;
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
 
-    auto insert_entry = [&](uint64_t key, unsigned move, int score, int depth, int count) {
+    auto insert_entry = [&](uint64_t key, uint16_t move, int32_t score, int32_t depth, int32_t count) {
         totalMoves++;
         auto& vec = table[key];
         bool  dup = false;
@@ -144,110 +108,105 @@ void Experience::load(const std::string& file) {
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
                 insert_entry(e.key, e.move, e.value, e.depth, 1);
         }
-        else
+        else if (isV2)
         {
-            const std::size_t headerExtra = 61;  // Additional bytes after text signature
-            in.seekg(isV2 ? sigV2.size() + headerExtra : sigV1.size(), std::ios::beg);
+            auto read_u8  = [&](uint8_t& x) { in.read(reinterpret_cast<char*>(&x), 1); };
+            auto read_u16 = [&](uint16_t& x) { in.read(reinterpret_cast<char*>(&x), 2); };
+            auto read_u32 = [&](uint32_t& x) { in.read(reinterpret_cast<char*>(&x), 4); };
+            auto read_u64 = [&](uint64_t& x) { in.read(reinterpret_cast<char*>(&x), 8); };
+            auto read_f32 = [&](float& x) { in.read(reinterpret_cast<char*>(&x), 4); };
 
-            struct BinV1 {
+            uint8_t  version = 0;
+            uint64_t seed = 0;
+            uint32_t bucket_size = 0;
+            uint32_t entry_size  = 0;
+
+            read_u8(version);
+            read_u64(seed);
+            read_u32(bucket_size);
+            read_u32(entry_size);
+            if (!in)
+                return;
+
+            // Meta block #1
+            uint32_t hash_bits1 = 0, reserved1 = 0;
+            uint16_t endian_tag1 = 0;
+            float    k_factor1 = 0.f;
+            uint64_t counters1 = 0;
+            read_u32(hash_bits1);
+            read_u32(reserved1);
+            read_u16(endian_tag1);
+            read_f32(k_factor1);
+            read_u64(counters1);
+            if (!in)
+                return;
+
+            // Meta block #2
+            uint32_t hash_bits2 = 0, reserved2 = 0;
+            uint16_t endian_tag2 = 0;
+            float    k_factor2 = 0.f;
+            uint64_t counters2 = 0;
+            read_u32(hash_bits2);
+            read_u32(reserved2);
+            read_u16(endian_tag2);
+            read_f32(k_factor2);
+            read_u64(counters2);
+            if (!in)
+                return;
+
+            if (entry_size != 34 || endian_tag1 != 0x0002)
+                return;
+
+#pragma pack(push, 1)
+            struct EntryV2 {
                 uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint8_t  pad[4];
+                uint16_t move;
+                int16_t  score;
+                int16_t  depth;
+                int16_t  count;
+                int32_t  wins;
+                int32_t  losses;
+                int32_t  draws;
+                int16_t  flags;
+                int16_t  age;
+                int16_t  pad;
             };
+#pragma pack(pop)
+            static_assert(sizeof(EntryV2) == 34, "EntryV2 must be 34 bytes");
 
-            struct BinSugV2 {
-                uint32_t move1;
-                uint32_t visits1;
-                uint32_t key1_lo;
-                uint32_t key1_hi;
-                int32_t  score1;
-                int32_t  depth1;
-                uint32_t move2;
-                uint32_t visits2;
-                uint32_t key2_lo;
-                uint32_t key2_hi;
-                int32_t  score2;
-                int32_t  depth2;
-                uint32_t extraA;
-                uint32_t extraB;
-            };
-
-            if (isV2)
+            EntryV2 rec{};
+            while (in.read(reinterpret_cast<char*>(&rec), sizeof(rec)))
             {
-                BinSugV2 r;
-                while (in.read(reinterpret_cast<char*>(&r), sizeof(r)))
-                {
-                    uint64_t key1 = (uint64_t(r.key1_hi) << 32) | r.key1_lo;
-                    if (r.move1)
-                        insert_entry(key1, r.move1, r.score1, r.depth1, r.visits1);
-                    uint64_t key2 = (uint64_t(r.key2_hi) << 32) | r.key2_lo;
-                    if (r.move2)
-                        insert_entry(key2, r.move2, r.score2, r.depth2, r.visits2);
-                }
-            }
-            else
-            {
-                BinV1 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, 1);
+                int32_t ct = rec.count <= 0 ? 1 : rec.count;
+                insert_entry(rec.key, rec.move, static_cast<int32_t>(rec.score),
+                             static_cast<int32_t>(rec.depth), ct);
             }
         }
     }
     else
     {
-        std::string line;
-        while (std::getline(in, line))
-        {
-            if (line.empty() || line[0] == '#')
-                continue;
+        uint64_t key;
+        unsigned move;
+        int      score, depth, count;
 
-            std::istringstream iss(line);
-            std::string        keyStr, moveStr;
-            int                score, depth, count;
-
-            if (!(iss >> keyStr >> moveStr >> score >> depth >> count))
-                continue;
-
-            auto parse = [](const std::string& s, uint64_t& out) {
-                std::istringstream ss(s);
-                if (s.find_first_not_of("0123456789") == std::string::npos)
-                    ss >> out;
-                else
-                    ss >> std::hex >> out;
-                return !ss.fail();
-            };
-
-            uint64_t key64, move64;
-            if (!parse(keyStr, key64) || !parse(moveStr, move64))
-                continue;
-            insert_entry(key64, static_cast<unsigned>(move64), score, depth, count);
-        }
+        while (in >> key >> move >> score >> depth >> count)
+            insert_entry(key, static_cast<uint16_t>(move), score, depth, count);
     }
 
     std::size_t totalPositions = table.size();
-    double      frag           = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
     sync_cout << "info string " << display << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << ". Duplicate moves: " << duplicateMoves
               << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
               << sync_endl;
 
-    binaryFormat = true;
-
     if (convertBin)
         save(path);
 }
 
-void Experience::load_async(const std::string& file) {
-    loader = std::async(std::launch::async, [this, file] { load(file); });
-}
-
 void Experience::save(const std::string& file) const {
-    wait_until_loaded();
-    std::string path       = file;
-    bool        compressed = false;
+    std::string path = file;
 
     if (path.size() >= 4)
     {
@@ -261,146 +220,33 @@ void Experience::save(const std::string& file) const {
             sync_cout << "info string '.bin' experience files are deprecated; saving to '" << path
                       << "'" << sync_endl;
         }
-        else if (ext == ".ccz")
-            compressed = true;
-        else if (ext == ".exp")
-        {
-            // Default uncompressed experience format
-        }
     }
 
-    std::string buffer;
-    std::size_t totalMoves = 0;
-
-    if (brainLearnFormat)
-    {
-        struct BinBL {
-            uint64_t key;
-            int32_t  depth;
-            int32_t  value;
-            uint16_t move;
-            uint16_t pad;
-            int32_t  perf;
-        };
-        for (const auto& [key, vec] : table)
-            for (const auto& e : vec)
-            {
-                BinBL be{key, e.depth, e.score, static_cast<uint16_t>(e.move.raw()), 0, e.count};
-                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
-                totalMoves++;
-            }
-    }
-    else
-    {
-        const std::string sig = "SugaR Experience version 2";
-        buffer.append(sig);
-        const unsigned char headerExtra[] = {
-            0x02,                                                          // version
-            0x00, 0x80, 0xE2, 0x63, 0xA4, 0x80, 0x33, 0x10,                  // seed
-            0x06, 0x00, 0x00, 0x00,                                          // bucket_size = 6
-            0x22, 0x00, 0x00, 0x00,                                          // entry_size  = 34
-            // First metadata block
-            0x17, 0x00, 0x00, 0x00,                                          // hash_bits = 23
-            0x01, 0x00, 0x00, 0x00,                                          // reserved
-            0x02, 0x00,                                                      // endian_tag = 0x0002
-            0xE4, 0x6C, 0x3F, 0x41,                                          // k_factor = 11.978f
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,                  // counters = 0
-            // Second metadata block (duplicate of the first)
-            0x17, 0x00, 0x00, 0x00,                                          // hash_bits = 23
-            0x01, 0x00, 0x00, 0x00,                                          // reserved
-            0x02, 0x00,                                                      // endian_tag = 0x0002
-            0xE4, 0x6C, 0x3F, 0x41,                                          // k_factor = 11.978f
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00                   // counters = 0
-        };
-        buffer.append(reinterpret_cast<const char*>(headerExtra), sizeof(headerExtra));
-
-        struct BinSugV2 {
-            uint32_t move1;
-            uint32_t visits1;
-            uint32_t key1_lo;
-            uint32_t key1_hi;
-            int32_t  score1;
-            int32_t  depth1;
-            uint32_t move2;
-            uint32_t visits2;
-            uint32_t key2_lo;
-            uint32_t key2_hi;
-            int32_t  score2;
-            int32_t  depth2;
-            uint32_t extraA;
-            uint32_t extraB;
-        };
-
-        for (const auto& [key, vec] : table)
-        {
-            BinSugV2 r{};
-            if (!vec.empty())
-            {
-                const auto& e1 = vec[0];
-                r.move1   = static_cast<uint32_t>(e1.move.raw());
-                r.visits1 = static_cast<uint32_t>(e1.count);
-                r.key1_lo = static_cast<uint32_t>(key & 0xFFFFFFFFu);
-                r.key1_hi = static_cast<uint32_t>(key >> 32);
-                r.score1  = e1.score;
-                r.depth1  = e1.depth;
-            }
-
-            if (vec.size() >= 2)
-            {
-                const auto& e2 = vec[1];
-                r.move2   = static_cast<uint32_t>(e2.move.raw());
-                r.visits2 = static_cast<uint32_t>(e2.count);
-                r.key2_lo = static_cast<uint32_t>(key & 0xFFFFFFFFu);
-                r.key2_hi = static_cast<uint32_t>(key >> 32);
-                r.score2  = e2.score;
-                r.depth2  = e2.depth;
-            }
-            else
-            {
-                r.key2_lo = static_cast<uint32_t>(key & 0xFFFFFFFFu);
-                r.key2_hi = static_cast<uint32_t>(key >> 32);
-            }
-
-            buffer.append(reinterpret_cast<const char*>(&r), sizeof(r));
-            totalMoves += std::min<std::size_t>(2, vec.size());
-        }
-    }
-
-    bool ok = false;
-    if (compressed)
-    {
-        gzFile out = gzopen(path.c_str(), "wb9");
-        if (out)
-        {
-            if (gzwrite(out, buffer.data(), buffer.size()) == (int) buffer.size())
-                ok = true;
-            gzclose(out);
-        }
-    }
-    else
-    {
-        std::ofstream out(path, std::ios::binary);
-        if (out)
-        {
-            out.write(buffer.data(), buffer.size());
-            ok = bool(out);
-        }
-    }
-
-    if (!ok)
+    std::ofstream out(path);
+    if (!out)
     {
         sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
         return;
     }
+
+    std::size_t totalMoves = 0;
+
+    for (const auto& [key, vec] : table)
+        for (const auto& e : vec)
+        {
+            out << key << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' ' << e.count
+                << '\n';
+            totalMoves++;
+        }
 
     std::size_t totalPositions = table.size();
 
     sync_cout << "info string " << path << " <- Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << sync_endl;
 }
-Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
-    if (!is_ready())
-        return Move::none();
+
+Move Experience::probe(
+  Position& pos, [[maybe_unused]] int width, int evalImportance, int minDepth, int maxMoves) {
     auto it = table.find(pos.key());
     if (it == table.end())
         return Move::none();
@@ -409,64 +255,29 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (vec.empty())
         return Move::none();
 
-    // Order moves by their historical evaluation and depth so that the most
-    // promising moves come first.  This allows the engine to "learn" from
-    // previous games by preferring moves with the best average score at the
-    // deepest search.
     std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
         return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
     });
 
-    vec.resize(std::min<int>({maxMoves, width, static_cast<int>(vec.size())}));
-
-    if (vec.empty() || vec.front().depth < minDepth)
+    vec.resize(std::min<int>(maxMoves, static_cast<int>(vec.size())));
+    const auto& best = vec.front();
+    if (best.depth < minDepth)
         return Move::none();
 
-    // Pick the best move deterministically instead of randomly.  The highest
-    // ranked move represents the one with the best historical evaluation.
-    return vec.front().move;
+    return best.move;
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
-    if (!is_ready())
-        return;
     auto& vec = table[pos.key()];
     for (auto& e : vec)
         if (e.move == move)
         {
-            // Update the stored statistics with a running average of the
-            // evaluation.  This simple learning mechanism increases the score
-            // reliability over time and retains the deepest search depth seen.
-            e.score = (e.score * e.count + score) / (e.count + 1);
-            e.depth = std::max(e.depth, depth);
+            e.score = score;
+            e.depth = depth;
             e.count++;
             return;
         }
-    // First encounter of this move in the current position.
     vec.push_back({move, score, depth, 1});
-}
-
-void Experience::show(const Position& pos, int evalImportance, int maxMoves) const {
-    if (!is_ready())
-        return;
-    auto it = table.find(pos.key());
-    if (it == table.end())
-    {
-        sync_cout << "info string No experience available" << sync_endl;
-        return;
-    }
-    auto vec = it->second;
-    std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
-        return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
-    });
-    int shown = 0;
-    for (const auto& e : vec)
-    {
-        if (shown++ >= maxMoves)
-            break;
-        sync_cout << "info string " << UCIEngine::move(e.move, pos.is_chess960()) << " score "
-                  << e.score << " depth " << e.depth << " count " << e.count << sync_endl;
-    }
 }
 
 }  // namespace Stockfish

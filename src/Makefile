@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution_dev_$(ENGINE_BUILD_DATE)_v1.2.exe
+        EXE = revolution.exe
 else
-        EXE = revolution_dev_$(ENGINE_BUILD_DATE)_v1.2
+        EXE = revolution
 endif
 
 ### Installation dir definitions
@@ -440,7 +440,7 @@ endif
 
 CXXFLAGS = $(ENV_CXXFLAGS) -Wall -Wcast-qual -fno-exceptions -std=c++17 $(EXTRACXXFLAGS)
 DEPENDFLAGS = $(ENV_DEPENDFLAGS) -std=c++17
-LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS) -lz
+LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS)
 
 ifeq ($(COMP),)
 	COMP=gcc
@@ -842,11 +842,11 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "revolution dev v1.2"
-#   - ENGINE_BUILD_DATE: optional build identifier (defaults to today's date in DDMMYY format)
+#   - ENGINE_NAME: "Revolution 1.0"
+#   - ENGINE_BUILD_DATE: system date in ddmmyy format
 # You can override on the command line:
-#   make ENGINE_NAME="revolution dev v1.2" ENGINE_BUILD_DATE=030925
-ENGINE_NAME        ?= revolution dev v1.2
+#   make ENGINE_NAME="Revolution 1.0.2 beta" ENGINE_BUILD_DATE=251001
+ENGINE_NAME        ?= Revolution 1.0
 ENGINE_BUILD_DATE  ?= $(shell date +%d%m%y)
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 

@@ -173,8 +173,7 @@ void Search::Worker::start_searching() {
                             main_manager()->originalTimeAdjust);
     tt.new_search();
 
-    Move preferredMove = Move::none();
-    Move bookMove      = Move::none();
+    Move bookMove = Move::none();
 
     if (rootMoves.empty())
     {
@@ -186,26 +185,14 @@ void Search::Worker::start_searching() {
     {
         if (!limits.infinite && !limits.mate)
         {
-            if ((bool) options["Experience Enabled"])
-            {
-                if ((bool) options["Experience Prior"])
-                    preferredMove =
-                      experience.probe(rootPos, (int) options["Experience Width"],
-                                       (int) options["Experience Eval Weight"],
-                                       (int) options["Experience Min Depth"],
-                                       (int) options["Experience Max Moves"]);
+            if ((bool) options["Experience Enabled"] && (bool) options["Experience Book"])
+                bookMove = experience.probe(rootPos, (int) options["Experience Book Width"],
+                                            (int) options["Experience Book Eval Importance"],
+                                            (int) options["Experience Book Min Depth"],
+                                            (int) options["Experience Book Max Moves"]);
 
-                if ((bool) options["Experience Book"])
-                    bookMove = experience.probe(rootPos,
-                                               (int) options["Experience Book Max Moves"],
-                                               (int) options["Experience Eval Weight"],
-                                               (int) options["Experience Book Min Depth"],
-                                               (int) options["Experience Book Max Moves"]);
-            }
-
-            if ((bool) options["Book1"]
-                && rootPos.game_ply() / 2 < (int) options["Book1 Depth"]
-                && bookMove == Move::none())
+            if (bookMove == Move::none() && (bool) options["Book1"]
+                && rootPos.game_ply() / 2 < (int) options["Book1 Depth"])
                 bookMove = polybook[0].probe(rootPos, (bool) options["Book1 BestBookMove"],
                                              (int) options["Book1 Width"]);
 
@@ -214,13 +201,6 @@ void Search::Worker::start_searching() {
                 bookMove = polybook[1].probe(rootPos, (bool) options["Book2 BestBookMove"],
                                              (int) options["Book2 Width"]);
         }
-
-        if (preferredMove != Move::none()
-            && std::find(rootMoves.begin(), rootMoves.end(), preferredMove) != rootMoves.end())
-            for (auto&& th : threads)
-                std::swap(th->worker.get()->rootMoves[0],
-                          *std::find(th->worker.get()->rootMoves.begin(),
-                                     th->worker.get()->rootMoves.end(), preferredMove));
 
         if (bookMove != Move::none()
             && std::find(rootMoves.begin(), rootMoves.end(), bookMove) != rootMoves.end())
@@ -520,29 +500,29 @@ void Search::Worker::iterative_deepening() {
               rootMoves[0].effort * 100000 / std::max(size_t(1), size_t(nodes));
 
             double fallingEval =
-              (11.325 + 2.115 * (mainThread->bestPreviousAverageScore - bestValue)
-               + 0.987 * (mainThread->iterValue[iterIdx] - bestValue))
+              (11.396 + 2.035 * (mainThread->bestPreviousAverageScore - bestValue)
+               + 0.968 * (mainThread->iterValue[iterIdx] - bestValue))
               / 100.0;
-            fallingEval = std::clamp(fallingEval, 0.5688, 1.5698);
+            fallingEval = std::clamp(fallingEval, 0.5786, 1.6752);
 
             // If the bestMove is stable over several iterations, reduce time accordingly
-            double k      = 0.5189;
-            double center = lastBestMoveDepth + 11.57;
-            timeReduction = 0.723 + 0.79 / (1.104 + std::exp(-k * (completedDepth - center)));
+            double k      = 0.527;
+            double center = lastBestMoveDepth + 11;
+            timeReduction = 0.8 + 0.84 / (1.077 + std::exp(-k * (completedDepth - center)));
             double reduction =
-              (1.455 + mainThread->previousTimeReduction) / (2.2375 * timeReduction);
-            double bestMoveInstability = 1.04 + 1.8956 * totBestMoveChanges / threads.size();
+              (1.4540 + mainThread->previousTimeReduction) / (2.1593 * timeReduction);
+            double bestMoveInstability = 0.9929 + 1.8519 * totBestMoveChanges / threads.size();
 
             double totalTime =
               mainThread->tm.optimum() * fallingEval * reduction * bestMoveInstability;
 
             // Cap used time in case of a single legal move for a better viewer experience
             if (rootMoves.size() == 1)
-                totalTime = std::min(502.0, totalTime);
+                totalTime = std::min(500.0, totalTime);
 
             auto elapsedTime = elapsed();
 
-            if (completedDepth >= 10 && nodesEffort >= 92425 && elapsedTime > totalTime * 0.666
+            if (completedDepth >= 10 && nodesEffort >= 97056 && elapsedTime > totalTime * 0.6540
                 && !mainThread->ponder)
                 threads.stop = true;
 
@@ -557,7 +537,7 @@ void Search::Worker::iterative_deepening() {
                     threads.stop = true;
             }
             else
-                threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.503;
+                threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.5138;
         }
 
         mainThread->iterValue[iterIdx] = bestValue;
@@ -1275,19 +1255,38 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 789 / 8192;
 
-        // Step 17. Late moves reduction (LMR)
+        // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
-            // Apply a simple reduction limited between one ply and the remaining depth
-            Depth d = std::max(1, newDepth - r / 1024);
+            // In general we want to cap the LMR depth search at newDepth, but when
+            // reduction is negative, we allow this move a limited search extension
+            // beyond the first move depth.
+            // To prevent problems when the max value is less than the min value,
+            // std::clamp has been replaced by a more robust implementation.
+            Depth d = std::max(1, std::min(newDepth - r / 1024, newDepth + 1 + PvNode)) + PvNode;
 
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
+            // (*Scaler) Usually doing more shallower searches
+            // doesn't scale well to longer TCs
             if (value > alpha)
-                value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+            {
+                // Adjust full-depth search based on LMR results - if the result was
+                // good enough search deeper, if it was bad enough search shallower.
+                const bool doDeeperSearch = d < newDepth && value > (bestValue + 43 + 2 * newDepth);
+                const bool doShallowerSearch = value < bestValue + 9;
+
+                newDepth += doDeeperSearch - doShallowerSearch;
+
+                if (newDepth > d)
+                    value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
+
+                // Post LMR continuation history updates
+                update_continuation_histories(ss, movedPiece, move.to_sq(), 1412);
+            }
         }
 
         // Step 18. Full-depth search when LMR is skipped
