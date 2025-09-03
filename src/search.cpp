@@ -265,10 +265,8 @@ void Search::Worker::start_searching() {
 
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
     {
-        const std::string path = options["Experience File"];
+        const std::string           path = options["Experience File"];
         std::lock_guard<std::mutex> lk(experience.mtx);
-        experience.update(rootPos, bestThread->rootMoves[0].pv[0], bestThread->rootMoves[0].score,
-                          bestThread->completedDepth);
         if (experience.dirty())
         {
             experience.save(path);
@@ -490,8 +488,11 @@ void Search::Worker::iterative_deepening() {
             const Move best = rootMoves[0].pv[0];
             if (best != Move::none())
             {
+                const uint64_t key = Experience::compose_key(rootPos.key(), (uint16_t) best.raw());
                 std::lock_guard<std::mutex> lk(experience.mtx);
-                experience.update(rootPos, best, rootMoves[0].score, rootDepth);
+                experience.insert_entry(key, (uint16_t) best.raw(), rootMoves[0].score, rootDepth,
+                                        1);
+                experience.mark_dirty();
             }
         }
 

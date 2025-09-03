@@ -15,7 +15,10 @@ namespace Stockfish {
 
 Experience experience;
 
-void Experience::clear() { table.clear(); clear_dirty(); }
+void Experience::clear() {
+    table.clear();
+    clear_dirty();
+}
 
 // Mix 16-bit to 64-bit with simple avalanche
 static inline uint64_t mix16to64(uint16_t x) {
@@ -91,7 +94,7 @@ void Experience::load(const std::string& file) {
     if (sig == sigV2)
     {
         binaryFormat = true;
-        isV2 = true;
+        isV2         = true;
     }
     else
     {
@@ -142,64 +145,17 @@ void Experience::load(const std::string& file) {
         }
         else if (isV2)
         {
-            auto read_u8  = [&](uint8_t& x) { in.read(reinterpret_cast<char*>(&x), 1); };
-            auto read_u16 = [&](uint16_t& x) { in.read(reinterpret_cast<char*>(&x), 2); };
-            auto read_u32 = [&](uint32_t& x) { in.read(reinterpret_cast<char*>(&x), 4); };
-            auto read_u64 = [&](uint64_t& x) { in.read(reinterpret_cast<char*>(&x), 8); };
-            auto read_f32 = [&](float& x) { in.read(reinterpret_cast<char*>(&x), 4); };
+            const std::size_t headerExtra = 61;  // bytes después de la firma en v2
+            in.seekg(sigV2.size() + headerExtra, std::ios::beg);
 
-            uint8_t  version = 0;
-            uint64_t seed = 0;
-            uint32_t bucket_size = 0;
-            uint32_t entry_size  = 0;
-
-            read_u8(version);
-            read_u64(seed);
-            read_u32(bucket_size);
-            read_u32(entry_size);
-            if (!in)
-                return;
-
-            // Meta block #1
-            uint32_t hash_bits1 = 0, reserved1 = 0;
-            uint16_t endian_tag1 = 0;
-            float    k_factor1 = 0.f;
-            uint64_t counters1 = 0;
-            read_u32(hash_bits1);
-            read_u32(reserved1);
-            read_u16(endian_tag1);
-            read_f32(k_factor1);
-            read_u64(counters1);
-            if (!in)
-                return;
-
-            // Meta block #2
-            uint32_t hash_bits2 = 0, reserved2 = 0;
-            uint16_t endian_tag2 = 0;
-            float    k_factor2 = 0.f;
-            uint64_t counters2 = 0;
-            read_u32(hash_bits2);
-            read_u32(reserved2);
-            read_u16(endian_tag2);
-            read_f32(k_factor2);
-            read_u64(counters2);
-            if (!in)
-                return;
-
-            if (entry_size != 34 || endian_tag1 != 0x0002)
-                return;
-
-            // Verify that the file body aligns to the declared entry size
-            std::streampos dataStart = in.tellg();
+            // Verificar que el cuerpo está alineado a 34B
+            auto here = in.tellg();
             in.seekg(0, std::ios::end);
-            std::streampos fileEnd = in.tellg();
-            in.seekg(dataStart, std::ios::beg);
-            const auto body = static_cast<std::streamoff>(fileEnd - dataStart);
-            if (body % entry_size != 0)
-            {
-                sync_cout << "info string file not aligned to entry size" << sync_endl;
+            auto endp = in.tellg();
+            in.seekg(here, std::ios::beg);
+            const auto body = static_cast<std::streamoff>(endp - here);
+            if (body % 34 != 0)
                 return;
-            }
 
 #pragma pack(push, 1)
             struct EntryV2 {
@@ -238,7 +194,7 @@ void Experience::load(const std::string& file) {
     }
 
     std::size_t totalPositions = table.size();
-    double      frag = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
+    double      frag           = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
     sync_cout << "info string " << display << " -> Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << ". Duplicate moves: " << duplicateMoves
@@ -266,26 +222,71 @@ void Experience::save(const std::string& file) const {
         }
     }
 
-    std::ofstream out(path);
+    std::string buffer;
+    std::size_t totalMoves = 0;
+
+// --- Registro fijo de 34 bytes (BrainLearn/SugaR v2) ---
+#pragma pack(push, 1)
+    struct EntryV2 {
+        uint64_t key;    // zobrist pos ^ mix(move16)
+        uint16_t move;   // 16-bit
+        int16_t  score;  // cp
+        int16_t  depth;
+        int16_t  count;
+        int32_t  wins;
+        int32_t  losses;
+        int32_t  draws;
+        int16_t  flags;
+        int16_t  age;
+        int16_t  pad;  // padding -> total 34
+    };
+#pragma pack(pop)
+    static_assert(sizeof(EntryV2) == 34, "EntryV2 must be 34 bytes");
+
+    auto append_entry34 = [&](const uint64_t key, const ExperienceEntry& e) {
+        EntryV2 out{};
+        out.key   = key;
+        out.move  = static_cast<uint16_t>(e.move.raw());
+        out.score = static_cast<int16_t>(e.score);
+        out.depth = static_cast<int16_t>(e.depth);
+        out.count = static_cast<int16_t>(e.count <= 0 ? 1 : e.count);
+        buffer.append(reinterpret_cast<const char*>(&out), sizeof(out));
+        totalMoves++;
+    };
+
+    // --- Cabecera exacta compatible HypnoS (87 bytes totales con firma) ---
+    const std::string sig = "SugaR Experience version 2";
+    buffer.append(sig);
+    static const unsigned char hdr[] = {
+      0x02, 0x00, 0x80, 0xE2, 0x63, 0xA4, 0x80, 0x33, 0x10, 0x06, 0x00, 0x00, 0x00,
+      0x22, 0x00, 0x00, 0x00, 0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02,
+      0x00, 0xE4, 0x6C, 0x3F, 0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x17, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0xE4, 0x6C, 0x3F,
+      0x41, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+    buffer.append(reinterpret_cast<const char*>(hdr), sizeof(hdr));
+
+    for (const auto& [key, vec] : table)
+        for (const auto& e : vec)
+            append_entry34(key, e);
+
+    // --- Verificación de consistencia antes de escribir a disco ---
+    const size_t headerLen = sig.size() + sizeof(hdr);  // 26 + 61 = 87
+    if (buffer.size() < headerLen || ((buffer.size() - headerLen) % sizeof(EntryV2)) != 0)
+    {
+        sync_cout << "info string not writing invalid exp (body not aligned to 34)" << sync_endl;
+        return;
+    }
+
+    std::ofstream out(path, std::ios::binary);
     if (!out)
     {
         sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
         return;
     }
-
-    std::size_t totalMoves = 0;
-
-    for (const auto& [key, vec] : table)
-        for (const auto& e : vec)
-        {
-            uint64_t composed = compose_key(key, e.move.raw());
-            out << composed << ' ' << e.move.raw() << ' ' << e.score << ' ' << e.depth << ' '
-                << e.count << '\n';
-            totalMoves++;
-        }
+    out.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+    out.close();
 
     std::size_t totalPositions = table.size();
-
     sync_cout << "info string " << path << " <- Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << sync_endl;
 }
