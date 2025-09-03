@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.0] - 2025-09-04
+### Changed
+- Renamed engine to Revolution 2.0 with build date 040925 for GUI identification.
+
 ## [1.0] - 2025-08-27
 ### Added
 - Initial public release of Revolution v1.0.
