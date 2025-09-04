@@ -51,6 +51,9 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorStack&  accumulators,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
+
+// Toggle for optional style-based evaluation adjustments.
+void set_adaptive_style(bool enabled);
 }  // namespace Eval
 
 }  // namespace Stockfish
