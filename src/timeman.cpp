@@ -99,6 +99,9 @@ void TimeManagement::init(Search::LimitsType& limits,
                limits.time[us]
                  + (limits.inc[us] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
 
+    TimePoint slowMover = TimePoint(options["Slow Mover"]);
+    timeLeft            = timeLeft * slowMover / 100;
+
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
     // game time for the current move, so also cap to a percentage of available game time.

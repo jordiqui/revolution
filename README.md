@@ -102,6 +102,13 @@ control this system:
 
 The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
 
+## Time Management Options
+
+Revolution exposes settings to tune how it allocates thinking time:
+
+- `Move Overhead`: reserves a fixed amount of time (in milliseconds) for communication overhead.
+- `Slow Mover`: percentage scale of total time usage per move (default `100`). Lower values make the engine move faster, higher values slower.
+
 ## License
 
 Revolution is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3).
