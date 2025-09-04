@@ -74,6 +74,8 @@ using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 // They are optimized to time controls of 180 + 1.8 and longer,
 // so changing them or adding conditions that are similar requires
 // tests at these types of time controls.
+// (*Scaler) All tuned parameters at time controls shorter than
+// optimized for require verifications at longer time controls
 
 int correction_value(const Worker& w, const Position& pos, const Stack* const ss) {
     const Color us    = pos.side_to_move();
