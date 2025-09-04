@@ -35,6 +35,7 @@
 #include "engine.h"
 #include "memory.h"
 #include "movegen.h"
+#include "experience.h"
 #include "position.h"
 #include "score.h"
 #include "search.h"
@@ -104,8 +105,34 @@ void UCIEngine::loop() {
         token.clear();  // Avoid a stale if getline() returns nothing or a blank line
         is >> std::skipws >> token;
 
-        if (token == "quit" || token == "stop")
+        if (token == "stop")
+        {
             engine.stop();
+            engine.wait_for_search_finished();
+            const auto& options = engine.get_options();
+            if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+            {
+                std::lock_guard<std::mutex> lk(experience.mtx);
+                if (experience.dirty())
+                {
+                    experience.save(options["Experience File"]);
+                    experience.clear_dirty();
+                }
+            }
+        }
+        else if (token == "quit")
+        {
+            engine.stop();
+            engine.wait_for_search_finished();
+            const auto& options = engine.get_options();
+            if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+            {
+                std::lock_guard<std::mutex> lk(experience.mtx);
+                experience.save(options["Experience File"]);
+                experience.clear_dirty();
+            }
+            break;
+        }
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
         // So, 'ponderhit' is sent if pondering was done on the same move that the user
@@ -116,7 +143,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0 <date>"
+            // Force a stable, explicit UCI name so GUIs show "Revolution 2.0 <date>"
             sync_cout << "id name " << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << "\n"
                 << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << "\n"
                 << engine.get_options() << sync_endl;
