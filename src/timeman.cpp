@@ -60,6 +60,7 @@ void TimeManagement::init(Search::LimitsType& limits,
         return;
 
     TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
+    double    slowMover    = options["Slow Mover"] / 100.0;
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
@@ -127,6 +128,8 @@ void TimeManagement::init(Search::LimitsType& limits,
           std::min((0.88 + ply / 116.4) / (centiMTG / 100.0), 0.88 * limits.time[us] / timeLeft);
         maxScale = 1.3 + 0.11 * (centiMTG / 100.0);
     }
+
+    optScale *= slowMover;
 
     // Limit the maximum possible time for this move
     optimumTime = TimePoint(optScale * timeLeft);

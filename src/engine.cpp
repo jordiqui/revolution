@@ -108,6 +108,8 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Move Overhead", Option(10, 0, 5000));
 
+    options.add("Slow Mover", Option(100, 10, 1000));
+
     options.add("nodestime", Option(0, 0, 10000));
 
     options.add("Minimum Thinking Time", Option(20, 0, 5000));
