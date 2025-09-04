@@ -84,21 +84,23 @@ directory is supplied via the `SyzygyPath` UCI option. The engine also exposes a
 available WDL and DTZ tables during initialization, reducing probe latency at the
 expense of additional startup time and memory usage.
 
-## Experience Book
+## Experience Learning
 
-Revolution includes a simple text-based cache that stores root moves from
-previous games. It functions as a lightweight opening book and does not
-influence the internal search beyond the root. The following UCI options
-control this system:
+Revolution includes a simple text-based cache that stores root moves and evaluations from
+previous games. Rather than forcing book moves, the cached information biases root move
+ordering during search. The following UCI options control this system:
 
 - `Experience Enabled`: enables or disables the experience feature (default `true`).
-- `Experience File`: name of the file where the experience data is stored (default `revolution.exp`; legacy `.bin` files are converted automatically).
+- `Experience File`: name of the file where the experience data is stored (default `experience.exp`; legacy `.bin` files are converted automatically to this format).
 - `Experience Readonly`: if `true`, no changes are written to the file.
-- `Experience Book`: uses the experience data as an opening book.
-- `Experience Book Width`: number of principal moves to consider (1–20).
-- `Experience Book Eval Importance`: weighting of evaluation when ordering moves (0–10).
-- `Experience Book Min Depth`: minimum depth required to store a move (4–64).
-- `Experience Book Max Moves`: maximum number of moves saved per position (1–100).
+- `Experience Prior`: uses stored experience to bias root move ordering.
+- `Experience Width`: number of principal moves to consider (1–20).
+- `Experience Eval Weight`: weighting of evaluation when ordering moves (0–10).
+- `Experience Min Depth`: minimum depth required to store a move (4–64).
+- `Experience Max Moves`: maximum number of moves saved per position (1–100).
+- `Experience Book`: if `true`, use the experience file as an opening book.
+- `Experience Book Max Moves`: limit of moves considered when using the experience book (1–100, default 100).
+- `Experience Book Min Depth`: minimum depth required for a move to be used from the experience book (1–255, default 4).
 
 The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
 
