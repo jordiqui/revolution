@@ -1,3 +1,6 @@
+Revolution 2.0.1 dev 040825
+- Updated engine version to 2.0.1 dev with build date 040825.
+
 Revolution 2.0 040925
 - Renamed engine to Revolution 2.0 with build date 040925.
 

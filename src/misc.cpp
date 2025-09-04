@@ -37,7 +37,10 @@
 
 #include "types.h"
 #ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE "040925"
+    #define ENGINE_BUILD_DATE "040825"
+#endif
+#ifndef ENGINE_NAME
+    #define ENGINE_NAME "Revolution 2.0.1 dev"
 #endif
 
 namespace Stockfish {
@@ -119,7 +122,7 @@ class Logger {
 
 
 // Returns the full name of the current Revolution version.
-std::string engine_version_info() { return std::string("Revolution 2.0 ") + version.data(); }
+std::string engine_version_info() { return std::string(ENGINE_NAME " ") + version.data(); }
 
 // Update author information
 std::string engine_info(bool to_uci) {
