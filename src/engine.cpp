@@ -215,6 +215,12 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
+    options.add(  //
+      "FalconFile", Option("3.net", [this](const Option& o) {
+          load_big_network(o);
+          return std::nullopt;
+      }));
+
     load_networks();
     resize_threads();
 }

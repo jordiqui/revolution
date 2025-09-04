@@ -104,6 +104,28 @@ ordering during search. The following UCI options control this system:
 
 The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
 
+## UCI Options
+
+### Minimum Thinking Time
+
+The `Minimum Thinking Time` option ensures the engine spends at least a
+specified number of milliseconds searching for a move, even if it finds
+a good one instantly. This avoids extremely fast, low-quality replies.
+Set it with:
+
+```
+setoption name Minimum Thinking Time value <milliseconds>
+```
+
+### Falcon Net
+
+Revolution can switch to an alternative neural network using the
+`FalconFile` option. To load the bundled `3.net` file, send:
+
+```
+setoption name FalconFile value 3.net
+```
+
 ## License
 
 Revolution is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3).
