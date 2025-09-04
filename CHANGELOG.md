@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.0.1-dev] - 2025-08-04
+### Changed
+- Bump engine version to Revolution 2.0.1 dev with build date 040825.
+
 ## [2.0] - 2025-09-04
 ### Changed
 - Renamed engine to Revolution 2.0 with build date 040925 for GUI identification.
