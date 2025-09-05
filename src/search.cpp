@@ -98,6 +98,9 @@ void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
                                const int       bonus) {
+    if (bonus == 0)
+        return;
+
     const Move  m  = (ss - 1)->currentMove;
     const Color us = pos.side_to_move();
 
