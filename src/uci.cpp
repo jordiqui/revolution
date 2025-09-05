@@ -43,10 +43,10 @@
 #include "ucioption.h"
 
 #ifndef ENGINE_NAME
-    #define ENGINE_NAME "revolution dev 010925 v1.0.1"
+    #define ENGINE_NAME "revolution dev-1.0.1 050925 avx"
 #endif
 #ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE __DATE__
+    #define ENGINE_BUILD_DATE ""
 #endif
 
 namespace Stockfish {
@@ -126,14 +126,11 @@ void UCIEngine::loop() {
         {
             // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
             sync_cout_start();
-            std::cout << "id name " << ENGINE_NAME;
-            if (*ENGINE_BUILD_DATE)
-                std::cout << ' ' << ENGINE_BUILD_DATE;
-            std::cout
-              << "\n"
-              << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
-              << "\n"
-              << engine.get_options() << std::endl;
+            std::cout << "id name " << ENGINE_NAME
+                      << "\n"
+                      << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
+                      << "\n"
+                      << engine.get_options() << std::endl;
             sync_cout_end();
 
             sync_cout << "uciok" << sync_endl;
@@ -460,7 +457,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   << ENGINE_NAME << " << __DATE__ << " " << __TIME__
+              << "\nVersion                    :   << ENGINE_NAME"
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "
