@@ -202,7 +202,10 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
 
     std::memset(this, 0, sizeof(Position));
     std::memset(si, 0, sizeof(StateInfo));
-    st = si;
+    st              = si;
+    stateIndex      = 0;
+    si->previous    = nullptr;
+    si->previousIndex = -1;
 
     ss >> std::noskipws;
 
@@ -701,8 +704,10 @@ DirtyPiece Position::do_move(Move                      m,
     // ones which are going to be recalculated from scratch anyway and then switch
     // our state pointer to point to the new (ready to be updated) state.
     std::memcpy(&newSt, st, offsetof(StateInfo, key));
-    newSt.previous = st;
-    st             = &newSt;
+    newSt.previous      = st;
+    newSt.previousIndex = stateIndex;
+    st                  = &newSt;
+    ++stateIndex;
 
     // Increment ply counters. In particular, rule50 will be reset to zero later on
     // in case of a capture or a pawn move.
@@ -1012,6 +1017,7 @@ void Position::undo_move(Move m) {
 
     // Finally point our state pointer back to the previous state
     st = st->previous;
+    --stateIndex;
     --gamePly;
 
     assert(pos_is_ok());
@@ -1058,8 +1064,10 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
 
     std::memcpy(&newSt, st, sizeof(StateInfo));
 
-    newSt.previous = st;
-    st             = &newSt;
+    newSt.previous      = st;
+    newSt.previousIndex = stateIndex;
+    st                  = &newSt;
+    ++stateIndex;
 
     if (st->epSquare != SQ_NONE)
     {
@@ -1088,6 +1096,7 @@ void Position::undo_null_move() {
     assert(!checkers());
 
     st         = st->previous;
+    --stateIndex;
     sideToMove = ~sideToMove;
 }
 
