@@ -22,6 +22,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <new>
 #include <type_traits>
@@ -209,6 +210,37 @@ T* align_ptr_up(T* ptr) {
     const uintptr_t ptrint = reinterpret_cast<uintptr_t>(reinterpret_cast<char*>(ptr));
     return reinterpret_cast<T*>(
       reinterpret_cast<char*>((ptrint + (Alignment - 1)) / Alignment * Alignment));
+}
+
+// Simple allocator backed by aligned large pages. This can be used with
+// standard containers such as std::vector to provide a pool-like behaviour
+// while retaining proper alignment guarantees.
+template<typename T>
+struct LargePageAllocator {
+    using value_type = T;
+
+    LargePageAllocator() noexcept {}
+    template<class U>
+    LargePageAllocator(const LargePageAllocator<U>&) noexcept {}
+
+    T* allocate(std::size_t n) {
+        void* ptr = aligned_large_pages_alloc(n * sizeof(T));
+        if (!ptr)
+            std::abort();
+        return static_cast<T*>(ptr);
+    }
+
+    void deallocate(T* p, std::size_t) noexcept { aligned_large_pages_free(p); }
+};
+
+template<class T, class U>
+bool operator==(const LargePageAllocator<T>&, const LargePageAllocator<U>&) {
+    return true;
+}
+
+template<class T, class U>
+bool operator!=(const LargePageAllocator<T>&, const LargePageAllocator<U>&) {
+    return false;
 }
 
 
