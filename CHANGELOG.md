@@ -6,6 +6,7 @@
 - UCI option `Slow Mover` to adjust engine time usage.
 - Engine now appends the build date after its name in UCI identification.
 ### Changed
+- Refactored `Position` and related modules, migrating internal containers to `sts::vector`.
 - Simplified rule-50 key adjustment by removing the unused template parameter.
 
 ## [1.0.0-dev 2708225]
