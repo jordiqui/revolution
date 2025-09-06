@@ -74,6 +74,9 @@ using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 // so changing them or adding conditions that are similar requires
 // tests at these types of time controls.
 
+// (*Scaler) All tuned parameters at time controls shorter than
+// optimized for require verifications at longer time controls
+
 int correction_value(const Worker& w, const Position& pos, const Stack* const ss) {
     const Color us    = pos.side_to_move();
     const auto  m     = (ss - 1)->currentMove;
@@ -192,22 +195,19 @@ void Search::Worker::start_searching() {
             if ((bool) options["Experience Enabled"])
             {
                 if ((bool) options["Experience Prior"])
-                    preferredMove =
-                      experience.probe(rootPos, (int) options["Experience Width"],
-                                       (int) options["Experience Eval Weight"],
-                                       (int) options["Experience Min Depth"],
-                                       (int) options["Experience Max Moves"]);
+                    preferredMove = experience.probe(rootPos, (int) options["Experience Width"],
+                                                     (int) options["Experience Eval Weight"],
+                                                     (int) options["Experience Min Depth"],
+                                                     (int) options["Experience Max Moves"]);
 
                 if ((bool) options["Experience Book"])
-                    bookMove = experience.probe(rootPos,
-                                               (int) options["Experience Book Max Moves"],
-                                               (int) options["Experience Eval Weight"],
-                                               (int) options["Experience Book Min Depth"],
-                                               (int) options["Experience Book Max Moves"]);
+                    bookMove = experience.probe(rootPos, (int) options["Experience Book Max Moves"],
+                                                (int) options["Experience Eval Weight"],
+                                                (int) options["Experience Book Min Depth"],
+                                                (int) options["Experience Book Max Moves"]);
             }
 
-            if ((bool) options["Book1"]
-                && rootPos.game_ply() / 2 < (int) options["Book1 Depth"]
+            if ((bool) options["Book1"] && rootPos.game_ply() / 2 < (int) options["Book1 Depth"]
                 && bookMove == Move::none())
                 bookMove = polybook[0].probe(rootPos, (bool) options["Book1 BestBookMove"],
                                              (int) options["Book1 Width"]);
