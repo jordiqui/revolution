@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.20] - 2025-09-06
+### Changed
+- Updated engine identifier to "revolution 1.20 060925 avx" for official release.
+
 ## [1.0.1] - 2025-09-01
 ### Added
 - UCI option `Minimum Thinking Time` to enforce a minimum search duration per move.
