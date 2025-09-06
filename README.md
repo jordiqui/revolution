@@ -24,6 +24,7 @@ As a UCI-compliant engine, Revolution operates through **standard chess interfac
 
 Revolution's architecture features:
 
+- Refactored position and related modules, migrating to `sts::vector` for memory-efficient data structures
 - Hybrid evaluation system combining classical heuristics with NNUE networks
 - SMP parallelization with YBWC (Young Brothers Wait Concept)
 - Advanced pruning techniques (Reverse Futility Pruning, Late Move Pruning)
