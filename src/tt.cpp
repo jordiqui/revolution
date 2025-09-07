@@ -47,9 +47,9 @@ namespace Stockfish {
 // Equally, the store order in save() matches this order.
 
 TTData TTEntry::read() const {
-    return TTData{Move(move16),           Value(value16),
-                  Value(eval16),          Depth(depth8 + DEPTH_ENTRY_OFFSET),
-                  Bound(genBound8 & 0x3), bool(genBound8 & 0x4)};
+    return TTData{Move(move16),           Value(value16),          Value(eval16),
+                  Depth(depth8 + DEPTH_ENTRY_OFFSET),
+                  Bound(genBound8 & 0x3), bool(genBound8 & 0x4), key16};
 }
 
 // `genBound8` is where most of the details are. We use the following constants to manipulate 5 leading generation bits
@@ -207,7 +207,7 @@ std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) cons
         }
 
     return {false,
-            TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, BOUND_NONE, false},
+            TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, BOUND_NONE, false, 0},
             TTWriter(const_cast<TranspositionTable*>(this), clusterIndex, replaceIdx)};
 }
 
