@@ -1,5 +1,9 @@
 # Changelog
 
+## [1.2.0-dev] - 2025-09-07
+### Changed
+- Updated engine identifier to "revolution v.1.2.0 dev- 070925".
+
 ## [1.20] - 2025-09-06
 ### Changed
 - Updated engine identifier to "revolution 1.20 060925 avx" for official release.
