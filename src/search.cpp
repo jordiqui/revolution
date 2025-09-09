@@ -1150,9 +1150,10 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3233;
 
-                Value baseFutility = (bestMove ? 46 : 230);
+                // Retuned futility pruning margins and depth scaling
+                Value baseFutility = (bestMove ? 52 : 215);
                 Value futilityValue =
-                  ss->staticEval + baseFutility + 131 * lmrDepth + 91 * (ss->staticEval > alpha);
+                  ss->staticEval + baseFutility + 125 * lmrDepth + 91 * (ss->staticEval > alpha);
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning

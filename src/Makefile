@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution_070925_v1.2.0.exe
+        EXE = revolution_090925_v2.20_avx.exe
 else
-        EXE = revolution_070925_v1.2.0
+        EXE = revolution_090925_v2.20_avx
 endif
 
 ### Installation dir definitions
@@ -859,11 +859,11 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "revolution v.1.2.0 dev- 070925"
+#   - ENGINE_NAME: "Revolution-dev v.2.20 090925 avx"
 #   - ENGINE_BUILD_DATE: optional build identifier
 # You can override on the command line:
-#   make ENGINE_NAME="revolution v.1.2.0 dev- 070925" ENGINE_BUILD_DATE=20250907
-ENGINE_NAME        ?= revolution v.1.2.0 dev- 070925
+#   make ENGINE_NAME="Revolution-dev v.2.20 090925 avx" ENGINE_BUILD_DATE=20250907
+ENGINE_NAME        ?= Revolution-dev v.2.20 090925 avx
 ENGINE_BUILD_DATE  ?=
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
