@@ -50,11 +50,6 @@ Contributions must adhere to:
 - Elo measurement via [OpenBench][openbench-link]
 - Compatibility with UCI protocol standard
 
-### Testing Infrastructure
-Improvements require extensive testing:
-- Install the [Revolution Test Suite][testsuite-linkhttps://github.com/Disservin/fastchess/?tab=readme-ov-file]
-- Participate in active tests on [Revolution Test Suite][testsuite-link]
-- Verify ELO gains through SPRT validation
 
 ### Community
 Technical discussions occur primarily through:
