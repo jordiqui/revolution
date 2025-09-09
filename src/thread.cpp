@@ -388,15 +388,14 @@ std::vector<size_t> ThreadPool::get_bound_thread_count_by_numa_node() const {
 
     if (!boundThreadToNumaNode.empty())
     {
-        NumaIndex highestNumaNode = 0;
+        counts.reserve(boundThreadToNumaNode.size());
         for (NumaIndex n : boundThreadToNumaNode)
-            if (n > highestNumaNode)
-                highestNumaNode = n;
+        {
+            if (n >= counts.size())
+                counts.resize(n + 1, 0);
 
-        counts.resize(highestNumaNode + 1, 0);
-
-        for (NumaIndex n : boundThreadToNumaNode)
-            counts[n] += 1;
+            ++counts[n];
+        }
     }
 
     return counts;
