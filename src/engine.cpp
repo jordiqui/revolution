@@ -57,13 +57,14 @@ int            MaxThreads = std::max(1024, 4 * int(get_hardware_concurrency()));
 Engine::Engine(std::optional<std::string> path) :
     binaryDirectory(path ? CommandLine::get_binary_directory(*path) : ""),
     numaContext(NumaConfig::from_system()),
-    states(std::make_unique<std::deque<StateInfo>>(1)),
+    states(std::make_unique<std::deque<StateInfo>>()),
     threads(),
     networks(
       numaContext,
       NN::Networks(
         NN::NetworkBig({EvalFileDefaultNameBig, "None", ""}, NN::EmbeddedNNUEType::BIG),
         NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL))) {
+    states->emplace_back();
     pos.set(StartFEN, false, &states->back());
 
 
@@ -302,17 +303,19 @@ void Engine::wait_for_search_finished() { threads.main_thread()->wait_for_search
 
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves) {
     // Drop the old state and create a new one
-    states = std::make_unique<std::deque<StateInfo>>(moves.size() + 1);
-    pos.set(fen, options["UCI_Chess960"], &(*states)[0]);
+    states = std::make_unique<std::deque<StateInfo>>();
+    states->emplace_back();
+    pos.set(fen, options["UCI_Chess960"], &states->back());
 
-    for (size_t i = 0; i < moves.size(); ++i)
+    for (const auto& move : moves)
     {
-        auto m = UCIEngine::to_move(pos, moves[i]);
+        auto m = UCIEngine::to_move(pos, move);
 
         if (m == Move::none())
             break;
 
-        pos.do_move(m, (*states)[i + 1]);
+        states->emplace_back();
+        pos.do_move(m, states->back());
     }
 }
 
@@ -398,8 +401,9 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
 // utility functions
 
 void Engine::trace_eval() const {
-    StateListPtr trace_states = std::make_unique<std::deque<StateInfo>>(1);
-    Position     p;
+    StateListPtr trace_states = std::make_unique<std::deque<StateInfo>>();
+    trace_states->emplace_back();
+    Position p;
     p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
 
     verify_networks();
