@@ -508,10 +508,11 @@ void UCIEngine::position(std::istringstream& is) {
         return;
 
     std::vector<std::string> moves;
+    moves.reserve(32);
 
     while (is >> token)
     {
-        moves.push_back(token);
+        moves.emplace_back(std::move(token));
     }
 
     engine.set_position(fen, moves);

@@ -28,7 +28,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
-#include <list>
+#include <deque>
 #include <ratio>
 #include <string>
 #include <utility>
@@ -2035,7 +2035,7 @@ void syzygy_extend_pv(const OptionsMap&         options,
                  > moveOverhead;
     };
 
-    std::list<StateInfo> sts;
+    std::deque<StateInfo> sts;
 
     // Step 0, do the rootMove, no correction allowed, as needed for MultiPV in TB.
     auto& stRoot = sts.emplace_back();
