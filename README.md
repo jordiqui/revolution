@@ -52,7 +52,7 @@ Contributions must adhere to:
 
 ### Testing Infrastructure
 Improvements require extensive testing:
-- Install the [Revolution Test Worker][worker-link]
+- Install the [Revolution Test Worker][(https://github.com/Disservin/fastchess/?tab=readme-ov-file)]
 - Participate in active tests on [Revolution Test Suite][testsuite-link]
 - Verify ELO gains through SPRT validation
 
