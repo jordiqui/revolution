@@ -52,7 +52,7 @@ Contributions must adhere to:
 
 ### Testing Infrastructure
 Improvements require extensive testing:
-- Install the [Revolution Test Worker][(https://github.com/Disservin/fastchess/?tab=readme-ov-file)]
+- Install the [Revolution Test Suite][testsuite-linkhttps://github.com/Disservin/fastchess/?tab=readme-ov-file]
 - Participate in active tests on [Revolution Test Suite][testsuite-link]
 - Verify ELO gains through SPRT validation
 
@@ -149,11 +149,10 @@ Revolution also benefits from:
 - Positional analysis concepts from [CPW research][cpw-link]
 
 [gpl-link]: https://www.gnu.org/licenses/gpl-3.0.html
-[doc-link]: #
-[discord-link]: #
-[openbench-link]: #
-[worker-link]: #
-[testsuite-link]: #
+[doc-link]: [#](https://ijccrl.com/revolution-chess-engine/)
+
+[worker-link]: [(https://ijccrl.com/sprtrevolution_base-vs-revolution_dev/ ]
+[testsuite-link]: [https://github.com/Disservin/fastchess/?tab=readme-ov-file]
 [discussions-link]: #
 [chesswiki-link]: https://www.chessprogramming.org
 [lichess-db]: https://database.lichess.org
