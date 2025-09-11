@@ -348,9 +348,8 @@ void Search::Worker::iterative_deepening() {
 
     int searchAgainCounter = 0;
 
-    // Start searches at depth 2 to skip the shallowest iteration and reach
-    // deeper analysis faster.
-    rootDepth = 1;
+    // Start searches at depth 1 to improve move ordering and aspiration stability.
+    rootDepth = 0;
 
     lowPlyHistory.fill(89);
 
@@ -912,7 +911,7 @@ Value Search::Worker::search(
     // The depth condition is important for mate finding.
     {
         auto futility_margin = [&](Depth d) {
-            Value futilityMult = 90 - 20 * (cutNode && !ss->ttHit);
+            Value futilityMult = 75 - 15 * (cutNode && !ss->ttHit);
 
             return futilityMult * d                      //
                  - improving * futilityMult * 2          //
@@ -1117,9 +1116,9 @@ moves_loop:  // When in check, search starts here
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
-                    Value futilityValue = ss->staticEval + 225 + 220 * lmrDepth
-                                        + 275 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
-                                        + 131 * captHist / 1024;
+                    Value futilityValue = ss->staticEval + 200 + 200 * lmrDepth
+                                        + 240 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
+                                        + 100 * captHist / 1024;
                     if (futilityValue <= alpha)
                         continue;
                 }
@@ -1155,9 +1154,9 @@ moves_loop:  // When in check, search starts here
                 lmrDepth += history / 3233;
 
                 // Retuned futility pruning margins and depth scaling
-                Value baseFutility = (bestMove ? 52 : 215);
+                Value baseFutility = (bestMove ? 40 : 180);
                 Value futilityValue =
-                  ss->staticEval + baseFutility + 125 * lmrDepth + 91 * (ss->staticEval > alpha);
+                  ss->staticEval + baseFutility + 110 * lmrDepth + 80 * (ss->staticEval > alpha);
 
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
@@ -1256,7 +1255,7 @@ moves_loop:  // When in check, search starts here
 
         // These reduction adjustments have no proven non-linear scaling
 
-        r += 650;  // Base reduction offset to compensate for other tweaks
+        r += 450;  // Base reduction offset to compensate for other tweaks
         r -= moveCount * 69;
         r -= std::abs(correctionValue) / 27160;
 
@@ -1646,7 +1645,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         if (bestValue > alpha)
             alpha = bestValue;
 
-        futilityBase = ss->staticEval + 352;
+        futilityBase = ss->staticEval + 300;
     }
 
     const PieceToHistory* contHist[] = {(ss - 1)->continuationHistory,
