@@ -41,13 +41,7 @@
 #include "experience.h"
 #include "types.h"
 #include "ucioption.h"
-
-#ifndef ENGINE_NAME
-    #define ENGINE_NAME "Revolution-dev v.2.20 090925 avx"
-#endif
-#ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE ""
-#endif
+#include "version.h"
 
 namespace Stockfish {
 
@@ -124,7 +118,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution-dev v.2.20 090925 avx"
+            // Force a stable, explicit UCI name so GUIs show "revolution v.2.21 110925 avx"
             sync_cout_start();
             std::cout
               << "id name " << ENGINE_NAME << "\n"
@@ -456,7 +450,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   << ENGINE_NAME"
+              << "\nVersion                    :   " << ENGINE_NAME
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "
