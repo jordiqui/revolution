@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef THREAD_H_INCLUDED
-#define THREAD_H_INCLUDED
+#pragma once
 
 #include <atomic>
 #include <condition_variable>
@@ -175,4 +174,3 @@ class ThreadPool {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef THREAD_H_INCLUDED

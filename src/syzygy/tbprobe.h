@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TBPROBE_H
-#define TBPROBE_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -76,4 +75,3 @@ Config   rank_root_moves(const OptionsMap&  options,
 
 }  // namespace Stockfish::Tablebases
 
-#endif

@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef BITBOARD_H_INCLUDED
-#define BITBOARD_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <cassert>
@@ -360,4 +359,3 @@ inline Square pop_lsb(Bitboard& b) {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef BITBOARD_H_INCLUDED

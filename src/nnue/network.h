@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef NETWORK_H_INCLUDED
-#define NETWORK_H_INCLUDED
+#pragma once
 
 #include <cstdint>
 #include <functional>
@@ -134,4 +133,3 @@ struct Networks {
 
 }  // namespace Stockfish
 
-#endif

@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef PERFT_H_INCLUDED
-#define PERFT_H_INCLUDED
+#pragma once
 
 #include <cstdint>
 
@@ -64,4 +63,3 @@ inline uint64_t perft(const std::string& fen, Depth depth, bool isChess960) {
 }
 }
 
-#endif  // PERFT_H_INCLUDED

@@ -18,8 +18,7 @@
 
 // A class that converts the input features of the NNUE evaluation function
 
-#ifndef NNUE_FEATURE_TRANSFORMER_H_INCLUDED
-#define NNUE_FEATURE_TRANSFORMER_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <cstdint>
@@ -309,4 +308,3 @@ class FeatureTransformer {
 
 }  // namespace Stockfish::Eval::NNUE
 
-#endif  // #ifndef NNUE_FEATURE_TRANSFORMER_H_INCLUDED

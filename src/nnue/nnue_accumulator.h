@@ -18,8 +18,7 @@
 
 // Class for difference calculation of NNUE evaluation function
 
-#ifndef NNUE_ACCUMULATOR_H_INCLUDED
-#define NNUE_ACCUMULATOR_H_INCLUDED
+#pragma once
 
 #include <array>
 #include <cstddef>
@@ -186,4 +185,3 @@ class AccumulatorStack {
 
 }  // namespace Stockfish::Eval::NNUE
 
-#endif  // NNUE_ACCUMULATOR_H_INCLUDED

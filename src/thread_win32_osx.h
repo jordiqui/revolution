@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef THREAD_WIN32_OSX_H_INCLUDED
-#define THREAD_WIN32_OSX_H_INCLUDED
+#pragma once
 
 #include <thread>
 
@@ -75,4 +74,3 @@ using NativeThread = std::thread;
 
 #endif
 
-#endif  // #ifndef THREAD_WIN32_OSX_H_INCLUDED

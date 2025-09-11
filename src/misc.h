@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef MISC_H_INCLUDED
-#define MISC_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -337,4 +336,3 @@ void move_to_front(std::vector<T>& vec, Predicate pred) {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef MISC_H_INCLUDED
