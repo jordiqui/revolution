@@ -35,12 +35,19 @@
 #include "engine.h"
 #include "memory.h"
 #include "movegen.h"
-#include "experience.h"
 #include "position.h"
 #include "score.h"
 #include "search.h"
+#include "experience.h"
 #include "types.h"
 #include "ucioption.h"
+
+#ifndef ENGINE_NAME
+    #define ENGINE_NAME "revolution dev 010925 v1.0.1"
+#endif
+#ifndef ENGINE_BUILD_DATE
+    #define ENGINE_BUILD_DATE __DATE__
+#endif
 
 namespace Stockfish {
 
@@ -105,34 +112,8 @@ void UCIEngine::loop() {
         token.clear();  // Avoid a stale if getline() returns nothing or a blank line
         is >> std::skipws >> token;
 
-        if (token == "stop")
-        {
+        if (token == "quit" || token == "stop")
             engine.stop();
-            engine.wait_for_search_finished();
-            const auto& options = engine.get_options();
-            if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
-            {
-                std::lock_guard<std::mutex> lk(experience.mtx);
-                if (experience.dirty())
-                {
-                    experience.save(options["Experience File"]);
-                    experience.clear_dirty();
-                }
-            }
-        }
-        else if (token == "quit")
-        {
-            engine.stop();
-            engine.wait_for_search_finished();
-            const auto& options = engine.get_options();
-            if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
-            {
-                std::lock_guard<std::mutex> lk(experience.mtx);
-                experience.save(options["Experience File"]);
-                experience.clear_dirty();
-            }
-            break;
-        }
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
         // So, 'ponderhit' is sent if pondering was done on the same move that the user
@@ -143,12 +124,22 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution 2.0 <date>"
-            sync_cout << "id name " << ENGINE_NAME << ' ' << ENGINE_BUILD_DATE << "\n"
-                << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)" << "\n"
-                << engine.get_options() << sync_endl;
+            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
+            sync_cout_start();
+            std::cout << "id name " << ENGINE_NAME;
+            if (*ENGINE_BUILD_DATE)
+                std::cout << ' ' << ENGINE_BUILD_DATE;
+            std::cout
+              << "\n"
+              << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
+              << "\n"
+              << engine.get_options() << std::endl;
+            sync_cout_end();
 
             sync_cout << "uciok" << sync_endl;
+
+            if ((bool) engine.get_options()["Experience Enabled"])
+                experience.load_async(engine.get_options()["Experience File"]);
         }
 
         else if (token == "setoption")
@@ -179,6 +170,10 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
+        else if (token == "showexp")
+            experience.show(engine.position(),
+                             (int) engine.get_options()["Experience Eval Weight"],
+                             (int) engine.get_options()["Experience Book Max Moves"]);
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")

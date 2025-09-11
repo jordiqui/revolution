@@ -24,8 +24,7 @@
 #include <unordered_map>
 #include <vector>
 #include <string>
-#include <atomic>
-#include <mutex>
+#include <future>
 
 #include "position.h"
 #include "types.h"
@@ -43,24 +42,19 @@ class Experience {
    public:
     void clear();
     void load(const std::string& file);
+    void load_async(const std::string& file);
+    void wait_until_loaded() const;
     void save(const std::string& file) const;
-    Move probe(Position& pos, [[maybe_unused]] int width, int evalImportance,
-               int minDepth, int maxMoves);
+    Move probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves);
     void update(Position& pos, Move move, int score, int depth);
-    void insert_entry(uint64_t key, uint16_t move, int value, int depth, int count);
-
-    // Dirty / flush helpers
-    void mark_dirty()        { dirty_.store(true, std::memory_order_relaxed); }
-    void clear_dirty() const { dirty_.store(false, std::memory_order_relaxed); }
-    bool dirty()       const { return dirty_.load(std::memory_order_relaxed); }
-
-    static uint64_t compose_key(uint64_t posKey, uint16_t move16);
-
-    mutable std::mutex mtx;
+    void show(const Position& pos, int evalImportance, int maxMoves) const;
 
    private:
+    bool                                                  is_ready() const;
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
-    mutable std::atomic<bool> dirty_{false};
+    bool                                                  binaryFormat     = false;
+    bool                                                  brainLearnFormat = true;
+    std::future<void>                                     loader;
 };
 
 extern Experience experience;

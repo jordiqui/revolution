@@ -1,6 +1,3 @@
-Revolution 2.0 040925
-- Renamed engine to Revolution 2.0 with build date 040925.
-
 Revolution 1.0 dev 250827
 - Initial fork from Stockfish.
 - Updated engine name and build system.

@@ -36,16 +36,16 @@
 #include <string_view>
 
 #include "types.h"
+#ifndef ENGINE_NAME
+    #define ENGINE_NAME "revolution dev 010925 v1.0.1"
+#endif
 #ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE "040925"
+    #define ENGINE_BUILD_DATE ""
 #endif
 
 namespace Stockfish {
 
 namespace {
-
-// Version number or dev.
-constexpr std::string_view version = ENGINE_BUILD_DATE;
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -119,7 +119,7 @@ class Logger {
 
 
 // Returns the full name of the current Revolution version.
-std::string engine_version_info() { return std::string("Revolution 2.0 ") + version.data(); }
+std::string engine_version_info() { return std::string(ENGINE_NAME); }
 
 // Update author information
 std::string engine_info(bool to_uci) {
