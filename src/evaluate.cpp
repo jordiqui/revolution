@@ -307,11 +307,11 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::Networks& networks) {
         e.have_big       = 1;
     }
     Value v = psqt + positional;
-    v       = pos.side_to_move() == WHITE ? v : -v;
+    v       = pos.side_to_move() == Color::WHITE ? v : -v;
     ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)\n";
 
     v = evaluate(networks, pos, accumulators, *caches, VALUE_ZERO);
-    v = pos.side_to_move() == WHITE ? v : -v;
+    v = pos.side_to_move() == Color::WHITE ? v : -v;
     ss << "Final evaluation       " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)";
     ss << " [with scaled NNUE, ...]";
     ss << "\n";

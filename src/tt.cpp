@@ -79,7 +79,7 @@ void TTEntry::save(
         move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || uint16_t(k) != key16 || d - DEPTH_ENTRY_OFFSET + 2 * pv > depth8 - 4
+    if (b == Bound::BOUND_EXACT || uint16_t(k) != key16 || d - DEPTH_ENTRY_OFFSET + 2 * pv > depth8 - 4
         || relative_age(generation8))
     {
         assert(d > DEPTH_ENTRY_OFFSET);
@@ -87,11 +87,12 @@ void TTEntry::save(
 
         key16     = uint16_t(k);
         depth8    = uint8_t(d - DEPTH_ENTRY_OFFSET);
-        genBound8 = uint8_t(generation8 | uint8_t(pv) << 2 | b);
+          genBound8 = uint8_t(generation8 | uint8_t(pv) << 2 | static_cast<uint8_t>(b));
         value16   = int16_t(v);
         eval16    = int16_t(ev);
     }
-    else if (depth8 + DEPTH_ENTRY_OFFSET >= 5 && Bound(genBound8 & 0x3) != BOUND_EXACT)
+      else if (depth8 + DEPTH_ENTRY_OFFSET >= 5
+               && static_cast<Bound>(genBound8 & 0x3) != Bound::BOUND_EXACT)
         depth8--;
 }
 
@@ -207,7 +208,7 @@ std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) cons
         }
 
     return {false,
-            TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, BOUND_NONE, false, 0},
+            TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, Bound::BOUND_NONE, false, 0},
             TTWriter(const_cast<TranspositionTable*>(this), clusterIndex, replaceIdx)};
 }
 

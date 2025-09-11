@@ -397,25 +397,25 @@ TBTable<WDL>::TBTable(const std::string& codeStr) :
     StateInfo st;
     Position  pos;
 
-    key        = pos.set(codeStr, WHITE, &st).material_key();
+    key        = pos.set(codeStr, Color::WHITE, &st).material_key();
     pieceCount = pos.count<ALL_PIECES>();
     hasPawns   = pos.pieces(PAWN);
 
     hasUniquePieces = false;
-    for (Color c : {WHITE, BLACK})
+    for (Color c : {Color::WHITE, Color::BLACK})
         for (PieceType pt = PAWN; pt < KING; ++pt)
             if (popcount(pos.pieces(c, pt)) == 1)
                 hasUniquePieces = true;
 
     // Set the leading color. In case both sides have pawns the leading color
     // is the side with fewer pawns because this leads to better compression.
-    bool c = !pos.count<PAWN>(BLACK)
-          || (pos.count<PAWN>(WHITE) && pos.count<PAWN>(BLACK) >= pos.count<PAWN>(WHITE));
+    bool c = !pos.count<PAWN>(Color::BLACK)
+          || (pos.count<PAWN>(Color::WHITE) && pos.count<PAWN>(Color::BLACK) >= pos.count<PAWN>(Color::WHITE));
 
-    pawnCount[0] = pos.count<PAWN>(c ? WHITE : BLACK);
-    pawnCount[1] = pos.count<PAWN>(c ? BLACK : WHITE);
+    pawnCount[0] = pos.count<PAWN>(c ? Color::WHITE : Color::BLACK);
+    pawnCount[1] = pos.count<PAWN>(c ? Color::BLACK : Color::WHITE);
 
-    key2 = pos.set(codeStr, BLACK, &st).material_key();
+    key2 = pos.set(codeStr, Color::BLACK, &st).material_key();
 }
 
 template<>
@@ -1250,8 +1250,8 @@ void* mapped(TBTable<Type>& e, const Position& pos) {
     std::string fname, w, b;
     for (PieceType pt = KING; pt >= PAWN; --pt)
     {
-        w += std::string(popcount(pos.pieces(WHITE, pt)), PieceToChar[pt]);
-        b += std::string(popcount(pos.pieces(BLACK, pt)), PieceToChar[pt]);
+        w += std::string(popcount(pos.pieces(Color::WHITE, pt)), PieceToChar[pt]);
+        b += std::string(popcount(pos.pieces(Color::BLACK, pt)), PieceToChar[pt]);
     }
 
     fname =
@@ -1271,7 +1271,7 @@ void TBTables::premap() {
     {
         StateInfo st;
         Position  pos;
-        pos.set(tb.code, WHITE, &st);
+        pos.set(tb.code, Color::WHITE, &st);
         mapped<WDL>(tb, pos);
     }
 
@@ -1279,7 +1279,7 @@ void TBTables::premap() {
     {
         StateInfo st;
         Position  pos;
-        pos.set(tb.code, WHITE, &st);
+        pos.set(tb.code, Color::WHITE, &st);
         mapped<DTZ>(tb, pos);
     }
 }
