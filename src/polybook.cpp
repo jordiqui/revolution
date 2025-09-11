@@ -24,13 +24,14 @@
 #include "misc.h"
 #include <sys/timeb.h>
 #include <cmath>
+#include <ctime>
 
 using namespace std;
 
 namespace Stockfish {
 
 PolyBook polybook[2];
-PRNG     rng(time(NULL));
+PRNG     rng(std::time(nullptr));
 
 namespace {
 // Random numbers from PolyGlot, used to compute book hash keys
