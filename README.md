@@ -113,6 +113,16 @@ Set it with:
 setoption name Minimum Thinking Time value <milliseconds>
 ```
 
+### Time Buffer
+
+The `Time Buffer` option reserves a small amount of time on each move to
+reduce the risk of losing on time. The engine will not intentionally use
+this reserved buffer.
+
+```
+setoption name Time Buffer value <milliseconds>
+```
+
 ### Falcon Net
 
 Revolution can switch to an alternative neural network using the

@@ -125,6 +125,11 @@ Value adaptive_style_bonus(const Position& pos, Value current) {
     return Value(bonus);
 }
 
+// Simple tempo bonus favoring the side to move
+Value tempo_bonus(const Position& pos) {
+    return pos.side_to_move() == Color::WHITE ? Value(10) : Value(-10);
+}
+
 }  // namespace
 
 namespace Eval {
@@ -243,6 +248,8 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 212;
+
+    v += tempo_bonus(pos);
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
