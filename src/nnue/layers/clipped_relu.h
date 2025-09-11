@@ -18,8 +18,7 @@
 
 // Definition of layer ClippedReLU of NNUE evaluation function
 
-#ifndef NNUE_LAYERS_CLIPPED_RELU_H_INCLUDED
-#define NNUE_LAYERS_CLIPPED_RELU_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <cstdint>
@@ -161,4 +160,3 @@ class ClippedReLU {
 
 }  // namespace Stockfish::Eval::NNUE::Layers
 
-#endif  // NNUE_LAYERS_CLIPPED_RELU_H_INCLUDED

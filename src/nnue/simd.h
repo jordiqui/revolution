@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef NNUE_SIMD_H_INCLUDED
-#define NNUE_SIMD_H_INCLUDED
+#pragma once
 
 #if defined(USE_AVX2)
     #include <immintrin.h>
@@ -403,4 +402,3 @@ class SIMDTiling {
 };
 }
 
-#endif

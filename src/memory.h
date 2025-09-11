@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef MEMORY_H_INCLUDED
-#define MEMORY_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <cstddef>
@@ -246,4 +245,3 @@ bool operator!=(const LargePageAllocator<T>&, const LargePageAllocator<U>&) {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef MEMORY_H_INCLUDED

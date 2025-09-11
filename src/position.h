@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef POSITION_H_INCLUDED
-#define POSITION_H_INCLUDED
+#pragma once
 
 #include <cassert>
 #include <deque>
@@ -369,4 +368,3 @@ inline StateInfo* Position::state() const { return st; }
 
 }  // namespace Stockfish
 
-#endif  // #ifndef POSITION_H_INCLUDED

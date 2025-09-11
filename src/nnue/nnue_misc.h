@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef NNUE_MISC_H_INCLUDED
-#define NNUE_MISC_H_INCLUDED
+#pragma once
 
 #include <cstddef>
 #include <string>
@@ -58,4 +57,3 @@ std::string trace(Position& pos, const Networks& networks, AccumulatorCaches& ca
 }  // namespace Stockfish::Eval::NNUE
 }  // namespace Stockfish
 
-#endif  // #ifndef NNUE_MISC_H_INCLUDED

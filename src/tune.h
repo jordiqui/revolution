@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TUNE_H_INCLUDED
-#define TUNE_H_INCLUDED
+#pragma once
 
 #include <cstddef>
 #include <memory>
@@ -189,4 +188,3 @@ constexpr void tune_check_args(Args&&...) {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef TUNE_H_INCLUDED

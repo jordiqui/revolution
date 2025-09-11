@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef HISTORY_H_INCLUDED
-#define HISTORY_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -168,4 +167,3 @@ using TTMoveHistory = StatsEntry<std::int16_t, 8192>;
 
 }  // namespace Stockfish
 
-#endif  // #ifndef HISTORY_H_INCLUDED

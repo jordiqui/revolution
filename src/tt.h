@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TT_H_INCLUDED
-#define TT_H_INCLUDED
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -139,4 +138,3 @@ class TranspositionTable {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef TT_H_INCLUDED

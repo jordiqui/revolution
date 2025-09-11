@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef EVALUATE_H_INCLUDED
-#define EVALUATE_H_INCLUDED
+#pragma once
 
 #include <string>
 
@@ -58,4 +57,3 @@ void set_adaptive_style(bool enabled);
 
 }  // namespace Stockfish
 
-#endif  // #ifndef EVALUATE_H_INCLUDED

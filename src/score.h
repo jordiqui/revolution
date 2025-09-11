@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SCORE_H_INCLUDED
-#define SCORE_H_INCLUDED
+#pragma once
 
 #include <variant>
 #include <utility>
@@ -67,4 +66,3 @@ class Score {
 
 }
 
-#endif  // #ifndef SCORE_H_INCLUDED
