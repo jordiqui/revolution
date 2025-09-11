@@ -1,6 +1,6 @@
 # Revolution Chess Engine
 
-**Version v1.2.0 dev-070925**
+**Version v1.2.0 dev-110925**
 
 <div align="center">
   <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
