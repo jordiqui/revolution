@@ -15,9 +15,7 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include "polybook.h"
-
 #include <algorithm>
 #include <cmath>
 #include <ctime>
@@ -25,14 +23,12 @@
 #include <string>
 #include <vector>
 #include <sys/timeb.h>
-
 #include "misc.h"
 #include "movegen.h"
 #include "thread.h"
 #include "uci.h"
 
 namespace Stockfish {
-
 PolyBook polybook[2];
 PRNG     rng(std::time(nullptr));
 
@@ -385,7 +381,7 @@ Move PolyBook::probe(Position& pos, bool bestBookMove, int width) {
     if (bestBookMove || n == 1)
     {
         int idx = index_best;
-        m       = pg_move_to_sf_move(pos, polyhash[idx].move);
+        m = pg_move_to_sf_move(pos, polyhash[idx].move);
     }
     else
     {
@@ -393,19 +389,19 @@ Move PolyBook::probe(Position& pos, bool bestBookMove, int width) {
         double exponent = 1.0 + (std::clamp(width, 1, 10) - 1) * 0.5;
 
         std::vector<double> scores(n);
-        double              total = 0.0;
+        double total = 0.0;
 
         for (int i = 0; i < n; ++i)
         {
-            int    w  = polyhash[index_first + i].weight;
-            double s  = std::pow(static_cast<double>(w), exponent);
+            int w = polyhash[index_first + i].weight;
+            double s = std::pow(static_cast<double>(w), exponent);
             scores[i] = s;
             total += s;
         }
 
-        double r   = (double) (rng.rand<uint32_t>() % 1000000) / 1000000.0 * total;
+        double r = (double)(rng.rand<uint32_t>() % 1000000) / 1000000.0 * total;
         double sum = 0.0;
-        int    idx = index_first;
+        int idx = index_first;
 
         for (int i = 0; i < n; ++i)
         {
@@ -448,7 +444,7 @@ Key PolyBook::polyglot_key(const Position& pos) {
         Piece  p = pos.piece_on(s);
 
         // PolyGlot pieces are: BP = 0, WP = 1, BN = 2, ... BK = 10, WK = 11
-        key ^= PG.Zobrist.psq[2 * (type_of(p) - 1) + (color_of(p) == WHITE)][s];
+        key ^= PG.Zobrist.psq[2 * (type_of(p) - 1) + (color_of(p) == Color::WHITE)][s];
     }
 
     if (pos.can_castle(WHITE_OO))
@@ -463,7 +459,7 @@ Key PolyBook::polyglot_key(const Position& pos) {
     if (pos.ep_square() != SQ_NONE)
         key ^= PG.Zobrist.enpassant[file_of(pos.ep_square())];
 
-    if (pos.side_to_move() == WHITE)
+    if (pos.side_to_move() == Color::WHITE)
         key ^= PG.Zobrist.turn;
 
     return key;
@@ -490,7 +486,7 @@ Move PolyBook::pg_move_to_sf_move(const Position& pos, unsigned short pg_move) {
 
     int pt = (move.raw() >> 12) & 7;
     if (pt)
-        move = Move::make<PROMOTION>(move.from_sq(), move.to_sq(), PieceType(pt + 1));
+        move = Move::make<MoveType::PROMOTION>(move.from_sq(), move.to_sq(), PieceType(pt + 1));
 
     // Add 'special move' flags and verify it is legal
     for (const auto& m : MoveList<LEGAL>(pos))
@@ -524,8 +520,8 @@ int PolyBook::find_first_key(uint64_t key) {
                 end = mid;
             else
             {
-                start = std::max(mid - 4, 0);
-                end   = std::min(mid + 4, keycount);
+                start = max(mid - 4, 0);
+                end   = min(mid + 4, keycount);
             }
         }
 
