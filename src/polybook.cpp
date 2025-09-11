@@ -15,21 +15,20 @@
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include "polybook.h"
-#include "uci.h"
-#include "movegen.h"
-#include "thread.h"
-#include <iostream>
-#include "misc.h"
-#include <sys/timeb.h>
+#include <algorithm>
 #include <cmath>
 #include <ctime>
-
-using namespace std;
+#include <iostream>
+#include <string>
+#include <vector>
+#include <sys/timeb.h>
+#include "misc.h"
+#include "movegen.h"
+#include "thread.h"
+#include "uci.h"
 
 namespace Stockfish {
-
 PolyBook polybook[2];
 PRNG     rng(std::time(nullptr));
 
