@@ -62,8 +62,10 @@ Engine::Engine(std::optional<std::string> path) :
     networks(
       numaContext,
       NN::Networks(
-        NN::NetworkBig({EvalFileDefaultNameBig, "None", ""}, NN::EmbeddedNNUEType::BIG),
-        NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL))) {
+        NN::NetworkBig({std::string(Eval::EvalFileDefaultNameBig), "None", ""},
+                       NN::EmbeddedNNUEType::BIG),
+        NN::NetworkSmall({std::string(Eval::EvalFileDefaultNameSmall), "None", ""},
+                         NN::EmbeddedNNUEType::SMALL))) {
     states->emplace_back();
     pos.set(StartFEN, false, &states->back());
 
@@ -205,13 +207,13 @@ Engine::Engine(std::optional<std::string> path) :
                 }));
 
     options.add(  //
-      "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {
+      "EvalFile", Option(Eval::EvalFileDefaultNameBig.data(), [this](const Option& o) {
           load_big_network(o);
           return std::nullopt;
       }));
 
     options.add(  //
-      "EvalFileSmall", Option(EvalFileDefaultNameSmall, [this](const Option& o) {
+      "EvalFileSmall", Option(Eval::EvalFileDefaultNameSmall.data(), [this](const Option& o) {
           load_small_network(o);
           return std::nullopt;
       }));
