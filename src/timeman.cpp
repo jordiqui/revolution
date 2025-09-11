@@ -152,8 +152,9 @@ void TimeManagement::init(Search::LimitsType& limits,
         optimumTime += optimumTime / 4;
 
     TimePoint minimumThinkingTime = TimePoint(options["Minimum Thinking Time"]);
+    TimePoint safetyBuffer        = TimePoint(options["Time Buffer"]);
     optimumTime                   = std::max(optimumTime, minimumThinkingTime);
-    maximumTime                   = std::max(maximumTime, minimumThinkingTime);
+    maximumTime                   = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
 }
 
 }  // namespace Stockfish

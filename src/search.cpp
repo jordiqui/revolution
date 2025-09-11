@@ -1153,6 +1153,12 @@ moves_loop:  // When in check, search starts here
 
                 lmrDepth += history / 3233;
 
+                // Additional late move pruning: if depth is low and many moves
+                // have been tried without raising alpha, prune the remainder
+                if (lmrDepth < 1 && moveCount > 10
+                    && ss->staticEval + Value(50 * moveCount) <= alpha)
+                    continue;
+
                 // Retuned futility pruning margins and depth scaling
                 Value baseFutility = (bestMove ? 40 : 180);
                 Value futilityValue =

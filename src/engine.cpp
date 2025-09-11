@@ -117,6 +117,8 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Minimum Thinking Time", Option(20, 0, 5000));
 
+    options.add("Time Buffer", Option(50, 0, 5000));
+
     options.add("UCI_Chess960", Option(false));
 
     options.add("UCI_LimitStrength", Option(false));

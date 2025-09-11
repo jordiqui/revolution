@@ -1,6 +1,11 @@
 # Changelog
 
 ## [1.2.0-dev] - 2025-09-07
+### Added
+- UCI option `Time Buffer` to reserve time on each move.
+- Tempo-based evaluation bonus for the side to move.
+- Additional late move pruning for quiet moves at low depth.
+
 ### Changed
 - Updated engine identifier to "revolution v.1.2.0 dev- 070925".
 
