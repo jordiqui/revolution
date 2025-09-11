@@ -20,6 +20,7 @@
 #define EVALUATE_H_INCLUDED
 
 #include <string>
+#include <string_view>
 
 #include "types.h"
 
@@ -31,10 +32,10 @@ namespace Eval {
 
 // The default net name MUST follow the format nn-[SHA256 first 12 digits].nnue
 // for the build process (profile-build and fishtest) to work. Do not change the
-// name of the macro or the location where this macro is defined, as it is used
-// in the Makefile/Fishtest.
-#define EvalFileDefaultNameBig "nn-1c0000000000.nnue"
-#define EvalFileDefaultNameSmall "nn-37f18f62d772.nnue"
+// names or the location where these constants are defined, as they are used in
+// the Makefile/Fishtest.
+inline constexpr std::string_view EvalFileDefaultNameBig   = "nn-1c0000000000.nnue";
+inline constexpr std::string_view EvalFileDefaultNameSmall = "nn-37f18f62d772.nnue";
 
 namespace NNUE {
 struct Networks;
