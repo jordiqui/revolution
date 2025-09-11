@@ -185,7 +185,8 @@ class FeatureTransformer {
         const Color perspectives[2]  = {pos.side_to_move(), ~pos.side_to_move()};
         const auto& psqtAccumulation = (accumulatorState.acc<HalfDimensions>()).psqtAccumulation;
         const auto  psqt =
-          (psqtAccumulation[perspectives[0]][bucket] - psqtAccumulation[perspectives[1]][bucket])
+          (psqtAccumulation[static_cast<int>(perspectives[0])][bucket]
+           - psqtAccumulation[static_cast<int>(perspectives[1])][bucket])
           / 2;
 
         const auto& accumulation = (accumulatorState.acc<HalfDimensions>()).accumulation;
@@ -203,9 +204,10 @@ class FeatureTransformer {
             const vec_t Zero = vec_zero();
             const vec_t One  = vec_set_16(127 * 2);
 
-            const vec_t* in0 = reinterpret_cast<const vec_t*>(&(accumulation[perspectives[p]][0]));
-            const vec_t* in1 =
-              reinterpret_cast<const vec_t*>(&(accumulation[perspectives[p]][HalfDimensions / 2]));
+            const vec_t* in0 = reinterpret_cast<const vec_t*>(
+              &(accumulation[static_cast<int>(perspectives[p])][0]));
+            const vec_t* in1 = reinterpret_cast<const vec_t*>(
+              &(accumulation[static_cast<int>(perspectives[p])][HalfDimensions / 2]));
             vec_t* out = reinterpret_cast<vec_t*>(output + offset);
 
             // Per the NNUE architecture, here we want to multiply pairs of

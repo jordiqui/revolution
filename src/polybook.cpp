@@ -520,8 +520,8 @@ int PolyBook::find_first_key(uint64_t key) {
                 end = mid;
             else
             {
-                start = max(mid - 4, 0);
-                end   = min(mid + 4, keycount);
+                start = std::max(mid - 4, 0);
+                end   = std::min(mid + 4, keycount);
             }
         }
 
