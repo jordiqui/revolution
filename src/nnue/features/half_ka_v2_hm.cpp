@@ -30,8 +30,10 @@ namespace Stockfish::Eval::NNUE::Features {
 // Index of a feature for a given king position and another piece on some square
 template<Color Perspective>
 inline IndexType HalfKAv2_hm::make_index(Square s, Piece pc, Square ksq) {
-    return IndexType((int(s) ^ OrientTBL[Perspective][ksq]) + PieceSquareIndex[Perspective][pc]
-                     + KingBuckets[Perspective][ksq]);
+    // Color is an enum class, so cast to int when using as array index.
+    return IndexType((int(s) ^ OrientTBL[static_cast<int>(Perspective)][ksq])
+                     + PieceSquareIndex[static_cast<int>(Perspective)][pc]
+                     + KingBuckets[static_cast<int>(Perspective)][ksq]);
 }
 
 // Get a list of indices for active features

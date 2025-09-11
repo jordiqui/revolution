@@ -765,7 +765,8 @@ do_probe_table(const Position& pos, T* entry, WDLScore wdl, ProbeState* result) 
     // If both sides have the same pieces keys are equal. In this case TB tables
     // only stores the 'white to move' case, so if the position to lookup has black
     // to move, we need to switch the color and flip the squares before to lookup.
-    bool symmetricBlackToMove = (entry->key == entry->key2 && pos.side_to_move());
+    bool symmetricBlackToMove =
+      (entry->key == entry->key2 && pos.side_to_move() == Color::BLACK);
 
     // TB files are calculated for white as the stronger side. For instance, we
     // have KRvK, not KvKR. A position where the stronger side is white will have
@@ -775,7 +776,8 @@ do_probe_table(const Position& pos, T* entry, WDLScore wdl, ProbeState* result) 
 
     int flipColor   = (symmetricBlackToMove || blackStronger) * 8;
     int flipSquares = (symmetricBlackToMove || blackStronger) * 56;
-    int stm         = (symmetricBlackToMove || blackStronger) ^ pos.side_to_move();
+    int stm         =
+      (symmetricBlackToMove || blackStronger) ^ static_cast<int>(pos.side_to_move());
 
     // For pawns, TB files store 4 separate tables according if leading pawn is on
     // file a, b, c or d after reordering. The leading pawn is the one with maximum
