@@ -123,15 +123,6 @@ this reserved buffer.
 setoption name Time Buffer value <milliseconds>
 ```
 
-### Falcon Net
-
-Revolution can switch to an alternative neural network using the
-`FalconFile` option. To load the bundled `3.net` file, send:
-
-```
-setoption name FalconFile value 3.net
-```
-
 ## License
 
 Revolution is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3).
