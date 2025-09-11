@@ -17,15 +17,14 @@
 */
 
 #include "polybook.h"
-#include "uci.h"
-#include "movegen.h"
-#include "thread.h"
-#include <iostream>
-#include "misc.h"
-#include <sys/timeb.h>
-#include <cmath>
+
 #include <algorithm>
+#include <cmath>
 #include <ctime>
+#include <iostream>
+
+#include "misc.h"
+#include "movegen.h"
 
 namespace Stockfish {
 
@@ -381,7 +380,7 @@ Move PolyBook::probe(Position& pos, bool bestBookMove, int width) {
     if (bestBookMove || n == 1)
     {
         int idx = index_best;
-        m = pg_move_to_sf_move(pos, polyhash[idx].move);
+        m       = pg_move_to_sf_move(pos, polyhash[idx].move);
     }
     else
     {
@@ -389,19 +388,19 @@ Move PolyBook::probe(Position& pos, bool bestBookMove, int width) {
         double exponent = 1.0 + (std::clamp(width, 1, 10) - 1) * 0.5;
 
         std::vector<double> scores(n);
-        double total = 0.0;
+        double              total = 0.0;
 
         for (int i = 0; i < n; ++i)
         {
-            int w = polyhash[index_first + i].weight;
-            double s = std::pow(static_cast<double>(w), exponent);
+            int    w  = polyhash[index_first + i].weight;
+            double s  = std::pow(static_cast<double>(w), exponent);
             scores[i] = s;
             total += s;
         }
 
-        double r = (double)(rng.rand<uint32_t>() % 1000000) / 1000000.0 * total;
+        double r   = (double) (rng.rand<uint32_t>() % 1000000) / 1000000.0 * total;
         double sum = 0.0;
-        int idx = index_first;
+        int    idx = index_first;
 
         for (int i = 0; i < n; ++i)
         {
