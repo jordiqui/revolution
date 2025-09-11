@@ -55,11 +55,12 @@ struct Tie: public std::streambuf {  // MSVC requires split streambuf for cin an
         logBuf(l) {}
 
     int sync() override { return logBuf->pubsync(), buf->pubsync(); }
-    int overflow(int c) override { return log(buf->sputc(char(c)), "<< "); }
+    int overflow(int c) override { return log(buf->sputc(static_cast<char>(c)), "<< "); }
     int underflow() override { return buf->sgetc(); }
     int uflow() override { return log(buf->sbumpc(), ">> "); }
 
-    std::streambuf *buf, *logBuf;
+    std::streambuf* buf;
+    std::streambuf* logBuf;
 
     int log(int c, const char* prefix) {
 
@@ -68,7 +69,7 @@ struct Tie: public std::streambuf {  // MSVC requires split streambuf for cin an
         if (last == '\n')
             logBuf->sputn(prefix, 3);
 
-        return last = logBuf->sputc(char(c));
+        return last = logBuf->sputc(static_cast<char>(c));
     }
 };
 
