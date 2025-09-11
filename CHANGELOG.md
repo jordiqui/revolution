@@ -4,7 +4,7 @@
 ### Changed
 - Updated engine identifier to "revolution-dev 110925 avx".
 - Renamed executable to "revolutiondev".
-- Tuned low-depth pruning heuristics to maintain move ordering in blitz and bullet.
+- Tuned low-depth pruning heuristics to maintain move ordering in blitz and bullet games.
 
 ## [1.20] - 2025-09-06
 ### Changed
