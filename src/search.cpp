@@ -918,8 +918,9 @@ Value Search::Worker::search(
                  + std::abs(correctionValue) / 171290;
         };
 
-        if (!ss->ttPv && depth < 14 && eval - futility_margin(depth) >= beta && eval >= beta
-            && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
+        if (!ss->ttPv && depth >= 2 && depth < 14 && eval - futility_margin(depth) >= beta
+            && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta)
+            && !is_win(eval))
             return beta + (eval - beta) / 3;
     }
 
@@ -1143,7 +1144,7 @@ moves_loop:  // When in check, search starts here
                             + pawnHistory[pawn_history_index(pos)][movedPiece][move.to_sq()];
 
                 // Continuation history based pruning
-                if (history < -4361 * depth)
+                if (depth > 2 && history < -4361 * depth)
                     continue;
 
                 history += 71 * mainHistory[us][move.from_to()] / 32;
@@ -1158,7 +1159,7 @@ moves_loop:  // When in check, search starts here
                 // Futility pruning: parent node
                 // (*Scaler): Generally, more frequent futility pruning
                 // scales well with respect to time and threads
-                if (!ss->inCheck && lmrDepth < 11 && futilityValue <= alpha)
+                if (!ss->inCheck && depth > 2 && lmrDepth < 11 && futilityValue <= alpha)
                 {
                     if (bestValue <= futilityValue && !is_decisive(bestValue)
                         && !is_win(futilityValue))
@@ -1285,7 +1286,7 @@ moves_loop:  // When in check, search starts here
         r -= ss->statScore * 789 / 8192;
 
         // Step 17. Late moves reduction (LMR)
-        if (depth >= 2 && moveCount > 1)
+        if (depth >= 3 && moveCount > 1)
         {
             // Apply a simple reduction limited between one ply and the remaining depth
             Depth d = std::max(1, newDepth - r / 1024);

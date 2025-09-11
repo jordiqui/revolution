@@ -1,8 +1,10 @@
 # Changelog
 
-## [1.2.0-dev] - 2025-09-07
+## [1.2.0-dev] - 2025-09-11
 ### Changed
-- Updated engine identifier to "revolution v.1.2.0 dev- 070925".
+- Updated engine identifier to "revolution-dev 110925 avx".
+- Renamed executable to "revolutiondev".
+- Tuned low-depth pruning heuristics to maintain move ordering in blitz and bullet.
 
 ## [1.20] - 2025-09-06
 ### Changed
