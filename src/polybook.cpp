@@ -21,8 +21,10 @@
 #include <algorithm>
 #include <cmath>
 #include <ctime>
+#include <iostream>
 #include <string>
 #include <vector>
+#include <sys/timeb.h>
 
 #include "misc.h"
 #include "movegen.h"
