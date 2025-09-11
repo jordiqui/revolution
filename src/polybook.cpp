@@ -22,9 +22,12 @@
 #include <cmath>
 #include <ctime>
 #include <iostream>
+#include <sys/timeb.h>
 
 #include "misc.h"
 #include "movegen.h"
+#include "thread.h"
+#include "uci.h"
 
 namespace Stockfish {
 
