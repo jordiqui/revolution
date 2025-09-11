@@ -206,13 +206,13 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
                 limits.searchmoves.push_back(to_lower(token));
 
         else if (token == "wtime")
-            is >> limits.time[WHITE];
+            is >> limits.time[static_cast<int>(Color::WHITE)];
         else if (token == "btime")
-            is >> limits.time[BLACK];
+            is >> limits.time[static_cast<int>(Color::BLACK)];
         else if (token == "winc")
-            is >> limits.inc[WHITE];
+            is >> limits.inc[static_cast<int>(Color::WHITE)];
         else if (token == "binc")
-            is >> limits.inc[BLACK];
+            is >> limits.inc[static_cast<int>(Color::BLACK)];
         else if (token == "movestogo")
             is >> limits.movestogo;
         else if (token == "depth")
@@ -604,12 +604,12 @@ std::string UCIEngine::move(Move m, bool chess960) {
     Square from = m.from_sq();
     Square to   = m.to_sq();
 
-    if (m.type_of() == CASTLING && !chess960)
+    if (m.type_of() == MoveType::CASTLING && !chess960)
         to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
 
     std::string move = square(from) + square(to);
 
-    if (m.type_of() == PROMOTION)
+    if (m.type_of() == MoveType::PROMOTION)
         move += " pnbrqk"[m.promotion_type()];
 
     return move;

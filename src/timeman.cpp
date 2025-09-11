@@ -56,15 +56,15 @@ void TimeManagement::init(Search::LimitsType& limits,
     startTime    = limits.startTime;
     useNodesTime = npmsec != 0;
 
-    if (limits.time[us] == 0)
+    if (limits.time[static_cast<int>(us)] == 0)
         return;
 
     TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
     double    slowMover    = options["Slow Mover"] / 100.0;
 
     // Adjust time usage heuristics for common time controls
-    double baseSeconds = double(limits.time[us]) / 1000.0;
-    double incSeconds  = double(limits.inc[us]) / 1000.0;
+    double baseSeconds = double(limits.time[static_cast<int>(us)]) / 1000.0;
+    double incSeconds  = double(limits.inc[static_cast<int>(us)]) / 1000.0;
     if (baseSeconds <= 60 && incSeconds == 0)
         slowMover *= 0.8;  // 60s + 0ms
     else if (baseSeconds <= 180 && incSeconds >= 10)
@@ -83,11 +83,11 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (useNodesTime)
     {
         if (availableNodes == -1)                       // Only once at game start
-            availableNodes = npmsec * limits.time[us];  // Time is in msec
+            availableNodes = npmsec * limits.time[static_cast<int>(us)];  // Time is in msec
 
         // Convert from milliseconds to nodes
-        limits.time[us] = TimePoint(availableNodes);
-        limits.inc[us] *= npmsec;
+        limits.time[static_cast<int>(us)] = TimePoint(availableNodes);
+        limits.inc[static_cast<int>(us)] *= npmsec;
         limits.npmsec = npmsec;
         moveOverhead *= npmsec;
     }
@@ -95,7 +95,7 @@ void TimeManagement::init(Search::LimitsType& limits,
     // These numbers are used where multiplications, divisions or comparisons
     // with constants are involved.
     const int64_t   scaleFactor = useNodesTime ? npmsec : 1;
-    const TimePoint scaledTime  = limits.time[us] / scaleFactor;
+    const TimePoint scaledTime  = limits.time[static_cast<int>(us)] / scaleFactor;
 
     // Maximum move horizon
     int centiMTG = limits.movestogo ? std::min(limits.movestogo * 100, 5000) : 5051;
@@ -107,8 +107,8 @@ void TimeManagement::init(Search::LimitsType& limits,
     // Make sure timeLeft is > 0 since we may use it as a divisor
     TimePoint timeLeft =
       std::max(TimePoint(1),
-               limits.time[us]
-                 + (limits.inc[us] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
+               limits.time[static_cast<int>(us)]
+                 + (limits.inc[static_cast<int>(us)] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
 
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
@@ -125,7 +125,7 @@ void TimeManagement::init(Search::LimitsType& limits,
         double maxConstant  = std::max(3.3977 + 3.03950 * logTimeInSec, 2.94761);
 
         optScale = std::min(0.0121431 + std::pow(ply + 2.94693, 0.461073) * optConstant,
-                            0.213035 * limits.time[us] / timeLeft)
+                            0.213035 * limits.time[static_cast<int>(us)] / timeLeft)
                  * originalTimeAdjust;
 
         maxScale = std::min(6.67704, maxConstant + ply / 11.9847);
@@ -135,7 +135,8 @@ void TimeManagement::init(Search::LimitsType& limits,
     else
     {
         optScale =
-          std::min((0.88 + ply / 116.4) / (centiMTG / 100.0), 0.88 * limits.time[us] / timeLeft);
+          std::min((0.88 + ply / 116.4) / (centiMTG / 100.0),
+                   0.88 * limits.time[static_cast<int>(us)] / timeLeft);
         maxScale = 1.3 + 0.11 * (centiMTG / 100.0);
     }
 
@@ -144,7 +145,8 @@ void TimeManagement::init(Search::LimitsType& limits,
     // Limit the maximum possible time for this move
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
-      TimePoint(std::min(0.825179 * limits.time[us] - moveOverhead, maxScale * optimumTime)) - 10;
+      TimePoint(std::min(0.825179 * limits.time[static_cast<int>(us)] - moveOverhead,
+                          maxScale * optimumTime)) - 10;
 
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
