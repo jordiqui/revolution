@@ -119,6 +119,11 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Time Buffer", Option(50, 0, 5000));
 
+    // Enable conservative search features such as tighter time management
+    // and safer search heuristics. Default to true to preserve current
+    // playing style unless explicitly disabled by the user.
+    options.add("Revolution Conservative Search", Option(true));
+
     options.add("UCI_Chess960", Option(false));
 
     options.add("UCI_LimitStrength", Option(false));

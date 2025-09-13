@@ -148,6 +148,20 @@ void TimeManagement::init(Search::LimitsType& limits,
       TimePoint(std::min(0.90 * limits.time[static_cast<int>(us)] - moveOverhead,
                           maxScale * optimumTime)) - 10;
 
+    if ((bool) options["Revolution Conservative Search"])
+    {
+        // Clamp the time budget to keep some safety margin. Use an adaptive
+        // overhead that increases with the remaining time, providing a
+        // slightly larger buffer in long time controls while still being
+        // conservative for quick controls.
+        TimePoint adaptiveOverhead =
+          moveOverhead + TimePoint(options["Time Buffer"]) + limits.time[static_cast<int>(us)] / 30;
+        TimePoint maxBudget =
+          std::max(TimePoint(1), limits.time[static_cast<int>(us)] - adaptiveOverhead);
+        optimumTime = std::min(optimumTime, maxBudget);
+        maximumTime = std::min(maximumTime, maxBudget);
+    }
+
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
 
