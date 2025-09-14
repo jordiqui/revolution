@@ -119,10 +119,15 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Time Buffer", Option(50, 0, 5000));
 
-    // Enable conservative search features such as tighter time management
-    // and safer search heuristics. Default to true to preserve current
-    // playing style unless explicitly disabled by the user.
-    options.add("Revolution Conservative Search", Option(true));
+    // Toggle for using the safer 040825 search settings. Cached in GSearch so
+    // that hot paths do not need to query the option map repeatedly.
+    options.add("Use 040825 Search", Option(true, [](const Option& o) {
+                    GSearch.conservative = bool(o);
+                    return std::nullopt;
+                }));
+
+    // Initialise cached search tuning with the default value of the option
+    GSearch.conservative = options["Use 040825 Search"];
 
     options.add("UCI_Chess960", Option(false));
 
