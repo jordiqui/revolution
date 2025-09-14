@@ -28,6 +28,8 @@
 
 namespace Stockfish {
 
+TimeModel GTime;
+
 TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
 
@@ -59,8 +61,11 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[static_cast<int>(us)] == 0)
         return;
 
-    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
-    double    slowMover    = options["Slow Mover"] / 100.0;
+    TimePoint moveOverhead =
+      GSearch.conservative ? TimePoint(GTime.move_overhead_ms)
+                           : TimePoint(options["Move Overhead"]);
+    double slowMover = GSearch.conservative ? GTime.slow_mover
+                                            : options["Slow Mover"] / 100.0;
 
     // Adjust time usage heuristics for common time controls
     double baseSeconds = double(limits.time[static_cast<int>(us)]) / 1000.0;
@@ -148,25 +153,32 @@ void TimeManagement::init(Search::LimitsType& limits,
       TimePoint(std::min(0.90 * limits.time[static_cast<int>(us)] - moveOverhead,
                           maxScale * optimumTime)) - 10;
 
-    if ((bool) options["Revolution Conservative Search"])
+    if (GSearch.conservative)
     {
-        // Clamp the time budget to keep some safety margin. Use an adaptive
-        // overhead that increases with the remaining time, providing a
-        // slightly larger buffer in long time controls while still being
-        // conservative for quick controls.
-        TimePoint adaptiveOverhead =
-          moveOverhead + TimePoint(options["Time Buffer"]) + limits.time[static_cast<int>(us)] / 30;
-        TimePoint maxBudget =
-          std::max(TimePoint(1), limits.time[static_cast<int>(us)] - adaptiveOverhead);
-        optimumTime = std::min(optimumTime, maxBudget);
-        maximumTime = std::min(maximumTime, maxBudget);
+        int64_t time_left_ms = limits.time[static_cast<int>(us)];
+        int64_t inc_ms       = limits.inc[static_cast<int>(us)];
+
+        int64_t base         = std::max<int64_t>(GTime.min_think_ms, optimumTime);
+        int64_t dyn_overhead = GTime.move_overhead_ms;
+        if (inc_ms < 200)
+            dyn_overhead += 10;
+
+        int64_t budget = std::max<int64_t>(GTime.min_think_ms, base - dyn_overhead);
+        budget =
+          std::min<int64_t>(budget,
+                            std::max<int64_t>(0, time_left_ms - GTime.panic_margin_ms));
+        optimumTime = maximumTime = TimePoint(budget);
     }
 
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
 
-    TimePoint minimumThinkingTime = TimePoint(options["Minimum Thinking Time"]);
-    TimePoint safetyBuffer        = TimePoint(options["Time Buffer"]);
+    TimePoint minimumThinkingTime =
+      GSearch.conservative ? TimePoint(GTime.min_think_ms)
+                           : TimePoint(options["Minimum Thinking Time"]);
+    TimePoint safetyBuffer =
+      GSearch.conservative ? TimePoint(GTime.panic_margin_ms)
+                           : TimePoint(options["Time Buffer"]);
     optimumTime                   = std::max(optimumTime, minimumThinkingTime);
     maximumTime                   = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
 }

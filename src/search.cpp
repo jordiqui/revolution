@@ -55,6 +55,9 @@ namespace Stockfish {
 
 namespace TB = Tablebases;
 
+// Global search tuning instance
+SearchTuning GSearch;
+
 void syzygy_extend_pv(const OptionsMap&            options,
                       const Search::LimitsType&    limits,
                       Stockfish::Position&         pos,

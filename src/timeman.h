@@ -24,6 +24,17 @@
 
 namespace Stockfish {
 
+// Configuration used by the conservative time manager when the
+// "Use 040825 Search" option is enabled.
+struct TimeModel {
+    int64_t min_think_ms    = 30;   // Minimum thinking time per move
+    int64_t move_overhead_ms = 20;  // Static overhead to subtract
+    int64_t panic_margin_ms  = 80;  // Time reserved to avoid flagging
+    double  slow_mover       = 1.00;  // Scale factor for optimum time
+};
+
+extern TimeModel GTime;
+
 class OptionsMap;
 enum class Color : int8_t;
 
