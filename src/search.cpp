@@ -389,8 +389,8 @@ void Search::Worker::iterative_deepening() {
             // Reset UCI info selDepth for each depth and each PV line
             selDepth = 0;
 
-            // Reset aspiration window starting size
-            delta     = 5 + threadIdx % 8
+            // Reset aspiration window starting size with a wider base
+            delta     = 12 + threadIdx % 8
                       + std::abs(rootMoves[pvIdx].meanSquaredScore) / 9000;
             Value avg = rootMoves[pvIdx].averageScore;
             alpha     = std::max(avg - delta, -VALUE_INFINITE);
@@ -404,6 +404,7 @@ void Search::Worker::iterative_deepening() {
             // high/low, re-search with a bigger window until we don't fail
             // high/low anymore.
             int failedHighCnt = 0;
+            int reSearchCnt   = 0;
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -442,6 +443,8 @@ void Search::Worker::iterative_deepening() {
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
                     failedHighCnt = 0;
+                    ++reSearchCnt;
+
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
                 }
@@ -449,11 +452,21 @@ void Search::Worker::iterative_deepening() {
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
+                    ++reSearchCnt;
                 }
                 else
                     break;
 
-                delta += delta / 3;
+                if (mainThread && limits.use_time_management()
+                    && elapsed() > static_cast<TimePoint>(mainThread->tm.optimum() * 1.35)
+                    && reSearchCnt > 0)
+                {
+                    threads.stop = true;
+                    break;
+                }
+
+                // Broaden window faster after a fail
+                delta += delta / 2;
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }

@@ -8,6 +8,8 @@
 
 ### Changed
 - Updated engine identifier to "revolution v.1.2.0 dev- 070925".
+- Added time clamp in time management to limit excessive re-search time.
+- Broadened aspiration window to stabilize search and reduce re-search storms.
 
 ## [1.20] - 2025-09-06
 ### Changed
