@@ -76,6 +76,8 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
+    options.add("Metrics Log File", Option(""));
+
     options.add(  //
       "NumaPolicy", Option("auto", [this](const Option& o) {
           set_numa_config_from_option(o);

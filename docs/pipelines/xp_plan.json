@@ -1,0 +1,103 @@
+{
+  "description": "Automated metrics pipeline covering the XP experiment roadmap.",
+  "output_subdir": "xp_metrics",
+  "stages": [
+    {
+      "name": "baseline",
+      "description": "Reference runs using the conservative 040825 search defaults.",
+      "uci_options": {
+        "Use 040825 Search": "true"
+      },
+      "runs": [
+        {
+          "label": "startpos_depth16",
+          "commands": [
+            "ucinewgame",
+            "position startpos",
+            "go depth 16"
+          ]
+        },
+        {
+          "label": "complex_endgame_depth18",
+          "commands": [
+            "ucinewgame",
+            "position fen r1b2r1k/pp1p2pp/2p5/2B1q3/8/8/P1PN2PP/R4RK1 w - - 0 18",
+            "go depth 18"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xp2_xp7_stability",
+      "description": "Re-run stability suite after adjusting aspiration, ordering, LMR and TT policy.",
+      "notes": "Apply XP-2, XP-6, XP-3 and XP-7 heuristics before executing this stage.",
+      "uci_options": {
+        "Use 040825 Search": "false"
+      },
+      "runs": [
+        {
+          "label": "startpos_depth18",
+          "commands": [
+            "ucinewgame",
+            "position startpos",
+            "go depth 18"
+          ]
+        },
+        {
+          "label": "tb_rank_depth20",
+          "commands": [
+            "ucinewgame",
+            "position fen 2rq1rk1/1b3pp1/p3pn1p/1p2P3/3P1P2/2NBB2P/PP3QP1/2RR2K1 w - - 0 19",
+            "go depth 20"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xp1_xp8_blitz",
+      "description": "Blitz oriented checks with time clamp, late move pruning and selective quiescence.",
+      "notes": "Enable XP-1, XP-5 and XP-8 settings before running.",
+      "uci_options": {
+        "Minimum Thinking Time": "0",
+        "Use 040825 Search": "false"
+      },
+      "runs": [
+        {
+          "label": "startpos_movetime2000",
+          "commands": [
+            "ucinewgame",
+            "position startpos",
+            "go movetime 2000"
+          ]
+        },
+        {
+          "label": "sharp_fen_movetime2500",
+          "commands": [
+            "ucinewgame",
+            "position fen 2r2rk1/1bqn1pp1/p3pn1p/1p1p4/3P1P2/2NBPN1P/PP3QP1/2RR2K1 w - - 0 19",
+            "go movetime 2500"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xp9_xp10_safeguards",
+      "description": "Optional evaluation and root-bias checks triggered when instability is observed.",
+      "optional": true,
+      "notes": "Run only if logs indicate erratic evaluation swings or root bias.",
+      "uci_options": {
+        "Use 040825 Search": "false"
+      },
+      "runs": [
+        {
+          "label": "evaluation_guard_depth14",
+          "commands": [
+            "ucinewgame",
+            "position fen 2r2rk1/1bqn1pp1/p3pn1p/1p1p4/3P1P2/2NBPN1P/PP3QP1/2RR2K1 w - - 0 19",
+            "go depth 14"
+          ]
+        }
+      ]
+    }
+  ]
+}

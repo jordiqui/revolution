@@ -141,6 +141,7 @@ class ThreadPool {
     Thread*                main_thread() const { return threads.front().get(); }
     uint64_t               nodes_searched() const;
     uint64_t               tb_hits() const;
+    Search::SearchMetrics  collect_metrics() const;
     Thread*                get_best_thread() const;
     void                   start_searching();
     void                   wait_for_search_finished() const;

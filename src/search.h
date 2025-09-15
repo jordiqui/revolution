@@ -39,6 +39,7 @@
 #include "score.h"
 #include "syzygy/tbprobe.h"
 #include "timeman.h"
+#include "tt.h"
 #include "types.h"
 
 namespace Stockfish {
@@ -63,6 +64,52 @@ class ThreadPool;
 class OptionsMap;
 
 namespace Search {
+
+struct IterationMetrics {
+    int      depth          = 0;
+    uint32_t reSearches     = 0;
+    uint32_t failHighs      = 0;
+    uint32_t failLows       = 0;
+    uint64_t nodes          = 0;
+    uint64_t elapsedTimeMs  = 0;
+};
+
+enum class LatePruneReason : uint8_t {
+    SkipQuietPhase = 0,
+    CaptureFutility,
+    CaptureSee,
+    HistoryPrune,
+    LateMovePrune,
+    ParentFutility,
+    QuietSee,
+    Count
+};
+
+struct SearchMetrics {
+    uint64_t aspirationReSearches = 0;
+    uint64_t aspirationFailHighs  = 0;
+    uint64_t aspirationFailLows   = 0;
+
+    uint64_t ttProbes       = 0;
+    uint64_t ttHits         = 0;
+    uint64_t ttStores       = 0;
+    uint64_t ttReplacements = 0;
+
+    uint64_t nullMoveCalls   = 0;
+    uint64_t nullMoveCutoffs = 0;
+
+    std::array<uint64_t, 16>                                     lmrHistogram{};
+    std::array<uint64_t, static_cast<size_t>(LatePruneReason::Count)> lmpReasons{};
+
+    std::vector<IterationMetrics> iterations;
+
+    void        reset();
+    void        merge(const SearchMetrics& other);
+    void        record_iteration(const IterationMetrics& metric);
+    void        record_lmr(int reduction);
+    void        record_lmp(LatePruneReason reason);
+    std::string to_json() const;
+};
 
 // Stack struct keeps track of the information we need to remember from nodes
 // shallower and deeper in the tree during the search. Each search thread has
@@ -289,6 +336,8 @@ class Worker {
     // It searches from the root position and outputs the "bestmove".
     void start_searching();
 
+    void reset_metrics();
+
     bool is_mainthread() const { return threadIdx == 0; }
 
     void ensure_network_replicated();
@@ -317,6 +366,16 @@ class Worker {
     void do_null_move(Position& pos, StateInfo& st);
     void undo_move(Position& pos, const Move move);
     void undo_null_move(Position& pos);
+
+    std::tuple<bool, TTData, TTWriter> probe_tt(Key key);
+    void store_tt(TTWriter& writer,
+                  Key       key,
+                  Value     value,
+                  bool      pv,
+                  Bound     bound,
+                  Depth     depth,
+                  Move      move,
+                  Value     eval);
 
     // This is the main search function, for both PV and non-PV nodes
     template<NodeType nodeType>
@@ -372,6 +431,8 @@ class Worker {
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
     Eval::NNUE::AccumulatorCaches refreshTable;
+
+    SearchMetrics metrics;
 
     friend class Stockfish::ThreadPool;
     friend class SearchManager;

@@ -116,6 +116,11 @@ void TTWriter::write(
     tt->table[clusterIndex].entry[entryIndex].save(k, v, pv, b, d, m, ev, generation8);
 }
 
+bool TTWriter::is_replacing() const
+{
+    return tt->table[clusterIndex].entry[entryIndex].is_occupied();
+}
+
 
 // Sets the size of the transposition table,
 // measured in megabytes. Transposition table consists

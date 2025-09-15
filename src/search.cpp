@@ -26,10 +26,12 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <deque>
+#include <fstream>
 #include <initializer_list>
 #include <iostream>
-#include <deque>
 #include <ratio>
+#include <sstream>
 #include <string>
 #include <utility>
 
@@ -145,6 +147,144 @@ void update_all_stats(const Position& pos,
 
 }  // namespace
 
+namespace {
+
+std::string_view lmp_reason_name(LatePruneReason reason)
+{
+    switch (reason)
+    {
+        case LatePruneReason::SkipQuietPhase:
+            return "skip_quiet";
+        case LatePruneReason::CaptureFutility:
+            return "capture_futility";
+        case LatePruneReason::CaptureSee:
+            return "capture_see";
+        case LatePruneReason::HistoryPrune:
+            return "history";
+        case LatePruneReason::LateMovePrune:
+            return "late_move";
+        case LatePruneReason::ParentFutility:
+            return "parent_futility";
+        case LatePruneReason::QuietSee:
+            return "quiet_see";
+        case LatePruneReason::Count:
+            break;
+    }
+
+    return "unknown";
+}
+
+}  // namespace
+
+void SearchMetrics::reset()
+{
+    aspirationReSearches = aspirationFailHighs = aspirationFailLows = 0;
+    ttProbes = ttHits = ttStores = ttReplacements = 0;
+    nullMoveCalls = nullMoveCutoffs = 0;
+    lmrHistogram.fill(0);
+    lmpReasons.fill(0);
+    iterations.clear();
+}
+
+void SearchMetrics::merge(const SearchMetrics& other)
+{
+    aspirationReSearches += other.aspirationReSearches;
+    aspirationFailHighs += other.aspirationFailHighs;
+    aspirationFailLows += other.aspirationFailLows;
+
+    ttProbes += other.ttProbes;
+    ttHits += other.ttHits;
+    ttStores += other.ttStores;
+    ttReplacements += other.ttReplacements;
+
+    nullMoveCalls += other.nullMoveCalls;
+    nullMoveCutoffs += other.nullMoveCutoffs;
+
+    for (size_t i = 0; i < lmrHistogram.size(); ++i)
+        lmrHistogram[i] += other.lmrHistogram[i];
+
+    for (size_t i = 0; i < lmpReasons.size(); ++i)
+        lmpReasons[i] += other.lmpReasons[i];
+
+    iterations.insert(iterations.end(), other.iterations.begin(), other.iterations.end());
+}
+
+void SearchMetrics::record_iteration(const IterationMetrics& metric)
+{
+    iterations.push_back(metric);
+}
+
+void SearchMetrics::record_lmr(int reduction)
+{
+    const int capped         = std::max(0, reduction);
+    const size_t bucketIndex = std::min<size_t>(lmrHistogram.size() - 1, static_cast<size_t>(capped));
+    lmrHistogram[bucketIndex]++;
+}
+
+void SearchMetrics::record_lmp(LatePruneReason reason)
+{
+    const size_t idx = static_cast<size_t>(reason);
+    if (idx < lmpReasons.size())
+        lmpReasons[idx]++;
+}
+
+std::string SearchMetrics::to_json() const
+{
+    std::ostringstream oss;
+    oss << "{\n";
+    oss << "  \"aspiration\": {\"re_searches\": " << aspirationReSearches
+        << ", \"fail_highs\": " << aspirationFailHighs
+        << ", \"fail_lows\": " << aspirationFailLows << "},\n";
+    oss << "  \"tt\": {\"probes\": " << ttProbes
+        << ", \"hits\": " << ttHits
+        << ", \"stores\": " << ttStores
+        << ", \"replacements\": " << ttReplacements << "},\n";
+    oss << "  \"null_move\": {\"calls\": " << nullMoveCalls
+        << ", \"cutoffs\": " << nullMoveCutoffs << "},\n";
+
+    oss << "  \"iterations\": [\n";
+    for (size_t i = 0; i < iterations.size(); ++i)
+    {
+        const auto& metric = iterations[i];
+        oss << "    {\"depth\": " << metric.depth
+            << ", \"re_searches\": " << metric.reSearches
+            << ", \"fail_highs\": " << metric.failHighs
+            << ", \"fail_lows\": " << metric.failLows
+            << ", \"nodes\": " << metric.nodes
+            << ", \"time_ms\": " << metric.elapsedTimeMs << "}";
+        if (i + 1 < iterations.size())
+            oss << ",";
+        oss << "\n";
+    }
+    oss << "  ],\n";
+
+    oss << "  \"lmr\": {\"histogram\": {";
+    for (size_t i = 0; i < lmrHistogram.size(); ++i)
+    {
+        if (i)
+            oss << ", ";
+        oss << '\"';
+        if (i == lmrHistogram.size() - 1)
+            oss << i << "+";
+        else
+            oss << i;
+        oss << "\": " << lmrHistogram[i];
+    }
+    oss << "}},\n";
+
+    oss << "  \"lmp\": {";
+    for (size_t i = 0; i < lmpReasons.size(); ++i)
+    {
+        if (i)
+            oss << ", ";
+        oss << '\"' << lmp_reason_name(static_cast<LatePruneReason>(i)) << "\": " << lmpReasons[i];
+    }
+    oss << "}\n";
+
+    oss << "}";
+    return oss.str();
+}
+
 Search::Worker::Worker(SharedState&                    sharedState,
                        std::unique_ptr<ISearchManager> sm,
                        size_t                          threadId,
@@ -169,6 +309,7 @@ void Search::Worker::ensure_network_replicated() {
 
 void Search::Worker::start_searching() {
 
+    reset_metrics();
     accumulatorStack.reset();
 
     // Non-main threads go directly to iterative_deepening()
@@ -291,7 +432,20 @@ void Search::Worker::start_searching() {
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
         experience.update(rootPos, bestThread->rootMoves[0].pv[0], bestThread->rootMoves[0].score,
                           bestThread->completedDepth);
+
+    if (is_mainthread())
+    {
+        const std::string metricsPath = options["Metrics Log File"];
+        if (!metricsPath.empty())
+        {
+            std::ofstream out(metricsPath);
+            if (out)
+                out << threads.collect_metrics().to_json() << std::endl;
+        }
+    }
 }
+
+void Search::Worker::reset_metrics() { metrics.reset(); }
 
 // Main iterative deepening loop. It calls search()
 // repeatedly with increasing depth until the allocated thinking time has been
@@ -375,6 +529,13 @@ void Search::Worker::iterative_deepening() {
         if (!threads.increaseDepth)
             searchAgainCounter++;
 
+        const int      iterationDepth      = rootDepth;
+        const uint64_t iterationStartNodes = threads.nodes_searched();
+        const TimePoint iterationStartTime = elapsed_time();
+        uint32_t       iterationReSearches = 0;
+        uint32_t       iterationFailHighs  = 0;
+        uint32_t       iterationFailLows   = 0;
+
         // MultiPV loop. We perform a full root search for each PV line
         for (pvIdx = 0; pvIdx < multiPV; ++pvIdx)
         {
@@ -442,6 +603,8 @@ void Search::Worker::iterative_deepening() {
                     beta  = alpha;
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
+                    ++metrics.aspirationFailLows;
+                    ++iterationFailLows;
                     failedHighCnt = 0;
                     ++reSearchCnt;
 
@@ -451,6 +614,8 @@ void Search::Worker::iterative_deepening() {
                 else if (bestValue >= beta)
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
+                    ++metrics.aspirationFailHighs;
+                    ++iterationFailHighs;
                     ++failedHighCnt;
                     ++reSearchCnt;
                 }
@@ -469,6 +634,9 @@ void Search::Worker::iterative_deepening() {
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
+
+            metrics.aspirationReSearches += reSearchCnt;
+            iterationReSearches += reSearchCnt;
 
             // Sort the PV lines searched so far and update the GUI
             std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
@@ -506,6 +674,24 @@ void Search::Worker::iterative_deepening() {
             lastBestPV        = rootMoves[0].pv;
             lastBestScore     = rootMoves[0].score;
             lastBestMoveDepth = rootDepth;
+        }
+
+        if (mainThread)
+        {
+            IterationMetrics metric;
+            metric.depth       = iterationDepth;
+            metric.reSearches  = iterationReSearches;
+            metric.failHighs   = iterationFailHighs;
+            metric.failLows    = iterationFailLows;
+            const uint64_t iterationEndNodes = threads.nodes_searched();
+            metric.nodes = iterationEndNodes >= iterationStartNodes
+                              ? iterationEndNodes - iterationStartNodes
+                              : iterationEndNodes;
+            const TimePoint iterationEndTime = elapsed_time();
+            metric.elapsedTimeMs = iterationEndTime >= iterationStartTime
+                                      ? static_cast<uint64_t>(iterationEndTime - iterationStartTime)
+                                      : 0ULL;
+            metrics.record_iteration(metric);
         }
 
         if (!mainThread)
@@ -621,6 +807,31 @@ void Search::Worker::undo_move(Position& pos, const Move move) {
 }
 
 void Search::Worker::undo_null_move(Position& pos) { pos.undo_null_move(); }
+
+std::tuple<bool, TTData, TTWriter> Search::Worker::probe_tt(Key key)
+{
+    metrics.ttProbes++;
+    auto result = tt.probe(key);
+    if (std::get<0>(result))
+        metrics.ttHits++;
+    return result;
+}
+
+void Search::Worker::store_tt(TTWriter& writer,
+                              Key       key,
+                              Value     value,
+                              bool      pv,
+                              Bound     bound,
+                              Depth     depth,
+                              Move      move,
+                              Value     eval)
+{
+    const bool replacing = writer.is_replacing();
+    writer.write(key, value, pv, bound, depth, move, eval, tt.generation());
+    metrics.ttStores++;
+    if (replacing)
+        metrics.ttReplacements++;
+}
 
 
 // Reset histories, usually before a new game
@@ -746,7 +957,7 @@ Value Search::Worker::search(
     // Step 4. Transposition table lookup
     excludedMove                   = ss->excludedMove;
     posKey                         = pos.key();
-    auto [ttHit, ttData, ttWriter] = tt.probe(posKey);
+    auto [ttHit, ttData, ttWriter] = probe_tt(posKey);
     assert(!ttHit || ttData.key16 == uint16_t(posKey));
     // Need further processing of the saved data
     ss->ttHit    = ttHit;
@@ -787,7 +998,7 @@ Value Search::Worker::search(
             {
                 pos.do_move(ttData.move, st);
                 Key nextPosKey                             = pos.key();
-                auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
+                auto [ttHitNext, ttDataNext, ttWriterNext] = probe_tt(nextPosKey);
                 assert(!ttHitNext || ttDataNext.key16 == uint16_t(nextPosKey));
                 pos.undo_move(ttData.move);
 
@@ -840,9 +1051,8 @@ Value Search::Worker::search(
                   if (b == Bound::BOUND_EXACT
                       || (b == Bound::BOUND_LOWER ? value >= beta : value <= alpha))
                   {
-                      ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
-                                     std::min(MAX_PLY - 1, depth + 6), Move::none(), VALUE_NONE,
-                                     tt.generation());
+                      store_tt(ttWriter, posKey, value_to_tt(value, ss->ply), ss->ttPv, b,
+                               std::min(MAX_PLY - 1, depth + 6), Move::none(), VALUE_NONE);
 
                     return value;
                 }
@@ -891,8 +1101,8 @@ Value Search::Worker::search(
         ss->staticEval = eval = to_corrected_static_eval(unadjustedStaticEval, correctionValue);
 
         // Static evaluation is saved as it was before adjustment by correction history
-          ttWriter.write(posKey, VALUE_NONE, ss->ttPv, Bound::BOUND_NONE, DEPTH_UNSEARCHED, Move::none(),
-                         unadjustedStaticEval, tt.generation());
+          store_tt(ttWriter, posKey, VALUE_NONE, ss->ttPv, Bound::BOUND_NONE, DEPTH_UNSEARCHED, Move::none(),
+                   unadjustedStaticEval);
     }
 
     // Use static evaluation difference to improve quiet move ordering
@@ -958,6 +1168,7 @@ Value Search::Worker::search(
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
         ss->continuationCorrectionHistory = &continuationCorrectionHistory[NO_PIECE][0];
 
+        metrics.nullMoveCalls++;
         do_null_move(pos, st);
 
         Value nullValue = -search<NonPV>(pos, ss + 1, -beta, -beta + 1, depth - R, false);
@@ -968,7 +1179,10 @@ Value Search::Worker::search(
         if (nullValue >= beta && !is_win(nullValue))
         {
             if (nmpMinPly || depth < 16)
+            {
+                metrics.nullMoveCutoffs++;
                 return nullValue;
+            }
 
             assert(!nmpMinPly);  // Recursive verification is not allowed
 
@@ -981,7 +1195,10 @@ Value Search::Worker::search(
             nmpMinPly = 0;
 
             if (v >= beta)
+            {
+                metrics.nullMoveCutoffs++;
                 return nullValue;
+            }
         }
     }
 
@@ -1035,8 +1252,8 @@ Value Search::Worker::search(
             if (value >= probCutBeta)
             {
                 // Save ProbCut data into transposition table
-                  ttWriter.write(posKey, value_to_tt(value, ss->ply), ss->ttPv, Bound::BOUND_LOWER,
-                                 probCutDepth + 1, move, unadjustedStaticEval, tt.generation());
+                  store_tt(ttWriter, posKey, value_to_tt(value, ss->ply), ss->ttPv, Bound::BOUND_LOWER,
+                           probCutDepth + 1, move, unadjustedStaticEval);
 
                 if (!is_decisive(value))
                     return value - (probCutBeta - beta);
@@ -1122,7 +1339,10 @@ moves_loop:  // When in check, search starts here
         {
             // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
             if (moveCount >= (3 + depth * depth) / (2 - improving))
+            {
+                metrics.record_lmp(LatePruneReason::SkipQuietPhase);
                 mp.skip_quiet_moves();
+            }
 
             // Reduced depth of the next LMR search
             int lmrDepth = newDepth - r / 1024;
@@ -1139,7 +1359,10 @@ moves_loop:  // When in check, search starts here
                                         + 240 * (move.to_sq() == prevSq) + PieceValue[capturedPiece]
                                         + 100 * captHist / 1024;
                     if (futilityValue <= alpha)
+                    {
+                        metrics.record_lmp(LatePruneReason::CaptureFutility);
                         continue;
+                    }
                 }
 
                 // SEE based pruning for captures and checks
@@ -1155,7 +1378,10 @@ moves_loop:  // When in check, search starts here
 
                     // avoid pruning sacrifices of our last piece for stalemate
                     if (!mayStalemateTrap)
+                    {
+                        metrics.record_lmp(LatePruneReason::CaptureSee);
                         continue;
+                    }
                 }
             }
             else
@@ -1166,7 +1392,10 @@ moves_loop:  // When in check, search starts here
 
                 // Continuation history based pruning
                 if (history < -4361 * depth)
+                {
+                    metrics.record_lmp(LatePruneReason::HistoryPrune);
                     continue;
+                }
 
                 history += 71 * mainHistory[static_cast<int>(us)][move.from_to()] / 32;
 
@@ -1176,7 +1405,10 @@ moves_loop:  // When in check, search starts here
                 // have been tried without raising alpha, prune the remainder
                 if (lmrDepth < 1 && moveCount > 10
                     && ss->staticEval + Value(50 * moveCount) <= alpha)
+                {
+                    metrics.record_lmp(LatePruneReason::LateMovePrune);
                     continue;
+                }
 
                 // Retuned futility pruning margins and depth scaling
                 Value baseFutility = (bestMove ? 40 : 180);
@@ -1191,6 +1423,7 @@ moves_loop:  // When in check, search starts here
                     if (bestValue <= futilityValue && !is_decisive(bestValue)
                         && !is_win(futilityValue))
                         bestValue = futilityValue;
+                    metrics.record_lmp(LatePruneReason::ParentFutility);
                     continue;
                 }
 
@@ -1198,7 +1431,10 @@ moves_loop:  // When in check, search starts here
 
                 // Prune moves with negative SEE
                 if (!pos.see_ge(move, -26 * lmrDepth * lmrDepth))
+                {
+                    metrics.record_lmp(LatePruneReason::QuietSee);
                     continue;
+                }
             }
         }
 
@@ -1322,6 +1558,7 @@ moves_loop:  // When in check, search starts here
             Depth d = std::max(1, newDepth - r / 1024);
 
             ss->reduction = newDepth - d;
+            metrics.record_lmr(ss->reduction);
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
@@ -1534,12 +1771,12 @@ moves_loop:  // When in check, search starts here
     // Write gathered information in transposition table. Note that the
     // static evaluation is saved as it was before correction history.
     if (!excludedMove && !(rootNode && pvIdx))
-          ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
-                         bestValue >= beta    ? Bound::BOUND_LOWER
-                         : PvNode && bestMove ? Bound::BOUND_EXACT
-                                              : Bound::BOUND_UPPER,
-                         moveCount != 0 ? depth : std::min(MAX_PLY - 1, depth + 6), bestMove,
-                         unadjustedStaticEval, tt.generation());
+          store_tt(ttWriter, posKey, value_to_tt(bestValue, ss->ply), ss->ttPv,
+                   bestValue >= beta    ? Bound::BOUND_LOWER
+                   : PvNode && bestMove ? Bound::BOUND_EXACT
+                                        : Bound::BOUND_UPPER,
+                   moveCount != 0 ? depth : std::min(MAX_PLY - 1, depth + 6), bestMove,
+                   unadjustedStaticEval);
 
     // Adjust correction history
     if (!ss->inCheck && !(bestMove && pos.capture(bestMove))
@@ -1612,7 +1849,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     // Step 3. Transposition table lookup
     posKey                         = pos.key();
-    auto [ttHit, ttData, ttWriter] = tt.probe(posKey);
+    auto [ttHit, ttData, ttWriter] = probe_tt(posKey);
     // Need further processing of the saved data
     ss->ttHit    = ttHit;
     ttData.move  = ttHit ? ttData.move : Move::none();
@@ -1663,9 +1900,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!is_decisive(bestValue))
                 bestValue = (bestValue + beta) / 2;
             if (!ss->ttHit)
-                  ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), false, Bound::BOUND_LOWER,
-                                 DEPTH_UNSEARCHED, Move::none(), unadjustedStaticEval,
-                                 tt.generation());
+                  store_tt(ttWriter, posKey, value_to_tt(bestValue, ss->ply), false, Bound::BOUND_LOWER,
+                           DEPTH_UNSEARCHED, Move::none(), unadjustedStaticEval);
             return bestValue;
         }
 
@@ -1799,9 +2035,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     // Save gathered info in transposition table. The static evaluation
     // is saved as it was before adjustment by correction history.
-    ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), pvHit,
-                   bestValue >= beta ? Bound::BOUND_LOWER : Bound::BOUND_UPPER, DEPTH_QS, bestMove,
-                   unadjustedStaticEval, tt.generation());
+    store_tt(ttWriter, posKey, value_to_tt(bestValue, ss->ply), pvHit,
+             bestValue >= beta ? Bound::BOUND_LOWER : Bound::BOUND_UPPER, DEPTH_QS, bestMove,
+             unadjustedStaticEval);
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 

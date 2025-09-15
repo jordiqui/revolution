@@ -100,6 +100,7 @@ static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
 struct TTWriter {
    public:
     void write(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8);
+    bool is_replacing() const;
 
    private:
     friend class TranspositionTable;

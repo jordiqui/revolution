@@ -133,6 +133,14 @@ Search::SearchManager* ThreadPool::main_manager() { return main_thread()->worker
 uint64_t ThreadPool::nodes_searched() const { return accumulate(&Search::Worker::nodes); }
 uint64_t ThreadPool::tb_hits() const { return accumulate(&Search::Worker::tbHits); }
 
+Search::SearchMetrics ThreadPool::collect_metrics() const
+{
+    Search::SearchMetrics aggregated;
+    for (auto&& th : threads)
+        aggregated.merge(th->worker->metrics);
+    return aggregated;
+}
+
 // Creates/destroys threads to match the requested number.
 // Created and launched threads will immediately go to sleep in idle_loop.
 // Upon resizing, threads are recreated to allow for binding if necessary.
@@ -281,6 +289,7 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     for (auto&& th : threads)
     {
         th->run_custom_job([&]() {
+            th->worker->reset_metrics();
             th->worker->limits = limits;
             th->worker->nodes = th->worker->tbHits = th->worker->nmpMinPly =
               th->worker->bestMoveChanges          = 0;
