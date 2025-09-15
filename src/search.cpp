@@ -465,7 +465,7 @@ void Search::Worker::iterative_deepening() {
                     break;
                 }
 
-                // Broaden window faster after a fail
+                // Broaden window faster after a fail to stabilize search
                 delta += delta / 2;
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
