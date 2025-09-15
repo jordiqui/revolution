@@ -13,6 +13,7 @@
 - Tuned blitz time management to reduce time usage in short time controls.
 - Forced SSE4.1+POPCNT Ivy Bridge build flags for consistent testing parity.
 - Disabled Experience features by default for safer Gauntlet runs.
+- Automatically creates an empty `experience.exp` during build so Experience mode can load data.
 
 ## [1.20] - 2025-09-06
 ### Changed

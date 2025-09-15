@@ -1137,6 +1137,7 @@ config-sanity: net
 
 $(EXE): $(OBJS)
 	+$(CXX) -o $@ $(OBJS) $(LDFLAGS)
+	@if [ ! -f ../experience.exp ]; then printf '%s' 'SugaR Experience version 2' > ../experience.exp; fi
 
 # Force recompilation to ensure version info is up-to-date
 misc.o: FORCE
