@@ -123,6 +123,10 @@ this reserved buffer.
 setoption name Time Buffer value <milliseconds>
 ```
 
+Revolution automatically adjusts its time usage in blitz games (time controls
+of five minutes or less with minimal increment) to keep the search stable and
+avoid spending too much time on a single move.
+
 ## License
 
 Revolution is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3).

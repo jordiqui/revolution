@@ -74,6 +74,8 @@ void TimeManagement::init(Search::LimitsType& limits,
         slowMover *= 0.8;  // 60s + 0ms
     else if (baseSeconds <= 180 && incSeconds >= 10)
         slowMover *= 1.05;  // 180s + 10s
+    else if (baseSeconds <= 300 && incSeconds <= 3)
+        slowMover *= 0.9;  // <=300s with small increment (blitz)
     else if (baseSeconds >= 960 && incSeconds == 0)
         slowMover *= 1.15;  // 960s + 0ms
 

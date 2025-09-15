@@ -9,6 +9,7 @@
 ### Changed
 - Updated engine identifier to "revolution v.1.2.0 dev- 070925".
 - Added time clamp in time management to limit excessive re-search time.
+- Tuned blitz time management to reduce time usage in short time controls.
 
 ## [1.20] - 2025-09-06
 ### Changed
