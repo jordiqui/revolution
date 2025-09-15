@@ -58,7 +58,6 @@
       "description": "Blitz oriented checks with time clamp, late move pruning and selective quiescence.",
       "notes": "Enable XP-1, XP-5 and XP-8 settings before running.",
       "uci_options": {
-        "Minimum Thinking Time": "0",
         "Use 040825 Search": "false"
       },
       "runs": [

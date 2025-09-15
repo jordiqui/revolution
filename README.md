@@ -102,17 +102,6 @@ The file is loaded at engine startup and updated after each game if `Experience 
 
 ## UCI Options
 
-### Minimum Thinking Time
-
-The `Minimum Thinking Time` option ensures the engine spends at least a
-specified number of milliseconds searching for a move, even if it finds
-a good one instantly. This avoids extremely fast, low-quality replies.
-Set it with:
-
-```
-setoption name Minimum Thinking Time value <milliseconds>
-```
-
 ### Time Buffer
 
 The `Time Buffer` option reserves a small amount of time on each move to
