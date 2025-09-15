@@ -128,8 +128,14 @@ Engine::Engine(std::optional<std::string> path) :
                     return std::nullopt;
                 }));
 
-    // Initialise cached search tuning with the default value of the option
-    GSearch.conservative = options["Use 040825 Search"];
+    options.add("BlackAggression", Option(0, 0, 100, [](const Option& o) {
+                    GSearch.blackAggression = int(o);
+                    return std::nullopt;
+                }));
+
+    // Initialise cached search tuning with the default values of the options
+    GSearch.conservative    = options["Use 040825 Search"];
+    GSearch.blackAggression = options["BlackAggression"];
 
     options.add("UCI_Chess960", Option(false));
 
