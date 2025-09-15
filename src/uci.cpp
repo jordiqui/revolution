@@ -118,7 +118,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution v.2.41 dev-150925"
+            // Force a stable, explicit UCI name so GUIs show "revolution-dev v.2.40 130925"
             sync_cout_start();
             std::cout
               << "id name " << ENGINE_NAME << "\n"
