@@ -124,7 +124,7 @@ Value adaptive_style_bonus(const StyleIndicators& ind, Value current) {
     return Value(bonus);
 }
 
-Value adaptive_style_bonus(const Position& pos, Value current) {
+[[maybe_unused]] Value adaptive_style_bonus(const Position& pos, Value current) {
     return adaptive_style_bonus(gather_indicators(pos), current);
 }
 
