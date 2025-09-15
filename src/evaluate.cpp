@@ -31,6 +31,7 @@
 #include "nnue/network.h"
 #include "nnue/nnue_misc.h"
 #include "position.h"
+#include "search.h"
 #include "types.h"
 #include "uci.h"
 #include "nnue/nnue_accumulator.h"
@@ -114,15 +115,17 @@ StyleIndicators gather_indicators(const Position& pos) {
 }
 
 // Compute an adjustment based on the indicators and the current evaluation.
-Value adaptive_style_bonus(const Position& pos, Value current) {
-    StyleIndicators ind = gather_indicators(pos);
-
+Value adaptive_style_bonus(const StyleIndicators& ind, Value current) {
     int atkW = current > 50 ? 3 : 1;
     int defW = current < -50 ? 3 : 1;
     int balW = 2;
 
     int bonus = atkW * ind.pressure + balW * ind.center - defW * ind.shield;
     return Value(bonus);
+}
+
+Value adaptive_style_bonus(const Position& pos, Value current) {
+    return adaptive_style_bonus(gather_indicators(pos), current);
 }
 
 // Simple tempo bonus favoring the side to move
@@ -180,6 +183,17 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     bool  smallNet = use_smallnet(pos);
     Value psqt = 0, positional = 0;
+
+    StyleIndicators indicators{};
+    bool             haveIndicators = false;
+    const auto       ensure_indicators = [&]() -> const StyleIndicators& {
+        if (!haveIndicators)
+        {
+            indicators     = gather_indicators(pos);
+            haveIndicators = true;
+        }
+        return indicators;
+    };
 
     if (smallNet)
     {
@@ -251,6 +265,16 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     v += tempo_bonus(pos);
 
+    if (pos.side_to_move() == Color::BLACK && GSearch.blackAggression > 0)
+    {
+        const StyleIndicators& ind = ensure_indicators();
+        const int              mobilityBonus       = ind.center;
+        const int              kingAttackPotential = ind.pressure;
+
+        v += (GSearch.blackAggression * mobilityBonus) / 100;
+        v += (GSearch.blackAggression * kingAttackPotential) / 100;
+    }
+
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
@@ -259,9 +283,12 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     // style but merely demonstrates how evaluation terms can be combined.
     if (adaptive_style)
     {
-        v += adaptive_style_bonus(pos, Value(v));
+        const StyleIndicators& ind = ensure_indicators();
+        v += adaptive_style_bonus(ind, Value(v));
         v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
     }
+
+    v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
     // Store result and the optimism used for the final `v`.
     e.last_optimism = optimism;
@@ -316,6 +343,26 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::Networks& networks) {
     Value v = psqt + positional;
     v       = pos.side_to_move() == Color::WHITE ? v : -v;
     ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)\n";
+
+    if (pos.side_to_move() == Color::BLACK && GSearch.blackAggression > 0)
+    {
+        const StyleIndicators ind                 = gather_indicators(pos);
+        const int              mobilityBonus       = ind.center;
+        const int              kingAttackPotential = ind.pressure;
+        const Value            mobilityAdjustment = Value((GSearch.blackAggression * mobilityBonus) / 100);
+        const Value            kingAttackAdjustment =
+          Value((GSearch.blackAggression * kingAttackPotential) / 100);
+
+        const Value displayMobility =
+          pos.side_to_move() == Color::WHITE ? mobilityAdjustment : -mobilityAdjustment;
+        const Value displayKingAttack =
+          pos.side_to_move() == Color::WHITE ? kingAttackAdjustment : -kingAttackAdjustment;
+
+        ss << "Black aggression (mobility)      "
+           << 0.01 * UCIEngine::to_cp(displayMobility, pos) << " (white side)\n";
+        ss << "Black aggression (king attack)   "
+           << 0.01 * UCIEngine::to_cp(displayKingAttack, pos) << " (white side)\n";
+    }
 
     v = evaluate(networks, pos, accumulators, *caches, VALUE_ZERO);
     v = pos.side_to_move() == Color::WHITE ? v : -v;
