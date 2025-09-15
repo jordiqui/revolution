@@ -1171,6 +1171,9 @@ Value Search::Worker::search(
         // Null move dynamic reduction based on depth
         Depth R = 3 + depth / 4;
 
+        if (us == Color::BLACK)
+            R = std::max<Depth>(Depth(1), R - 1);
+
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
         ss->continuationCorrectionHistory = &continuationCorrectionHistory[NO_PIECE][0];
@@ -1563,6 +1566,9 @@ moves_loop:  // When in check, search starts here
         {
             // Apply a simple reduction limited between one ply and the remaining depth
             Depth d = std::max(1, newDepth - r / 1024);
+
+            if (us == Color::BLACK)
+                ++d;
 
             ss->reduction = newDepth - d;
             metrics.record_lmr(ss->reduction);
