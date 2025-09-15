@@ -11,6 +11,8 @@
 - Added time clamp in time management to limit excessive re-search time.
 - Broadened aspiration window to stabilize search and reduce re-search storms.
 - Tuned blitz time management to reduce time usage in short time controls.
+- Forced SSE4.1+POPCNT Ivy Bridge build flags for consistent testing parity.
+- Disabled Experience features by default for safer Gauntlet runs.
 
 ## [1.20] - 2025-09-06
 ### Changed

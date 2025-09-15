@@ -123,7 +123,7 @@ VPATH = syzygy:nnue:nnue/features
 ### 2.1. General and architecture defaults
 
 ifeq ($(ARCH),)
-   ARCH = native
+   ARCH = x86-64-sse41-popcnt
 endif
 
 ifeq ($(ARCH), native)
@@ -452,7 +452,7 @@ ifeq ($(MAKELEVEL),0)
        export ENV_LDFLAGS := $(LDFLAGS)
 endif
 
-CXXFLAGS = $(ENV_CXXFLAGS) -Wall -Wcast-qual -fno-exceptions -std=c++17 $(EXTRACXXFLAGS)
+CXXFLAGS = $(ENV_CXXFLAGS) -Wall -Wcast-qual -fno-exceptions -fno-rtti -std=c++17 -mno-avx -mno-avx2 -mno-bmi2 -mtune=ivybridge $(EXTRACXXFLAGS)
 DEPENDFLAGS = $(ENV_DEPENDFLAGS) -std=c++17
 LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS) -lz
 
@@ -712,9 +712,9 @@ endif
 ifeq ($(popcnt),yes)
 	ifeq ($(arch),$(filter $(arch),ppc64 ppc64-altivec ppc64-vsx armv7 armv8 arm64))
 		CXXFLAGS += -DUSE_POPCNT
-	else
-		CXXFLAGS += -msse3 -mpopcnt -DUSE_POPCNT
-	endif
+        else
+                CXXFLAGS += -mpopcnt -DUSE_POPCNT
+        endif
 endif
 
 ### 3.6 SIMD architectures

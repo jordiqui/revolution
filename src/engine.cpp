@@ -61,11 +61,10 @@ Engine::Engine(std::optional<std::string> path) :
     threads(),
     networks(
       numaContext,
-      NN::Networks(
-        NN::NetworkBig({std::string(Eval::EvalFileDefaultNameBig), "None", ""},
-                       NN::EmbeddedNNUEType::BIG),
-        NN::NetworkSmall({std::string(Eval::EvalFileDefaultNameSmall), "None", ""},
-                         NN::EmbeddedNNUEType::SMALL))) {
+      NN::Networks(NN::NetworkBig({std::string(Eval::EvalFileDefaultNameBig), "None", ""},
+                                  NN::EmbeddedNNUEType::BIG),
+                   NN::NetworkSmall({std::string(Eval::EvalFileDefaultNameSmall), "None", ""},
+                                    NN::EmbeddedNNUEType::SMALL))) {
     states->emplace_back();
     pos.set(StartFEN, false, &states->back());
 
@@ -181,7 +180,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Book2 Width", Option(1, 1, 10));
 
-    options.add("Experience Enabled", Option(true, [this](const Option& o) {
+    options.add("Experience Enabled", Option(false, [this](const Option& o) {
                     if (bool(o))
                         experience.load_async(options["Experience File"]);
                     else
@@ -197,7 +196,7 @@ Engine::Engine(std::optional<std::string> path) :
                 }));
 
     options.add("Experience Readonly", Option(false));
-    options.add("Experience Prior", Option(true));
+    options.add("Experience Prior", Option(false));
     options.add("Experience Width", Option(1, 1, 20));
     options.add("Experience Eval Weight", Option(5, 0, 10));
     options.add("Experience Min Depth", Option(27, 4, 64));
