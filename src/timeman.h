@@ -21,6 +21,7 @@
 #include <cstdint>
 
 #include "misc.h"
+#include "types.h"
 
 namespace Stockfish {
 
@@ -50,7 +51,8 @@ class TimeManagement {
               Color               us,
               int                 ply,
               const OptionsMap&   options,
-              double&             originalTimeAdjust);
+              double&             originalTimeAdjust,
+              int                 evaluationCp);
 
     TimePoint optimum() const;
     TimePoint maximum() const;

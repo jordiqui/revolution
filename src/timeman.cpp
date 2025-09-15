@@ -50,7 +50,8 @@ void TimeManagement::init(Search::LimitsType& limits,
                           Color               us,
                           int                 ply,
                           const OptionsMap&   options,
-                          double&             originalTimeAdjust) {
+                          double&             originalTimeAdjust,
+                          int                 evaluationCp) {
     TimePoint npmsec = TimePoint(options["nodestime"]);
 
     // If we have no time, we don't need to fully initialize TM.
@@ -170,6 +171,14 @@ void TimeManagement::init(Search::LimitsType& limits,
           std::min<int64_t>(budget,
                             std::max<int64_t>(0, time_left_ms - GTime.panic_margin_ms));
         optimumTime = maximumTime = TimePoint(budget);
+    }
+
+    if (us == Color::BLACK && evaluationCp <= -50)
+    {
+        double factor = options["BlackTimeFactor"] / 100.0;
+        optimumTime   = TimePoint(optimumTime * factor);
+        maximumTime   = TimePoint(maximumTime * factor);
+        maximumTime   = std::max(maximumTime, optimumTime);
     }
 
     if (options["Ponder"])
