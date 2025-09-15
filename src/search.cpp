@@ -404,6 +404,7 @@ void Search::Worker::iterative_deepening() {
             // high/low, re-search with a bigger window until we don't fail
             // high/low anymore.
             int failedHighCnt = 0;
+            int reSearchCnt   = 0;
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -442,6 +443,8 @@ void Search::Worker::iterative_deepening() {
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
                     failedHighCnt = 0;
+                    ++reSearchCnt;
+
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
                 }
@@ -449,9 +452,18 @@ void Search::Worker::iterative_deepening() {
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
+                    ++reSearchCnt;
                 }
                 else
                     break;
+
+                if (mainThread && limits.use_time_management()
+                    && elapsed() > static_cast<TimePoint>(mainThread->tm.optimum() * 1.35)
+                    && reSearchCnt > 0)
+                {
+                    threads.stop = true;
+                    break;
+                }
 
                 delta += delta / 3;
 
