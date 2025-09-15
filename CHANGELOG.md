@@ -7,7 +7,8 @@
 - Additional late move pruning for quiet moves at low depth.
 
 ### Changed
-- Updated engine identifier to "revolution v.1.2.0 dev- 070925".
+- Updated engine identifier to "revolution-dev 160925".
+- Removed UCI options `Minimum Thinking Time` and `Slow Mover` to align with Stockfish defaults.
 - Added time clamp in time management to limit excessive re-search time.
 - Tuned blitz time management to reduce time usage in short time controls.
 

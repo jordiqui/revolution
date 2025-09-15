@@ -113,13 +113,9 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Move Overhead", Option(10, 0, 5000));
 
-    options.add("Slow Mover", Option(100, 10, 1000));
-
     options.add("BlackTimeFactor", Option(105, 100, 200));
 
     options.add("nodestime", Option(0, 0, 10000));
-
-    options.add("Minimum Thinking Time", Option(20, 0, 5000));
 
     options.add("Time Buffer", Option(50, 0, 5000));
 
@@ -252,10 +248,6 @@ std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960
 
 void Engine::go(Search::LimitsType& limits) {
     assert(limits.perft == 0);
-
-    TimePoint minTime = TimePoint(options["Minimum Thinking Time"]);
-    if (limits.movetime && limits.movetime < minTime)
-        limits.movetime = minTime;
 
     verify_networks();
 

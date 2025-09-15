@@ -59,26 +59,14 @@ void TimeManagement::init(Search::LimitsType& limits,
     startTime    = limits.startTime;
     useNodesTime = npmsec != 0;
 
-    if (limits.time[static_cast<int>(us)] == 0)
+    const int usIdx = static_cast<int>(us);
+
+    if (limits.time[usIdx] == 0)
         return;
 
     TimePoint moveOverhead =
       GSearch.conservative ? TimePoint(GTime.move_overhead_ms)
                            : TimePoint(options["Move Overhead"]);
-    double slowMover = GSearch.conservative ? GTime.slow_mover
-                                            : options["Slow Mover"] / 100.0;
-
-    // Adjust time usage heuristics for common time controls
-    double baseSeconds = double(limits.time[static_cast<int>(us)]) / 1000.0;
-    double incSeconds  = double(limits.inc[static_cast<int>(us)]) / 1000.0;
-    if (baseSeconds <= 60 && incSeconds == 0)
-        slowMover *= 0.8;  // 60s + 0ms
-    else if (baseSeconds <= 180 && incSeconds >= 10)
-        slowMover *= 1.05;  // 180s + 10s
-    else if (baseSeconds <= 300 && incSeconds <= 3)
-        slowMover *= 0.9;  // <=300s with small increment (blitz)
-    else if (baseSeconds >= 960 && incSeconds == 0)
-        slowMover *= 1.15;  // 960s + 0ms
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
@@ -90,12 +78,12 @@ void TimeManagement::init(Search::LimitsType& limits,
     // must be much lower than the real engine speed.
     if (useNodesTime)
     {
-        if (availableNodes == -1)                       // Only once at game start
-            availableNodes = npmsec * limits.time[static_cast<int>(us)];  // Time is in msec
+        if (availableNodes == -1)                 // Only once at game start
+            availableNodes = npmsec * limits.time[usIdx];  // Time is in msec
 
         // Convert from milliseconds to nodes
-        limits.time[static_cast<int>(us)] = TimePoint(availableNodes);
-        limits.inc[static_cast<int>(us)] *= npmsec;
+        limits.time[usIdx] = TimePoint(availableNodes);
+        limits.inc[usIdx] *= npmsec;
         limits.npmsec = npmsec;
         moveOverhead *= npmsec;
     }
@@ -103,7 +91,7 @@ void TimeManagement::init(Search::LimitsType& limits,
     // These numbers are used where multiplications, divisions or comparisons
     // with constants are involved.
     const int64_t   scaleFactor = useNodesTime ? npmsec : 1;
-    const TimePoint scaledTime  = limits.time[static_cast<int>(us)] / scaleFactor;
+    const TimePoint scaledTime  = limits.time[usIdx] / scaleFactor;
 
     // Maximum move horizon
     int centiMTG = limits.movestogo ? std::min(limits.movestogo * 100, 5000) : 5051;
@@ -115,8 +103,8 @@ void TimeManagement::init(Search::LimitsType& limits,
     // Make sure timeLeft is > 0 since we may use it as a divisor
     TimePoint timeLeft =
       std::max(TimePoint(1),
-               limits.time[static_cast<int>(us)]
-                 + (limits.inc[static_cast<int>(us)] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
+               limits.time[usIdx]
+                 + (limits.inc[usIdx] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
 
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
@@ -132,9 +120,10 @@ void TimeManagement::init(Search::LimitsType& limits,
         double optConstant  = std::min(0.0032116 + 0.000321123 * logTimeInSec, 0.00508017);
         double maxConstant  = std::max(3.3977 + 3.03950 * logTimeInSec, 2.94761);
 
-        optScale = std::min(0.0121431 + std::pow(ply + 2.94693, 0.461073) * optConstant,
-                            0.213035 * limits.time[static_cast<int>(us)] / timeLeft)
-                 * originalTimeAdjust;
+        optScale =
+          std::min(0.0121431 + std::pow(ply + 2.94693, 0.461073) * optConstant,
+                   0.213035 * limits.time[usIdx] / timeLeft)
+          * originalTimeAdjust;
 
         maxScale = std::min(6.67704, maxConstant + ply / 11.9847);
     }
@@ -143,23 +132,19 @@ void TimeManagement::init(Search::LimitsType& limits,
     else
     {
         optScale =
-          std::min((0.88 + ply / 116.4) / (centiMTG / 100.0),
-                   0.88 * limits.time[static_cast<int>(us)] / timeLeft);
+          std::min((0.88 + ply / 116.4) / (centiMTG / 100.0), 0.88 * limits.time[usIdx] / timeLeft);
         maxScale = 1.3 + 0.11 * (centiMTG / 100.0);
     }
-
-    optScale *= slowMover;
 
     // Limit the maximum possible time for this move
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
-      TimePoint(std::min(0.90 * limits.time[static_cast<int>(us)] - moveOverhead,
-                          maxScale * optimumTime)) - 10;
+      TimePoint(std::min(0.825179 * limits.time[usIdx] - moveOverhead, maxScale * optimumTime)) - 10;
 
     if (GSearch.conservative)
     {
-        int64_t time_left_ms = limits.time[static_cast<int>(us)];
-        int64_t inc_ms       = limits.inc[static_cast<int>(us)];
+        int64_t time_left_ms = limits.time[usIdx];
+        int64_t inc_ms       = limits.inc[usIdx];
 
         int64_t base         = std::max<int64_t>(GTime.min_think_ms, optimumTime);
         int64_t dyn_overhead = GTime.move_overhead_ms;
@@ -185,8 +170,7 @@ void TimeManagement::init(Search::LimitsType& limits,
         optimumTime += optimumTime / 4;
 
     TimePoint minimumThinkingTime =
-      GSearch.conservative ? TimePoint(GTime.min_think_ms)
-                           : TimePoint(options["Minimum Thinking Time"]);
+      GSearch.conservative ? TimePoint(GTime.min_think_ms) : TimePoint(0);
     TimePoint safetyBuffer =
       GSearch.conservative ? TimePoint(GTime.panic_margin_ms)
                            : TimePoint(options["Time Buffer"]);
