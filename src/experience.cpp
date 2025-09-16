@@ -331,6 +331,15 @@ void Experience::save(const std::string& file) const {
     sync_cout << "info string " << path << " <- Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << sync_endl;
 }
+namespace {
+
+int oriented_score(const ExperienceEntry& entry, Color sideToMove)
+{
+    return sideToMove == Color::WHITE ? entry.score : -entry.score;
+}
+
+}  // namespace
+
 Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
     if (!is_ready())
         return Move::none();
@@ -342,12 +351,16 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (vec.empty())
         return Move::none();
 
+    const Color sideToMove = pos.side_to_move();
+
     // Order moves by their historical evaluation and depth so that the most
     // promising moves come first.  This allows the engine to "learn" from
     // previous games by preferring moves with the best average score at the
     // deepest search.
     std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
-        return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
+        const int aScore = oriented_score(a, sideToMove) + evalImportance * a.depth;
+        const int bScore = oriented_score(b, sideToMove) + evalImportance * b.depth;
+        return aScore > bScore;
     });
 
     vec.resize(std::min<int>({maxMoves, width, static_cast<int>(vec.size())}));
@@ -363,6 +376,8 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
 void Experience::update(Position& pos, Move move, int score, int depth) {
     if (!is_ready())
         return;
+    const int storedScore = pos.side_to_move() == Color::WHITE ? score : -score;
+
     auto& vec = table[pos.key()];
     for (auto& e : vec)
         if (e.move == move)
@@ -370,13 +385,13 @@ void Experience::update(Position& pos, Move move, int score, int depth) {
             // Update the stored statistics with a running average of the
             // evaluation.  This simple learning mechanism increases the score
             // reliability over time and retains the deepest search depth seen.
-            e.score = (e.score * e.count + score) / (e.count + 1);
+            e.score = (e.score * e.count + storedScore) / (e.count + 1);
             e.depth = std::max(e.depth, depth);
             e.count++;
             return;
         }
     // First encounter of this move in the current position.
-    vec.push_back({move, score, depth, 1});
+    vec.push_back({move, storedScore, depth, 1});
 }
 
 void Experience::show(const Position& pos, int evalImportance, int maxMoves) const {
@@ -388,17 +403,21 @@ void Experience::show(const Position& pos, int evalImportance, int maxMoves) con
         sync_cout << "info string No experience available" << sync_endl;
         return;
     }
-    auto vec = it->second;
+    auto  vec         = it->second;
+    Color sideToMove  = pos.side_to_move();
     std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
-        return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
+        const int aScore = oriented_score(a, sideToMove) + evalImportance * a.depth;
+        const int bScore = oriented_score(b, sideToMove) + evalImportance * b.depth;
+        return aScore > bScore;
     });
     int shown = 0;
     for (const auto& e : vec)
     {
         if (shown++ >= maxMoves)
             break;
+        const int oriented = oriented_score(e, sideToMove);
         sync_cout << "info string " << UCIEngine::move(e.move, pos.is_chess960()) << " score "
-                  << e.score << " depth " << e.depth << " count " << e.count << sync_endl;
+                  << oriented << " depth " << e.depth << " count " << e.count << sync_endl;
     }
 }
 
