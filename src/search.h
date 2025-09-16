@@ -44,15 +44,6 @@
 
 namespace Stockfish {
 
-// Global search tuning flags cached at engine start to avoid repeated
-// option lookups during the search.
-struct SearchTuning {
-    bool conservative    = true;  // Mirrors the "Use 040825 Search" UCI option
-    int  blackAggression = 0;     // Cached "BlackAggression" UCI option value
-};
-
-extern SearchTuning GSearch;
-
 // Different node types, used as a template parameter
 enum NodeType {
     NonPV,

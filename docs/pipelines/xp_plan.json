@@ -4,10 +4,7 @@
   "stages": [
     {
       "name": "baseline",
-      "description": "Reference runs using the conservative 040825 search defaults.",
-      "uci_options": {
-        "Use 040825 Search": "true"
-      },
+      "description": "Reference runs using the standard search defaults.",
       "runs": [
         {
           "label": "startpos_depth16",
@@ -31,9 +28,6 @@
       "name": "xp2_xp7_stability",
       "description": "Re-run stability suite after adjusting aspiration, ordering, LMR and TT policy.",
       "notes": "Apply XP-2, XP-6, XP-3 and XP-7 heuristics before executing this stage.",
-      "uci_options": {
-        "Use 040825 Search": "false"
-      },
       "runs": [
         {
           "label": "startpos_depth18",
@@ -57,9 +51,6 @@
       "name": "xp1_xp8_blitz",
       "description": "Blitz oriented checks with time clamp, late move pruning and selective quiescence.",
       "notes": "Enable XP-1, XP-5 and XP-8 settings before running.",
-      "uci_options": {
-        "Use 040825 Search": "false"
-      },
       "runs": [
         {
           "label": "startpos_movetime2000",
@@ -84,9 +75,6 @@
       "description": "Optional evaluation and root-bias checks triggered when instability is observed.",
       "optional": true,
       "notes": "Run only if logs indicate erratic evaluation swings or root bias.",
-      "uci_options": {
-        "Use 040825 Search": "false"
-      },
       "runs": [
         {
           "label": "evaluation_guard_depth14",

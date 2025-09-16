@@ -57,9 +57,6 @@ namespace Stockfish {
 
 namespace TB = Tablebases;
 
-// Global search tuning instance
-SearchTuning GSearch;
-
 void syzygy_extend_pv(const OptionsMap&            options,
                       const Search::LimitsType&    limits,
                       Stockfish::Position&         pos,
@@ -319,15 +316,8 @@ void Search::Worker::start_searching() {
         return;
     }
 
-    int evaluationCp = 0;
-    {
-        Value currentEval = evaluate(rootPos);
-        if (is_valid(currentEval))
-            evaluationCp = UCIEngine::to_cp(currentEval, rootPos);
-    }
-
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
-                            main_manager()->originalTimeAdjust, evaluationCp);
+                            main_manager()->originalTimeAdjust);
     tt.new_search();
 
     Move preferredMove = Move::none();

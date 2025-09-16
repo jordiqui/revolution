@@ -28,8 +28,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <iomanip>
-#include <random>
 
 #include "evaluate.h"
 #include "misc.h"
@@ -113,27 +111,9 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Move Overhead", Option(10, 0, 5000));
 
-    options.add("BlackTimeFactor", Option(105, 100, 200));
-
     options.add("nodestime", Option(0, 0, 10000));
 
     options.add("Time Buffer", Option(50, 0, 5000));
-
-    // Toggle for using the safer 040825 search settings. Cached in GSearch so
-    // that hot paths do not need to query the option map repeatedly.
-    options.add("Use 040825 Search", Option(true, [](const Option& o) {
-                    GSearch.conservative = bool(o);
-                    return std::nullopt;
-                }));
-
-    options.add("BlackAggression", Option(0, 0, 100, [](const Option& o) {
-                    GSearch.blackAggression = int(o);
-                    return std::nullopt;
-                }));
-
-    // Initialise cached search tuning with the default values of the options
-    GSearch.conservative    = options["Use 040825 Search"];
-    GSearch.blackAggression = options["BlackAggression"];
 
     options.add("UCI_Chess960", Option(false));
 
@@ -198,7 +178,6 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience File", Option("experience.exp", [this](const Option& o) {
                     if ((bool) options["Experience Enabled"])
                         experience.load_async(o);
-                    concurrentExperienceFile.clear();
                     return std::nullopt;
                 }));
 
@@ -211,18 +190,6 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Book", Option(false));
     options.add("Experience Book Max Moves", Option(100, 1, 100));
     options.add("Experience Book Min Depth", Option(4, 1, 255));
-    options.add("Experience Concurrent", Option(false, [this](const Option&) {
-                    concurrentExperienceFile.clear();
-                    return std::nullopt;
-                }));
-
-    // Optional experimental evaluation tweak that adapts weights based on
-    // simple positional cues. Disabled by default so it does not alter
-    // standard play unless explicitly requested by the user.
-    options.add("Adaptive Style", Option(false, [](const Option& o) {
-                    Eval::set_adaptive_style(bool(o));
-                    return std::nullopt;
-                }));
 
     options.add(  //
       "EvalFile", Option(Eval::EvalFileDefaultNameBig.data(), [this](const Option& o) {
@@ -266,27 +233,7 @@ void Engine::search_clear() {
     Tablebases::release();
 
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
-    {
-        std::string file = options["Experience File"];
-        if ((bool) options["Experience Concurrent"])
-        {
-            if (concurrentExperienceFile.empty())
-            {
-                std::random_device rd;
-                uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
-                std::ostringstream oss;
-                oss << std::hex << std::setfill('0') << std::setw(16) << r;
-                std::string suffix = oss.str();
-                auto        p      = file.find_last_of('.');
-                if (p != std::string::npos)
-                    concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
-                else
-                    concurrentExperienceFile = file + "-" + suffix;
-            }
-            file = concurrentExperienceFile;
-        }
-        experience.save(file);
-    }
+        experience.save(options["Experience File"]);
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
