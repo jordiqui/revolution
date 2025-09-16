@@ -28,8 +28,6 @@
 
 namespace Stockfish {
 
-TimeModel GTime;
-
 TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
 
@@ -50,8 +48,7 @@ void TimeManagement::init(Search::LimitsType& limits,
                           Color               us,
                           int                 ply,
                           const OptionsMap&   options,
-                          double&             originalTimeAdjust,
-                          int                 evaluationCp) {
+                          double&             originalTimeAdjust) {
     TimePoint npmsec = TimePoint(options["nodestime"]);
 
     // If we have no time, we don't need to fully initialize TM.
@@ -64,9 +61,7 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[usIdx] == 0)
         return;
 
-    TimePoint moveOverhead =
-      GSearch.conservative ? TimePoint(GTime.move_overhead_ms)
-                           : TimePoint(options["Move Overhead"]);
+    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
@@ -141,41 +136,19 @@ void TimeManagement::init(Search::LimitsType& limits,
     maximumTime =
       TimePoint(std::min(0.825179 * limits.time[usIdx] - moveOverhead, maxScale * optimumTime)) - 10;
 
-    if (GSearch.conservative)
-    {
-        int64_t time_left_ms = limits.time[usIdx];
-        int64_t inc_ms       = limits.inc[usIdx];
-
-        int64_t base         = std::max<int64_t>(GTime.min_think_ms, optimumTime);
-        int64_t dyn_overhead = GTime.move_overhead_ms;
-        if (inc_ms < 200)
-            dyn_overhead += 10;
-
-        int64_t budget = std::max<int64_t>(GTime.min_think_ms, base - dyn_overhead);
-        budget =
-          std::min<int64_t>(budget,
-                            std::max<int64_t>(0, time_left_ms - GTime.panic_margin_ms));
-        optimumTime = maximumTime = TimePoint(budget);
-    }
-
-    if (us == Color::BLACK && evaluationCp <= -50)
-    {
-        double factor = options["BlackTimeFactor"] / 100.0;
-        optimumTime   = TimePoint(optimumTime * factor);
-        maximumTime   = TimePoint(maximumTime * factor);
-        maximumTime   = std::max(maximumTime, optimumTime);
-    }
-
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
 
-    TimePoint minimumThinkingTime =
-      GSearch.conservative ? TimePoint(GTime.min_think_ms) : TimePoint(0);
-    TimePoint safetyBuffer =
-      GSearch.conservative ? TimePoint(GTime.panic_margin_ms)
-                           : TimePoint(options["Time Buffer"]);
-    optimumTime                   = std::max(optimumTime, minimumThinkingTime);
-    maximumTime                   = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
+    TimePoint safetyBuffer = TimePoint(options["Time Buffer"]);
+    if (safetyBuffer > 0)
+    {
+        if (maximumTime > safetyBuffer)
+            maximumTime -= safetyBuffer;
+        else
+            maximumTime = TimePoint(0);
+    }
+
+    maximumTime = std::max(maximumTime, optimumTime);
 }
 
 }  // namespace Stockfish
