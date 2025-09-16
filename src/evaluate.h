@@ -33,8 +33,8 @@ namespace Eval {
 // for the build process (profile-build and fishtest) to work. Do not change the
 // names or the location where these constants are defined, as they are used in
 // the Makefile/Fishtest.
-inline constexpr std::string_view EvalFileDefaultNameBig   = "nn-1c0000000000.nnue";
-inline constexpr std::string_view EvalFileDefaultNameSmall = "nn-37f18f62d772.nnue";
+inline constexpr std::string_view EvalFileDefaultNameBig   = "nn-ae6a388e4a1a.nnue";
+inline constexpr std::string_view EvalFileDefaultNameSmall = "nn-baff1ede1f90.nnue";
 
 namespace NNUE {
 struct Networks;

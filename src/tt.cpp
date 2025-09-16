@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <utility>
 
 #include "memory.h"
 #include "misc.h"
@@ -31,6 +32,41 @@
 
 namespace Stockfish {
 
+
+namespace {
+
+struct PackedEntry
+{
+    int16_t value16;
+    uint8_t bound;
+};
+
+PackedEntry pack_entry(Value value, Bound bound)
+{
+    // All valid scores fit into 16 bits once we have adjusted mates relative to ply.
+    assert(value >= -VALUE_NONE && value <= VALUE_NONE);
+    assert(bound >= Bound::BOUND_NONE && bound <= Bound::BOUND_EXACT);
+
+    PackedEntry packed{static_cast<int16_t>(value), static_cast<uint8_t>(bound)};
+
+    if (!is_valid(value))
+        packed.bound = static_cast<uint8_t>(Bound::BOUND_NONE);
+
+    return packed;
+}
+
+std::pair<Value, Bound> unpack_entry(int16_t packedValue, uint8_t bound)
+{
+    Value v    = Value(packedValue);
+    Bound type = static_cast<Bound>(bound & 0x3);
+
+    if (!is_valid(v))
+        type = Bound::BOUND_NONE;
+
+    return {v, type};
+}
+
+}  // namespace
 
 // TTEntry struct is the 10 bytes transposition table entry, defined as below:
 //
@@ -46,10 +82,12 @@ namespace Stockfish {
 // These fields are in the same order as accessed by TT::probe(), since memory is fastest sequentially.
 // Equally, the store order in save() matches this order.
 
-TTData TTEntry::read() const {
-    return TTData{Move(move16),           Value(value16),          Value(eval16),
-                  Depth(depth8 + DEPTH_ENTRY_OFFSET),
-                  Bound(genBound8 & 0x3), bool(genBound8 & 0x4), key16};
+TTData TTEntry::read() const
+{
+    auto [value, bound] = unpack_entry(value16, genBound8);
+
+    return TTData{Move(move16), value, Value(eval16),
+                  Depth(depth8 + DEPTH_ENTRY_OFFSET), bound, bool(genBound8 & 0x4), key16};
 }
 
 // `genBound8` is where most of the details are. We use the following constants to manipulate 5 leading generation bits
@@ -85,10 +123,13 @@ void TTEntry::save(
         assert(d > DEPTH_ENTRY_OFFSET);
         assert(d < 256 + DEPTH_ENTRY_OFFSET);
 
-        key16     = uint16_t(k);
-        depth8    = uint8_t(d - DEPTH_ENTRY_OFFSET);
-          genBound8 = uint8_t(generation8 | uint8_t(pv) << 2 | static_cast<uint8_t>(b));
-        value16   = int16_t(v);
+        key16  = uint16_t(k);
+        depth8 = uint8_t(d - DEPTH_ENTRY_OFFSET);
+
+        const PackedEntry packed = pack_entry(v, b);
+
+        genBound8 = uint8_t(generation8 | uint8_t(pv) << 2 | packed.bound);
+        value16   = packed.value16;
         eval16    = int16_t(ev);
     }
       else if (depth8 + DEPTH_ENTRY_OFFSET >= 5
