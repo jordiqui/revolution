@@ -217,6 +217,11 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     e.last_optimism = optimism;
     e.v             = v;
 
+#ifdef DEBUG
+    sync_cout << "info string dbg eval stm="
+              << (pos.side_to_move() == Color::WHITE ? 'w' : 'b') << " value=" << v << sync_endl;
+#endif
+
     return v;
 }
 

@@ -511,6 +511,12 @@ void Search::Worker::iterative_deepening() {
     while (++rootDepth < MAX_PLY && !threads.stop
            && !(limits.depth && mainThread && rootDepth > limits.depth))
     {
+#ifdef DEBUG
+        const Value dbgRootEval = evaluate(rootPos);
+        sync_cout << "info string dbg root depth=" << int(rootDepth)
+                  << " stm=" << (rootPos.side_to_move() == Color::WHITE ? 'w' : 'b')
+                  << " value=" << dbgRootEval << sync_endl;
+#endif
         // Age out PV variability metric
         if (mainThread)
             totBestMoveChanges /= 2;
