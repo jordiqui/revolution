@@ -114,8 +114,27 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Revolution version.
-std::string engine_version_info() { return std::string(ENGINE_NAME); }
+// Returns the full name of the current Revolution version. Append the
+// compilation architecture (when available) so GUIs show a fully qualified
+// identifier such as "revolution 4.40 170925 x86-64-sse41-popcnt".
+std::string engine_version_info() {
+
+    std::string fullName = ENGINE_NAME;
+
+#if defined(ARCH)
+    constexpr std::string_view arch = stringify(ARCH);
+
+    if (!arch.empty() && fullName.find(arch) == std::string::npos)
+    {
+        if (!fullName.empty() && fullName.back() != ' ')
+            fullName += ' ';
+
+        fullName.append(arch);
+    }
+#endif
+
+    return fullName;
+}
 
 // Update author information
 std::string engine_info(bool to_uci) {
