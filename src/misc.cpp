@@ -121,6 +121,12 @@ std::string engine_version_info() {
 
     std::string fullName = ENGINE_NAME;
 
+#if defined(_WIN32)
+    constexpr std::string_view kExecutableExtension = ".exe";
+#else
+    constexpr std::string_view kExecutableExtension = "";
+#endif
+
 #if defined(ARCH)
     constexpr std::string_view arch = stringify(ARCH);
 
@@ -132,6 +138,14 @@ std::string engine_version_info() {
         fullName.append(arch);
     }
 #endif
+
+    if (!kExecutableExtension.empty()
+        && (fullName.size() < kExecutableExtension.size()
+            || fullName.compare(fullName.size() - kExecutableExtension.size(),
+                                kExecutableExtension.size(),
+                                kExecutableExtension)
+                 != 0))
+        fullName.append(kExecutableExtension);
 
     return fullName;
 }
