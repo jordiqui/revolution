@@ -1164,10 +1164,10 @@ Value Search::Worker::search(
         assert((ss - 1)->currentMove != Move::null());
 
         // Null move dynamic reduction based on depth
-        Depth R = 3 + depth / 4;
+        Depth R = 3 + (depth >= 5 ? depth / 8 : Depth(0));
 
-        if (us == Color::BLACK)
-            R = std::max<Depth>(Depth(1), R - 1);
+        if (ss->staticEval - beta > PawnValue)
+            ++R;
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
@@ -1559,19 +1559,29 @@ moves_loop:  // When in check, search starts here
         // Step 17. Late moves reduction (LMR)
         if (depth >= 2 && moveCount > 1)
         {
-            // Apply a simple reduction limited between one ply and the remaining depth
-            Depth d = std::max(1, newDepth - r / 1024);
+            const bool isQuiet              = !capture && !givesCheck;
+            const bool firstQuietAfterTTCut = cutNode && ttData.move && move != ttData.move
+                                              && moveCount == 2 && isQuiet;
+            const bool skipReduction = givesCheck || capture || ss->inCheck || firstQuietAfterTTCut;
 
-            if (us == Color::BLACK)
-                ++d;
+            int reductionPlies = 0;
 
-            ss->reduction = newDepth - d;
+            if (!skipReduction)
+            {
+                const int maxReduction = std::max(0, int(newDepth) - 1);
+                reductionPlies         = std::clamp(r / 1024, 0, maxReduction);
+            }
+
+            Depth d = newDepth - static_cast<Depth>(reductionPlies);
+            d       = std::max<Depth>(Depth(1), d);
+
+            ss->reduction = reductionPlies;
             metrics.record_lmr(ss->reduction);
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
 
             // Do a full-depth search when reduced LMR search fails high
-            if (value > alpha)
+            if (value > alpha && reductionPlies > 0)
                 value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
         }
 
