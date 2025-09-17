@@ -1818,6 +1818,46 @@ moves_loop:  // When in check, search starts here
 // To fight this horizon effect, we implement this qsearch of tactical moves.
 // See https://www.chessprogramming.org/Horizon_Effect
 // and https://www.chessprogramming.org/Quiescence_Search
+namespace {
+
+bool is_passed_pawn_push(const Position& pos, Move move)
+{
+    const Color us   = pos.side_to_move();
+    const Piece pc   = pos.moved_piece(move);
+    const Square from = move.from_sq();
+    const Square to   = move.to_sq();
+
+    if (type_of(pc) != PAWN || pos.capture_stage(move))
+        return false;
+
+    const Direction up = pawn_push(us);
+    if (to != from + up && to != from + up + up)
+        return false;
+
+    const auto forward_shift = [&](Bitboard b) {
+        return us == Color::WHITE ? shift<NORTH>(b) : shift<SOUTH>(b);
+    };
+
+    const auto forward_fill = [&](Bitboard bb) {
+        Bitboard mask = 0;
+        Bitboard tmp  = forward_shift(bb);
+        while (tmp)
+        {
+            mask |= tmp;
+            tmp = forward_shift(tmp);
+        }
+        return mask;
+    };
+
+    Bitboard mask = forward_fill(square_bb(to));
+    mask |= forward_fill(shift<EAST>(square_bb(to)));
+    mask |= forward_fill(shift<WEST>(square_bb(to)));
+
+    return !(mask & pos.pieces(~us, PAWN));
+}
+
+}  // namespace
+
 template<NodeType nodeType>
 Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta) {
 
@@ -1840,7 +1880,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     Key   posKey;
     Move  move, bestMove;
-    Value bestValue, value, futilityBase;
+    Value bestValue, value, deltaBase;
     bool  pvHit, givesCheck, capture;
     int   moveCount;
 
@@ -1884,7 +1924,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     // Step 4. Static evaluation of the position
     Value unadjustedStaticEval = VALUE_NONE;
     if (ss->inCheck)
-        bestValue = futilityBase = -VALUE_INFINITE;
+        bestValue = deltaBase = -VALUE_INFINITE;
     else
     {
         const auto correctionValue = correction_value(*this, pos, ss);
@@ -1926,7 +1966,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         if (bestValue > alpha)
             alpha = bestValue;
 
-        futilityBase = ss->staticEval + 300;
+        constexpr Value DeltaMargin = Value(955);
+        deltaBase = ss->staticEval + DeltaMargin;
     }
 
     const PieceToHistory* contHist[] = {(ss - 1)->continuationHistory,
@@ -1957,28 +1998,33 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         // Step 6. Pruning
         if (!is_loss(bestValue))
         {
+            const bool     passedPawnPush   = is_passed_pawn_push(pos, move);
+            const bool     exemptFromPrune = move.to_sq() == prevSq
+                                           || move.type_of() == MoveType::PROMOTION
+                                           || passedPawnPush;
+            const bool     seeGeZero       = pos.see_ge(move, 0);
+
             // Futility pruning and moveCount pruning
-            if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
-                && move.type_of() != MoveType::PROMOTION)
+            if (!givesCheck && !exemptFromPrune && !is_loss(deltaBase))
             {
                 if (moveCount > 2)
                     continue;
 
-                Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+                Value deltaValue = deltaBase + PieceValue[pos.piece_on(move.to_sq())];
 
                 // If static eval + value of piece we are going to capture is
                 // much lower than alpha, we can prune this move.
-                if (futilityValue <= alpha)
+                if (deltaValue <= alpha)
                 {
-                    bestValue = std::max(bestValue, futilityValue);
+                    bestValue = std::max(bestValue, deltaValue);
                     continue;
                 }
 
                 // If static exchange evaluation is low enough
                 // we can prune this move.
-                if (!pos.see_ge(move, alpha - futilityBase))
+                if (!seeGeZero && !pos.see_ge(move, alpha - deltaBase))
                 {
-                    bestValue = std::min(alpha, futilityBase);
+                    bestValue = std::min(alpha, deltaBase);
                     continue;
                 }
             }
@@ -1991,7 +2037,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 continue;
 
             // Do not search moves with bad enough SEE values
-            if (!pos.see_ge(move, -74))
+            if (!seeGeZero && !exemptFromPrune)
                 continue;
         }
 
