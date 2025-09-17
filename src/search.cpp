@@ -502,8 +502,8 @@ void Search::Worker::iterative_deepening() {
 
     int searchAgainCounter = 0;
 
-    // Start searches at depth 1 to improve move ordering and aspiration stability.
-    rootDepth = 0;
+    // Start searches at depth 2 to improve move ordering and aspiration stability.
+    rootDepth = 1;
 
     lowPlyHistory.fill(89);
 
