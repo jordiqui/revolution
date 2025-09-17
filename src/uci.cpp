@@ -33,15 +33,15 @@
 
 #include "benchmark.h"
 #include "engine.h"
+#include "experience.h"
 #include "memory.h"
+#include "misc.h"
 #include "movegen.h"
 #include "position.h"
 #include "score.h"
 #include "search.h"
-#include "experience.h"
 #include "types.h"
 #include "ucioption.h"
-#include "version.h"
 
 namespace Stockfish {
 
@@ -118,10 +118,11 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "revolution 4.40 170925"
+            // Force a stable, explicit UCI name so GUIs show the architecture-aware
+            // identifier (for example "revolution 4.40 170925 x86-64-sse41-popcnt").
             sync_cout_start();
             std::cout
-              << "id name " << ENGINE_NAME << "\n"
+              << "id name " << engine_version_info() << "\n"
               << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
               << "\n"
               << engine.get_options() << std::endl;
@@ -450,7 +451,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   " << ENGINE_NAME
+              << "\nVersion                    :   " << engine_version_info()
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "

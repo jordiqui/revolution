@@ -49,7 +49,10 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-PGOBENCH = $(WINE_PATH) ./$(EXE) bench
+# Keep the default PGO benchmark short to avoid long step 2/4 runs.
+# Override PGOBENCH_ARGS on the make command line to customize the workload.
+PGOBENCH      = $(WINE_PATH) ./$(EXE) bench
+PGOBENCH_ARGS ?= 64 1 500 default nodes
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -134,7 +137,7 @@ endif
 #the user can override with `make ARCH = x86 - 64 - avx512icl SUPPORTED_ARCH = true`
 ifeq ($(ARCH), $(filter $(ARCH), \
                  x86-64-avx512icl x86-64-vnni512 x86-64-vnni256 x86-64-avx512 x86-64-avxvnni \
-                 x86-64-bmi2 x86-64-avx2 x86-64-avx x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
+                 x86-64-bmi2 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
                  x86-64 x86-32-sse41-popcnt x86-32-sse2 x86-32 ppc-64 ppc-64-altivec ppc-64-vsx ppc-32 e2k \
                  armv7 armv7-neon armv8 armv8-dotprod apple-silicon general-64 general-32 riscv64 \
                  loongarch64 loongarch64-lsx loongarch64-lasx))
@@ -232,15 +235,6 @@ ifeq ($(findstring -modern,$(ARCH)),-modern)
 	sse2 = yes
 	ssse3 = yes
 	sse41 = yes
-endif
-
-ifeq ($(ARCH),x86-64-avx)
-        popcnt = yes
-        sse = yes
-        sse2 = yes
-        ssse3 = yes
-        sse41 = yes
-        avx = yes
 endif
 
 ifeq ($(findstring -avx2,$(ARCH)),-avx2)
@@ -942,7 +936,6 @@ help:
 	echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
         echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
         echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
-        echo "x86-64-avx              > x86 64-bit with avx support" && \
         echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
 	echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
 	echo "x86-64-ssse3            > x86 64-bit with ssse3 support" && \
@@ -979,7 +972,6 @@ help:
         echo "Simple examples. If you don't know what to do, you likely want to run one of: " && \
         echo "" && \
         echo "make -j profile-build ARCH=x86-64-avx2    # typically a fast compile for common systems " && \
-        echo "make -j profile-build ARCH=x86-64-avx     # For systems with AVX but not AVX2" && \
         echo "make -j profile-build ARCH=x86-64-sse41-popcnt  # A more portable compile for 64-bit systems " && \
         echo "make -j profile-build ARCH=x86-64         # A portable compile for 64-bit systems " && \
 	echo "" && \
@@ -1014,7 +1006,7 @@ profile-build: net config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
-	$(PGOBENCH) > PGOBENCH.out 2>&1
+	$(PGOBENCH) $(PGOBENCH_ARGS) > PGOBENCH.out 2>&1
 	tail -n 4 PGOBENCH.out
 	@echo ""
 	@echo "Step 3/4. Building optimized executable ..."
