@@ -88,7 +88,8 @@ MovePicker::MovePicker(const Position&              p,
                        const CapturePieceToHistory* cph,
                        const PieceToHistory**       ch,
                        const PawnHistory*           ph,
-                       int                          pl) :
+                       int                          pl,
+                       Square                       rs) :
     pos(p),
     mainHistory(mh),
     lowPlyHistory(lph),
@@ -97,7 +98,8 @@ MovePicker::MovePicker(const Position&              p,
     pawnHistory(ph),
     ttMove(ttm),
     depth(d),
-    ply(pl) {
+    ply(pl),
+    recaptureSquare(rs) {
 
     if (pos.checkers())
         stage = EVASION_TT + !(ttm && pos.pseudo_legal(ttm));
@@ -108,11 +110,18 @@ MovePicker::MovePicker(const Position&              p,
 
 // MovePicker constructor for ProbCut: we generate captures with Static Exchange
 // Evaluation (SEE) greater than or equal to the given threshold.
-MovePicker::MovePicker(const Position& p, Move ttm, int th, const CapturePieceToHistory* cph) :
+MovePicker::MovePicker(const Position& p,
+                       Move            ttm,
+                       int             th,
+                       const CapturePieceToHistory* cph,
+                       Square          rs) :
     pos(p),
     captureHistory(cph),
     ttMove(ttm),
-    threshold(th) {
+    threshold(th),
+    depth(DEPTH_QS),
+    ply(0),
+    recaptureSquare(rs) {
     assert(!pos.checkers());
 
     stage = PROBCUT_TT
@@ -138,6 +147,8 @@ ExtMove* MovePicker::score(MoveList<Type>& ml) {
         threatByLesser[QUEEN] = pos.attacks_by<ROOK>(~us) | threatByLesser[ROOK];
     }
 
+    constexpr int recaptureBonus = 16384;
+
     ExtMove* it = cur;
     for (auto move : ml)
     {
@@ -150,38 +161,7 @@ ExtMove* MovePicker::score(MoveList<Type>& ml) {
         const PieceType pt            = type_of(pc);
         const Piece     capturedPiece = pos.piece_on(to);
 
-        if constexpr (Type == CAPTURES)
-            m.value = (*captureHistory)[pc][to][type_of(capturedPiece)]
-                    + 7 * int(PieceValue[capturedPiece]) + 1024 * bool(pos.check_squares(pt) & to);
-
-        else if constexpr (Type == QUIETS)
-        {
-            // histories
-            m.value = 2 * (*mainHistory)[static_cast<int>(us)][m.from_to()];
-            m.value += 2 * (*pawnHistory)[pawn_history_index(pos)][pc][to];
-            m.value += (*continuationHistory[0])[pc][to];
-            m.value += (*continuationHistory[1])[pc][to];
-            m.value += (*continuationHistory[2])[pc][to];
-            m.value += (*continuationHistory[3])[pc][to];
-            m.value += (*continuationHistory[5])[pc][to];
-
-            // bonus for checks
-            m.value += (bool(pos.check_squares(pt) & to) && pos.see_ge(m, -75)) * 16384;
-
-            // penalty for moving to a square threatened by a lesser piece
-            // or bonus for escaping an attack by a lesser piece.
-            if (KNIGHT <= pt && pt <= QUEEN)
-            {
-                static constexpr int bonus[QUEEN + 1] = {0, 0, 144, 144, 256, 517};
-                int v = threatByLesser[pt] & to ? -95 : 100 * bool(threatByLesser[pt] & from);
-                m.value += bonus[pt] * v;
-            }
-
-            if (ply < LOW_PLY_HISTORY_SIZE)
-                m.value += 8 * (*lowPlyHistory)[ply][m.from_to()] / (1 + ply);
-        }
-
-        else  // Type == EVASIONS
+        if constexpr (Type == EVASIONS)
         {
             if (pos.capture_stage(m))
                 m.value = PieceValue[capturedPiece] + (1 << 28);
@@ -192,6 +172,42 @@ ExtMove* MovePicker::score(MoveList<Type>& ml) {
                 if (ply < LOW_PLY_HISTORY_SIZE)
                     m.value += (*lowPlyHistory)[ply][m.from_to()];
             }
+        }
+        else
+        {
+            if constexpr (Type == CAPTURES)
+                m.value = (*captureHistory)[pc][to][type_of(capturedPiece)]
+                        + 7 * int(PieceValue[capturedPiece]) + 1024 * bool(pos.check_squares(pt) & to);
+
+            else  // Type == QUIETS
+            {
+                // histories
+                m.value = 2 * (*mainHistory)[static_cast<int>(us)][m.from_to()];
+                m.value += 2 * (*pawnHistory)[pawn_history_index(pos)][pc][to];
+                m.value += (*continuationHistory[0])[pc][to];
+                m.value += (*continuationHistory[1])[pc][to];
+                m.value += (*continuationHistory[2])[pc][to];
+                m.value += (*continuationHistory[3])[pc][to];
+                m.value += (*continuationHistory[5])[pc][to];
+
+                // bonus for checks
+                m.value += (bool(pos.check_squares(pt) & to) && pos.see_ge(m, -75)) * 16384;
+
+                // penalty for moving to a square threatened by a lesser piece
+                // or bonus for escaping an attack by a lesser piece.
+                if (KNIGHT <= pt && pt <= QUEEN)
+                {
+                    static constexpr int bonus[QUEEN + 1] = {0, 0, 144, 144, 256, 517};
+                    int v = threatByLesser[pt] & to ? -95 : 100 * bool(threatByLesser[pt] & from);
+                    m.value += bonus[pt] * v;
+                }
+
+                if (ply < LOW_PLY_HISTORY_SIZE)
+                    m.value += 8 * (*lowPlyHistory)[ply][m.from_to()] / (1 + ply);
+            }
+
+            if (recaptureSquare != SQ_NONE && to == recaptureSquare)
+                m.value += recaptureBonus;
         }
     }
     return it;
@@ -241,7 +257,7 @@ top:
 
     case GOOD_CAPTURE :
         if (select([&]() {
-                if (pos.see_ge(*cur, -cur->value / 18))
+                if (pos.see_ge(*cur, 0))
                     return true;
                 std::swap(*endBadCaptures++, *cur);
                 return false;

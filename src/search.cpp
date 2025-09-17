@@ -1222,7 +1222,7 @@ Value Search::Worker::search(
     {
         assert(probCutBeta < VALUE_INFINITE && probCutBeta > beta);
 
-        MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory);
+        MovePicker mp(pos, ttData.move, probCutBeta - ss->staticEval, &captureHistory, prevSq);
         Depth      dynamicReduction = (ss->staticEval - beta) / 300;
         Depth      probCutDepth     = std::max(depth - 5 - dynamicReduction, 0);
 
@@ -1276,7 +1276,7 @@ moves_loop:  // When in check, search starts here
 
 
     MovePicker mp(pos, ttData.move, depth, &mainHistory, &lowPlyHistory, &captureHistory, contHist,
-                  &pawnHistory, ss->ply);
+                  &pawnHistory, ss->ply, prevSq);
 
     value = bestValue;
 
@@ -1923,7 +1923,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     // the moves. We presently use two stages of move generator in quiescence search:
     // captures, or evasions only when in check.
     MovePicker mp(pos, ttData.move, DEPTH_QS, &mainHistory, &lowPlyHistory, &captureHistory,
-                  contHist, &pawnHistory, ss->ply);
+                  contHist, &pawnHistory, ss->ply, prevSq);
 
     // Step 5. Loop through all pseudo-legal moves until no moves remain or a beta
     // cutoff occurs.
