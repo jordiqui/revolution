@@ -188,10 +188,19 @@ void Experience::load(const std::string& file) {
 
             std::istringstream iss(line);
             std::string        keyStr, moveStr;
-            int                score, depth, count;
+            int                score, depth;
+            int                count = 1;
 
-            if (!(iss >> keyStr >> moveStr >> score >> depth >> count))
+            if (!(iss >> keyStr >> moveStr >> score >> depth))
                 continue;
+
+            if (!(iss >> count))
+            {
+                // Older text files omit the occurrence count. Treat them as
+                // having a single observation so we remain backward
+                // compatible instead of discarding the entire entry.
+                count = 1;
+            }
 
             auto parse = [](const std::string& s, uint64_t& out) {
                 std::istringstream ss(s);
