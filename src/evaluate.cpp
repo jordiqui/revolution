@@ -189,6 +189,12 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
         smallNet = false;
     }
 
+    if (pos.side_to_move() == Color::BLACK)
+    {
+        nnue     = -nnue;
+        optimism = -optimism;
+    }
+
     // Blend optimism and eval with nnue complexity
     const int nnueComplexity = std::abs(psqt - positional);
     if (optimism != 0)
