@@ -548,14 +548,13 @@ void Search::Worker::iterative_deepening() {
             selDepth = 0;
 
             // Reset aspiration window starting size
-            delta     = 5 + threadIdx % 8
-                      + std::abs(rootMoves[pvIdx].meanSquaredScore) / 9000;
-            Value avg = rootMoves[pvIdx].averageScore;
-            alpha     = std::max(avg - delta, -VALUE_INFINITE);
-            beta      = std::min(avg + delta, VALUE_INFINITE);
+            delta        = 16;
+            Value center = rootMoves[pvIdx].averageScore;
+            alpha        = std::max(center - delta, -VALUE_INFINITE);
+            beta         = std::min(center + delta, VALUE_INFINITE);
 
             // Adjust optimism based on root move's averageScore
-            optimism[static_cast<int>(us)]  = 137 * avg / (std::abs(avg) + 91);
+            optimism[static_cast<int>(us)]  = 137 * center / (std::abs(center) + 91);
             optimism[static_cast<int>(~us)] = -optimism[static_cast<int>(us)];
 
             // Start with a small aspiration window and, in the case of a fail
@@ -597,24 +596,22 @@ void Search::Worker::iterative_deepening() {
                 // otherwise exit the loop.
                 if (bestValue <= alpha)
                 {
-                    beta  = alpha;
-                    alpha = std::max(bestValue - delta, -VALUE_INFINITE);
-
                     ++metrics.aspirationFailLows;
                     ++iterationFailLows;
                     failedHighCnt = 0;
                     ++reSearchCnt;
+                    center = bestValue;
 
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
                 }
                 else if (bestValue >= beta)
                 {
-                    beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++metrics.aspirationFailHighs;
                     ++iterationFailHighs;
                     ++failedHighCnt;
                     ++reSearchCnt;
+                    center = bestValue;
                 }
                 else
                     break;
@@ -627,7 +624,9 @@ void Search::Worker::iterative_deepening() {
                     break;
                 }
 
-                delta += delta / 3;
+                delta = std::min(delta * 2, int(VALUE_INFINITE));
+                alpha = std::max(center - delta, -VALUE_INFINITE);
+                beta  = std::min(center + delta, VALUE_INFINITE);
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
