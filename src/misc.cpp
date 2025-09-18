@@ -116,7 +116,7 @@ class Logger {
 
 // Returns the full name of the current Revolution version. Append the
 // compilation architecture (when available) so GUIs show a fully qualified
-// identifier such as "revolution 4.40 170925 x86-64-sse41-popcnt".
+// identifier such as "revolution 2.45 dev-180925 x86-64-sse41-popcnt".
 std::string engine_version_info() {
 
     std::string fullName = ENGINE_NAME;
