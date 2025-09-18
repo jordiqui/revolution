@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef THREAD_H_INCLUDED
+#define THREAD_H_INCLUDED
 
 #include <atomic>
 #include <condition_variable>
@@ -141,7 +142,6 @@ class ThreadPool {
     Thread*                main_thread() const { return threads.front().get(); }
     uint64_t               nodes_searched() const;
     uint64_t               tb_hits() const;
-    Search::SearchMetrics  collect_metrics() const;
     Thread*                get_best_thread() const;
     void                   start_searching();
     void                   wait_for_search_finished() const;
@@ -175,3 +175,4 @@ class ThreadPool {
 
 }  // namespace Stockfish
 
+#endif  // #ifndef THREAD_H_INCLUDED

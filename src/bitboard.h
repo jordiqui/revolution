@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef BITBOARD_H_INCLUDED
+#define BITBOARD_H_INCLUDED
 
 #include <algorithm>
 #include <cassert>
@@ -149,8 +150,8 @@ constexpr Bitboard shift(Bitboard b) {
 // from the squares in the given bitboard.
 template<Color C>
 constexpr Bitboard pawn_attacks_bb(Bitboard b) {
-    return C == Color::WHITE ? shift<NORTH_WEST>(b) | shift<NORTH_EAST>(b)
-                             : shift<SOUTH_WEST>(b) | shift<SOUTH_EAST>(b);
+    return C == WHITE ? shift<NORTH_WEST>(b) | shift<NORTH_EAST>(b)
+                      : shift<SOUTH_WEST>(b) | shift<SOUTH_EAST>(b);
 }
 
 
@@ -203,12 +204,12 @@ inline int edge_distance(File f) { return std::min(f, File(FILE_H - f)); }
 
 // Returns the pseudo attacks of the given piece type
 // assuming an empty board.
-    template<PieceType Pt>
-    inline Bitboard attacks_bb(Square s, Color c = Color::COLOR_NB) {
+template<PieceType Pt>
+inline Bitboard attacks_bb(Square s, Color c = COLOR_NB) {
 
-        assert((Pt != PAWN || static_cast<int>(c) < static_cast<int>(Color::COLOR_NB)) && (is_ok(s)));
-        return Pt == PAWN ? PseudoAttacks[static_cast<int>(c)][s] : PseudoAttacks[Pt][s];
-    }
+    assert((Pt != PAWN || c < COLOR_NB) && (is_ok(s)));
+    return Pt == PAWN ? PseudoAttacks[c][s] : PseudoAttacks[Pt][s];
+}
 
 
 // Returns the attacks by the given piece
@@ -359,3 +360,4 @@ inline Square pop_lsb(Bitboard& b) {
 
 }  // namespace Stockfish
 
+#endif  // #ifndef BITBOARD_H_INCLUDED

@@ -18,7 +18,8 @@
   Modifications Copyright (C) 2024 Jorge Ruiz Centelles
 */
 
-#pragma once
+#ifndef EXPERIENCE_H_INCLUDED
+#define EXPERIENCE_H_INCLUDED
 
 #include <unordered_map>
 #include <vector>
@@ -60,3 +61,4 @@ extern Experience experience;
 
 }  // namespace Stockfish
 
+#endif  // EXPERIENCE_H_INCLUDED

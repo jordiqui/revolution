@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef BENCHMARK_H_INCLUDED
+#define BENCHMARK_H_INCLUDED
 
 #include <iosfwd>
 #include <string>
@@ -38,3 +39,4 @@ BenchmarkSetup setup_benchmark(std::istream&);
 
 }  // namespace Stockfish
 
+#endif  // #ifndef BENCHMARK_H_INCLUDED

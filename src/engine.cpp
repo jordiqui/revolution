@@ -28,6 +28,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include <iomanip>
+#include <random>
 
 #include "evaluate.h"
 #include "misc.h"
@@ -55,16 +57,13 @@ int            MaxThreads = std::max(1024, 4 * int(get_hardware_concurrency()));
 Engine::Engine(std::optional<std::string> path) :
     binaryDirectory(path ? CommandLine::get_binary_directory(*path) : ""),
     numaContext(NumaConfig::from_system()),
-    states(std::make_unique<std::deque<StateInfo>>()),
+    states(new std::deque<StateInfo>(1)),
     threads(),
     networks(
       numaContext,
       NN::Networks(
-        NN::NetworkBig({std::string(Eval::EvalFileDefaultNameBig), "None", ""},
-                       NN::EmbeddedNNUEType::BIG),
-        NN::NetworkSmall({std::string(Eval::EvalFileDefaultNameSmall), "None", ""},
-                         NN::EmbeddedNNUEType::SMALL))) {
-    states->emplace_back();
+        NN::NetworkBig({EvalFileDefaultNameBig, "None", ""}, NN::EmbeddedNNUEType::BIG),
+        NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL))) {
     pos.set(StartFEN, false, &states->back());
 
 
@@ -73,8 +72,6 @@ Engine::Engine(std::optional<std::string> path) :
           start_logger(o);
           return std::nullopt;
       }));
-
-    options.add("Metrics Log File", Option(""));
 
     options.add(  //
       "NumaPolicy", Option("auto", [this](const Option& o) {
@@ -111,9 +108,11 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Move Overhead", Option(10, 0, 5000));
 
+    options.add("Slow Mover", Option(100, 10, 1000));
+
     options.add("nodestime", Option(0, 0, 10000));
 
-    options.add("Time Buffer", Option(50, 0, 5000));
+    options.add("Minimum Thinking Time", Option(20, 0, 5000));
 
     options.add("UCI_Chess960", Option(false));
 
@@ -178,6 +177,7 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience File", Option("experience.exp", [this](const Option& o) {
                     if ((bool) options["Experience Enabled"])
                         experience.load_async(o);
+                    concurrentExperienceFile.clear();
                     return std::nullopt;
                 }));
 
@@ -190,16 +190,34 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Book", Option(false));
     options.add("Experience Book Max Moves", Option(100, 1, 100));
     options.add("Experience Book Min Depth", Option(4, 1, 255));
+    options.add("Experience Concurrent", Option(false, [this](const Option&) {
+                    concurrentExperienceFile.clear();
+                    return std::nullopt;
+                }));
+
+    // Optional experimental evaluation tweak that adapts weights based on
+    // simple positional cues. Disabled by default so it does not alter
+    // standard play unless explicitly requested by the user.
+    options.add("Adaptive Style", Option(false, [](const Option& o) {
+                    Eval::set_adaptive_style(bool(o));
+                    return std::nullopt;
+                }));
 
     options.add(  //
-      "EvalFile", Option(Eval::EvalFileDefaultNameBig.data(), [this](const Option& o) {
+      "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {
           load_big_network(o);
           return std::nullopt;
       }));
 
     options.add(  //
-      "EvalFileSmall", Option(Eval::EvalFileDefaultNameSmall.data(), [this](const Option& o) {
+      "EvalFileSmall", Option(EvalFileDefaultNameSmall, [this](const Option& o) {
           load_small_network(o);
+          return std::nullopt;
+      }));
+
+    options.add(  //
+      "FalconFile", Option("3.net", [this](const Option& o) {
+          load_big_network(o);
           return std::nullopt;
       }));
 
@@ -215,6 +233,10 @@ std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960
 
 void Engine::go(Search::LimitsType& limits) {
     assert(limits.perft == 0);
+
+    TimePoint minTime = TimePoint(options["Minimum Thinking Time"]);
+    if (limits.movetime && limits.movetime < minTime)
+        limits.movetime = minTime;
 
     verify_networks();
 
@@ -233,7 +255,27 @@ void Engine::search_clear() {
     Tablebases::release();
 
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
-        experience.save(options["Experience File"]);
+    {
+        std::string file = options["Experience File"];
+        if ((bool) options["Experience Concurrent"])
+        {
+            if (concurrentExperienceFile.empty())
+            {
+                std::random_device rd;
+                uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
+                std::ostringstream oss;
+                oss << std::hex << std::setfill('0') << std::setw(16) << r;
+                std::string suffix = oss.str();
+                auto        p      = file.find_last_of('.');
+                if (p != std::string::npos)
+                    concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
+                else
+                    concurrentExperienceFile = file + "-" + suffix;
+            }
+            file = concurrentExperienceFile;
+        }
+        experience.save(file);
+    }
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
@@ -260,8 +302,7 @@ void Engine::wait_for_search_finished() { threads.main_thread()->wait_for_search
 
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves) {
     // Drop the old state and create a new one
-    states = std::make_unique<std::deque<StateInfo>>();
-    states->emplace_back();
+    states = StateListPtr(new std::deque<StateInfo>(1));
     pos.set(fen, options["UCI_Chess960"], &states->back());
 
     for (const auto& move : moves)
@@ -358,9 +399,8 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
 // utility functions
 
 void Engine::trace_eval() const {
-    StateListPtr trace_states = std::make_unique<std::deque<StateInfo>>();
-    trace_states->emplace_back();
-    Position p;
+    StateListPtr trace_states(new std::deque<StateInfo>(1));
+    Position     p;
     p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
 
     verify_networks();

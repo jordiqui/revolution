@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef MOVEGEN_H_INCLUDED
+#define MOVEGEN_H_INCLUDED
 
 #include <algorithm>  // IWYU pragma: keep
 #include <cstddef>
@@ -69,3 +70,4 @@ struct MoveList {
 
 }  // namespace Stockfish
 
+#endif  // #ifndef MOVEGEN_H_INCLUDED

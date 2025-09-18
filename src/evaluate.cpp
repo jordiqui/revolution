@@ -90,7 +90,47 @@ thread_local EvalCacheEntry eval_cache[EVAL_CACHE_SIZE];
 
 namespace {
 
+// Basic positional cues used to slightly bias evaluation depending on the
+// phase of the game. The intent is to provide a light-weight and easily
+// switchable mechanism to alter style without replicating any particular
+// engine's approach.
+struct StyleIndicators {
+    int pressure;  // attackers on the opposing king
+    int shield;    // defenders near our own king
+    int center;    // friendly pieces controlling the central squares
+};
+
+// Collect the above indicators from the current position.
+StyleIndicators gather_indicators(const Position& pos) {
+    StyleIndicators ind{};
+    Square          enemyKing = pos.square<KING>(~pos.side_to_move());
+    Square          ownKing   = pos.square<KING>(pos.side_to_move());
+
+    ind.pressure      = popcount(pos.attackers_to(enemyKing));
+    ind.shield        = popcount(pos.attackers_to(ownKing));
+    Bitboard centerBB = square_bb(SQ_D4) | square_bb(SQ_E4) | square_bb(SQ_D5) | square_bb(SQ_E5);
+    ind.center        = popcount(pos.pieces(pos.side_to_move()) & centerBB);
+    return ind;
+}
+
+// Compute an adjustment based on the indicators and the current evaluation.
+Value adaptive_style_bonus(const Position& pos, Value current) {
+    StyleIndicators ind = gather_indicators(pos);
+
+    int atkW = current > 50 ? 3 : 1;
+    int defW = current < -50 ? 3 : 1;
+    int balW = 2;
+
+    int bonus = atkW * ind.pressure + balW * ind.center - defW * ind.shield;
+    return Value(bonus);
+}
+
 }  // namespace
+
+namespace Eval {
+static bool adaptive_style = false;
+void        set_adaptive_style(bool enabled) { adaptive_style = enabled; }
+}  // namespace Eval
 
 // Returns a static, purely materialistic evaluation of the position from
 // the point of view of the side to move. It can be divided by PawnValue to get
@@ -189,12 +229,6 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
         smallNet = false;
     }
 
-    if (pos.side_to_move() == Color::BLACK)
-    {
-        nnue     = -nnue;
-        optimism = -optimism;
-    }
-
     // Blend optimism and eval with nnue complexity
     const int nnueComplexity = std::abs(psqt - positional);
     if (optimism != 0)
@@ -213,14 +247,18 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
+    // Optional style-based tweak which slightly biases the score depending on
+    // basic positional indicators. This does not aim to implement any specific
+    // style but merely demonstrates how evaluation terms can be combined.
+    if (adaptive_style)
+    {
+        v += adaptive_style_bonus(pos, Value(v));
+        v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
+    }
+
     // Store result and the optimism used for the final `v`.
     e.last_optimism = optimism;
     e.v             = v;
-
-#ifdef DEBUG
-    sync_cout << "info string dbg eval stm="
-              << (pos.side_to_move() == Color::WHITE ? 'w' : 'b') << " value=" << v << sync_endl;
-#endif
 
     return v;
 }
@@ -269,11 +307,11 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::Networks& networks) {
         e.have_big       = 1;
     }
     Value v = psqt + positional;
-    v       = pos.side_to_move() == Color::WHITE ? v : -v;
+    v       = pos.side_to_move() == WHITE ? v : -v;
     ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)\n";
 
     v = evaluate(networks, pos, accumulators, *caches, VALUE_ZERO);
-    v = pos.side_to_move() == Color::WHITE ? v : -v;
+    v = pos.side_to_move() == WHITE ? v : -v;
     ss << "Final evaluation       " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)";
     ss << " [with scaled NNUE, ...]";
     ss << "\n";
