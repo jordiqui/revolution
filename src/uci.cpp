@@ -247,14 +247,6 @@ void UCIEngine::go(std::istringstream& is) {
 void UCIEngine::bench(std::istream& args) {
     std::string token;
     uint64_t    num, nodes = 0, cnt = 1;
-    uint64_t    nodesSearched = 0;
-
-    engine.set_on_update_full([&](const Engine::InfoFull& i) { nodesSearched = i.nodes; });
-
-    engine.set_on_iter([](const auto&) {});
-    engine.set_on_update_no_moves([](const auto&) {});
-    engine.set_on_bestmove([](const auto&, const auto&) {});
-    engine.set_on_verify_networks([](const auto&) {});
 
     std::vector<std::string> list = Benchmark::setup_bench(engine.fen(), args);
 
@@ -277,15 +269,16 @@ void UCIEngine::bench(std::istream& args) {
                 Search::LimitsType limits = parse_limits(is);
 
                 if (limits.perft)
-                    nodesSearched = perft(limits);
+                    nodes += perft(limits);
                 else
                 {
+                    const uint64_t startNodes = engine.nodes_searched();
+
                     engine.go(limits);
                     engine.wait_for_search_finished();
-                }
 
-                nodes += nodesSearched;
-                nodesSearched = 0;
+                    nodes += engine.nodes_searched() - startNodes;
+                }
             }
             else
                 engine.trace_eval();
@@ -319,14 +312,6 @@ void UCIEngine::benchmark(std::istream& args) {
 
     std::string token;
     uint64_t    nodes = 0, cnt = 1;
-    uint64_t    nodesSearched = 0;
-
-    engine.set_on_update_full([&](const Engine::InfoFull& i) { nodesSearched = i.nodes; });
-
-    engine.set_on_iter([](const auto&) {});
-    engine.set_on_update_no_moves([](const auto&) {});
-    engine.set_on_bestmove([](const auto&, const auto&) {});
-    engine.set_on_verify_networks([](const auto&) {});
 
     Benchmark::BenchmarkSetup setup = Benchmark::setup_benchmark(args);
 
@@ -356,16 +341,15 @@ void UCIEngine::benchmark(std::istream& args) {
 
             Search::LimitsType limits = parse_limits(is);
 
-            TimePoint elapsed = now();
+            TimePoint   elapsed    = now();
+            const auto  startNodes = engine.nodes_searched();
 
-            // Run with silenced network verification
             engine.go(limits);
             engine.wait_for_search_finished();
 
             totalTime += now() - elapsed;
 
-            nodes += nodesSearched;
-            nodesSearched = 0;
+            nodes += engine.nodes_searched() - startNodes;
         }
         else if (token == "position")
             position(is);
@@ -413,9 +397,9 @@ void UCIEngine::benchmark(std::istream& args) {
 
             Search::LimitsType limits = parse_limits(is);
 
-            TimePoint elapsed = now();
+            TimePoint   elapsed    = now();
+            const auto  startNodes = engine.nodes_searched();
 
-            // Run with silenced network verification
             engine.go(limits);
             engine.wait_for_search_finished();
 
@@ -423,8 +407,7 @@ void UCIEngine::benchmark(std::istream& args) {
 
             updateHashfullReadings();
 
-            nodes += nodesSearched;
-            nodesSearched = 0;
+            nodes += engine.nodes_searched() - startNodes;
         }
         else if (token == "position")
             position(is);
