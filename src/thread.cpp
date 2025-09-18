@@ -276,14 +276,17 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
 
     const std::string fen        = pos.fen();
     const bool        isChess960 = pos.is_chess960();
-    const StateInfo   rootState  = setupStates->back();
-
-    // After ownership transfer 'states' becomes empty, so if we stop the search
-    // and call 'go' again without setting a new position states.get() == nullptr.
-    assert(states.get() || setupStates.get());
 
     if (states.get())
         setupStates = std::move(states);  // Ownership transfer, states is now empty
+    else if (!setupStates)
+        setupStates = std::make_unique<std::deque<StateInfo>>();
+
+    // After ownership transfer 'states' becomes empty, so if we stop the search
+    // and call 'go' again without setting a new position states.get() == nullptr.
+    assert(setupStates && !setupStates->empty());
+
+    const StateInfo rootState = setupStates->back();
 
     // We use Position::set() to set root position across threads. But there are
     // some StateInfo fields (previous, pliesFromNull, capturedPiece) that cannot
