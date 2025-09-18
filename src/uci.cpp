@@ -119,7 +119,7 @@ void UCIEngine::loop() {
         else if (token == "uci")
         {
             // Force a stable, explicit UCI name so GUIs show the architecture-aware
-            // identifier (for example "revolution 4.40 170925 x86-64-sse41-popcnt").
+            // identifier (for example "revolution 2.45 dev-180925 x86-64-sse41-popcnt").
             sync_cout_start();
             std::cout
               << "id name " << engine_version_info() << "\n"
