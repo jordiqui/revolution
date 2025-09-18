@@ -274,44 +274,30 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
 
     Tablebases::Config tbConfig = Tablebases::rank_root_moves(options, pos, rootMoves);
 
-    const std::string fen        = pos.fen();
-    const bool        isChess960 = pos.is_chess960();
+    // After ownership transfer 'states' becomes empty, so if we stop the search
+    // and call 'go' again without setting a new position states.get() == nullptr.
+    assert(states.get() || setupStates.get());
 
     if (states.get())
         setupStates = std::move(states);  // Ownership transfer, states is now empty
-    else if (!setupStates)
-        setupStates = std::make_unique<std::deque<StateInfo>>();
-
-    // After ownership transfer 'states' becomes empty, so if we stop the search
-    // and call 'go' again without setting a new position states.get() == nullptr.
-    assert(setupStates && !setupStates->empty());
-
-    const StateInfo rootState = setupStates->back();
 
     // We use Position::set() to set root position across threads. But there are
     // some StateInfo fields (previous, pliesFromNull, capturedPiece) that cannot
     // be deduced from a fen string, so set() clears them and they are set from
     // setupStates->back() later. The rootState is per thread, earlier states are
     // shared since they are read-only.
-    for (auto& threadPtr : threads)
+    for (auto&& th : threads)
     {
-        Thread* thread = threadPtr.get();
-        thread->run_custom_job([thread,
-                                &limits,
-                                &rootMoves,
-                                &fen,
-                                isChess960,
-                                rootState,
-                                tbConfig]() {
-            thread->worker->reset_metrics();
-            thread->worker->limits = limits;
-            thread->worker->nodes = thread->worker->tbHits = thread->worker->nmpMinPly =
-              thread->worker->bestMoveChanges             = 0;
-            thread->worker->rootDepth = thread->worker->completedDepth = 0;
-            thread->worker->rootMoves                              = rootMoves;
-            thread->worker->rootPos.set(fen, isChess960, &thread->worker->rootState);
-            thread->worker->rootState = rootState;
-            thread->worker->tbConfig  = tbConfig;
+        th->run_custom_job([&]() {
+            th->worker->reset_metrics();
+            th->worker->limits = limits;
+            th->worker->nodes = th->worker->tbHits = th->worker->nmpMinPly =
+              th->worker->bestMoveChanges          = 0;
+            th->worker->rootDepth = th->worker->completedDepth = 0;
+            th->worker->rootMoves                              = rootMoves;
+            th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
+            th->worker->rootState = setupStates->back();
+            th->worker->tbConfig  = tbConfig;
         });
     }
 
