@@ -1,5 +1,10 @@
 # Changelog
 
+## [2.45] - 2025-09-18
+### Changed
+- Updated engine identifier to "revolution v.2.45 180925" for consistent UCI naming across Fritz 20, Cutechess, and dedicated hardware.
+- Documented the two embedded NNUE evaluation files included with the engine to simplify deployment.
+
 ## [1.2.0-dev] - 2025-09-07
 ### Added
 - UCI option `Time Buffer` to reserve time on each move.

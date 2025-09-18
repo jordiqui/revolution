@@ -1,6 +1,6 @@
 # Revolution Chess Engine
 
-**Version v1.2.0 dev-070925**
+**Version v.2.45 180925**
 
 <div align="center">
   <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
@@ -17,6 +17,8 @@
 ## Overview
 
 **Revolution** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
+
+The engine identifies itself to any UCI-compatible GUI (including Fritz 20 and Cutechess) as **`revolution v.2.45 180925`**. This naming is also embedded into the executable so that chess computers display the same identifier during startup.
 
 As a UCI-compliant engine, Revolution operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
 
@@ -39,7 +41,11 @@ The distribution includes:
 - `COPYING.txt` ([GNU GPLv3 license][gpl-link])
 - `AUTHORS` (contributor acknowledgments)
 - `src/` (source code with platform-specific Makefiles)
-- Neural network weights (`revolution.nnue`)
+- Embedded neural network weights (`nn-ae6a388e4a1a.nnue` and `nn-baff1ede1f90.nnue`)
+
+### Embedded Neural Networks
+
+Revolution v.2.45 180925 integrates **two** NNUE evaluation files directly into the engine binary: a full-size network (`nn-ae6a388e4a1a.nnue`) and a compact network (`nn-baff1ede1f90.nnue`). The engine automatically selects the requested network at runtime, keeping the deployment lightweight for dedicated chess computers and other constrained environments.
 
 ## Contributing
 
