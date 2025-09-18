@@ -364,24 +364,9 @@ void UCIEngine::benchmark(std::istream& args) {
 
     std::cerr << "\n";
 
-    cnt   = 1;
-    nodes = 0;
-
-    int           numHashfullReadings = 0;
-    constexpr int hashfullAges[]      = {0, 999};  // Only normal hashfull and touched hash.
-    int           totalHashfull[std::size(hashfullAges)] = {0};
-    int           maxHashfull[std::size(hashfullAges)]   = {0};
-
-    auto updateHashfullReadings = [&]() {
-        numHashfullReadings += 1;
-
-        for (int i = 0; i < static_cast<int>(std::size(hashfullAges)); ++i)
-        {
-            const int hashfull = engine.get_hashfull(hashfullAges[i]);
-            maxHashfull[i]     = std::max(maxHashfull[i], hashfull);
-            totalHashfull[i] += hashfull;
-        }
-    };
+    cnt       = 1;
+    nodes     = 0;
+    totalTime = 0;
 
     engine.search_clear();  // search_clear may take a while
 
@@ -405,8 +390,6 @@ void UCIEngine::benchmark(std::istream& args) {
 
             totalTime += now() - elapsed;
 
-            updateHashfullReadings();
-
             nodes += engine.nodes_searched() - startNodes;
         }
         else if (token == "position")
@@ -421,39 +404,10 @@ void UCIEngine::benchmark(std::istream& args) {
 
     dbg_print();
 
-    std::cerr << "\n";
-
-    static_assert(
-      std::size(hashfullAges) == 2 && hashfullAges[0] == 0 && hashfullAges[1] == 999,
-      "Hardcoded for display. Would complicate the code needlessly in the current state.");
-
-    std::string threadBinding = engine.thread_binding_information_as_string();
-    if (threadBinding.empty())
-        threadBinding = "none";
-
-    // clang-format off
-
-    std::cerr << "==========================="
-              << "\nVersion                    :   " << engine_version_info()
-              << compiler_info()
-              << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
-              << "\nUser invocation            : " << BenchmarkCommand << " "
-              << setup.originalInvocation << "\nFilled invocation          : " << BenchmarkCommand
-              << " " << setup.filledInvocation
-              << "\nAvailable processors       : " << engine.get_numa_config_as_string()
-              << "\nThread count               : " << setup.threads
-              << "\nThread binding             : " << threadBinding
-              << "\nTT size [MiB]              : " << setup.ttSize
-              << "\nHash max, avg [per mille]  : "
-              << "\n    single search          : " << maxHashfull[0] << ", "
-              << totalHashfull[0] / numHashfullReadings
-              << "\n    single game            : " << maxHashfull[1] << ", "
-              << totalHashfull[1] / numHashfullReadings
-              << "\nTotal nodes searched       : " << nodes
-              << "\nTotal search time [s]      : " << totalTime / 1000.0
-              << "\nNodes/second               : " << 1000 * nodes / totalTime << std::endl;
-
-    // clang-format on
+    std::cerr << "\n==========================="    //
+              << "\nTotal time (ms) : " << totalTime   //
+              << "\nNodes searched  : " << nodes       //
+              << "\nNodes/second    : " << 1000 * nodes / totalTime << std::endl;
 
     init_search_update_listeners();
 }
