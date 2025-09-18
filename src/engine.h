@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef ENGINE_H_INCLUDED
+#define ENGINE_H_INCLUDED
 
 #include <cstddef>
 #include <cstdint>
@@ -123,8 +124,10 @@ class Engine {
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;
 
+    std::string concurrentExperienceFile;
 };
 
 }  // namespace Stockfish
 
 
+#endif  // #ifndef ENGINE_H_INCLUDED

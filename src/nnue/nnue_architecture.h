@@ -18,7 +18,8 @@
 
 // Input features and network structure used in NNUE evaluation function
 
-#pragma once
+#ifndef NNUE_ARCHITECTURE_H_INCLUDED
+#define NNUE_ARCHITECTURE_H_INCLUDED
 
 #include <cstdint>
 #include <cstring>
@@ -139,3 +140,4 @@ struct NetworkArchitecture {
 
 }  // namespace Stockfish::Eval::NNUE
 
+#endif  // #ifndef NNUE_ARCHITECTURE_H_INCLUDED

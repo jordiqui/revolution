@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef MOVEPICK_H_INCLUDED
+#define MOVEPICK_H_INCLUDED
 
 #include "history.h"
 #include "movegen.h"
@@ -45,9 +46,8 @@ class MovePicker {
                const CapturePieceToHistory*,
                const PieceToHistory**,
                const PawnHistory*,
-               int,
-               Square = SQ_NONE);
-    MovePicker(const Position&, Move, int, const CapturePieceToHistory*, Square = SQ_NONE);
+               int);
+    MovePicker(const Position&, Move, int, const CapturePieceToHistory*);
     Move next_move();
     void skip_quiet_moves();
     bool can_move_king_or_pawn() const;
@@ -72,10 +72,10 @@ class MovePicker {
     int                          threshold;
     Depth                        depth;
     int                          ply;
-    Square                       recaptureSquare;
     bool                         skipQuiets = false;
     ExtMove                      moves[MAX_MOVES];
 };
 
 }  // namespace Stockfish
 
+#endif  // #ifndef MOVEPICK_H_INCLUDED

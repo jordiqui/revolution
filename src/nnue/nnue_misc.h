@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef NNUE_MISC_H_INCLUDED
+#define NNUE_MISC_H_INCLUDED
 
 #include <cstddef>
 #include <string>
@@ -31,8 +32,8 @@ class Position;
 namespace Eval::NNUE {
 
 struct EvalFile {
-    // Default net name, will use one of the EvalFileDefaultName* constants
-    // defined in evaluate.h
+    // Default net name, will use one of the EvalFileDefaultName* macros defined
+    // in evaluate.h
     std::string defaultName;
     // Selected net name, either via uci option or default
     std::string current;
@@ -57,3 +58,4 @@ std::string trace(Position& pos, const Networks& networks, AccumulatorCaches& ca
 }  // namespace Stockfish::Eval::NNUE
 }  // namespace Stockfish
 
+#endif  // #ifndef NNUE_MISC_H_INCLUDED

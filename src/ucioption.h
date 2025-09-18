@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef UCIOPTION_H_INCLUDED
+#define UCIOPTION_H_INCLUDED
 
 #include <cstddef>
 #include <functional>
@@ -102,3 +103,4 @@ class OptionsMap {
 };
 
 }
+#endif  // #ifndef UCIOPTION_H_INCLUDED

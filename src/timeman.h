@@ -16,17 +16,17 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef TIMEMAN_H_INCLUDED
+#define TIMEMAN_H_INCLUDED
 
 #include <cstdint>
 
 #include "misc.h"
-#include "types.h"
 
 namespace Stockfish {
 
 class OptionsMap;
-enum class Color : int8_t;
+enum Color : int8_t;
 
 namespace Search {
 struct LimitsType;
@@ -64,3 +64,4 @@ class TimeManagement {
 
 }  // namespace Stockfish
 
+#endif  // #ifndef TIMEMAN_H_INCLUDED

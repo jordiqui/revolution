@@ -33,15 +33,21 @@
 
 #include "benchmark.h"
 #include "engine.h"
-#include "experience.h"
 #include "memory.h"
-#include "misc.h"
 #include "movegen.h"
 #include "position.h"
 #include "score.h"
 #include "search.h"
+#include "experience.h"
 #include "types.h"
 #include "ucioption.h"
+
+#ifndef ENGINE_NAME
+    #define ENGINE_NAME "revolution v.2.45 180925"
+#endif
+#ifndef ENGINE_BUILD_DATE
+    #define ENGINE_BUILD_DATE __DATE__
+#endif
 
 namespace Stockfish {
 
@@ -118,11 +124,13 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show the architecture-aware
-            // identifier (for example "revolution 2.45 dev-180925 x86-64-sse41-popcnt").
+            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
             sync_cout_start();
+            std::cout << "id name " << ENGINE_NAME;
+            if (*ENGINE_BUILD_DATE)
+                std::cout << ' ' << ENGINE_BUILD_DATE;
             std::cout
-              << "id name " << engine_version_info() << "\n"
+              << "\n"
               << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
               << "\n"
               << engine.get_options() << std::endl;
@@ -163,8 +171,9 @@ void UCIEngine::loop() {
         else if (token == "eval")
             engine.trace_eval();
         else if (token == "showexp")
-            experience.show(engine.position(), (int) engine.get_options()["Experience Eval Weight"],
-                            (int) engine.get_options()["Experience Book Max Moves"]);
+            experience.show(engine.position(),
+                             (int) engine.get_options()["Experience Eval Weight"],
+                             (int) engine.get_options()["Experience Book Max Moves"]);
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
@@ -207,13 +216,13 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
                 limits.searchmoves.push_back(to_lower(token));
 
         else if (token == "wtime")
-            is >> limits.time[static_cast<int>(Color::WHITE)];
+            is >> limits.time[WHITE];
         else if (token == "btime")
-            is >> limits.time[static_cast<int>(Color::BLACK)];
+            is >> limits.time[BLACK];
         else if (token == "winc")
-            is >> limits.inc[static_cast<int>(Color::WHITE)];
+            is >> limits.inc[WHITE];
         else if (token == "binc")
-            is >> limits.inc[static_cast<int>(Color::BLACK)];
+            is >> limits.inc[BLACK];
         else if (token == "movestogo")
             is >> limits.movestogo;
         else if (token == "depth")
@@ -248,13 +257,12 @@ void UCIEngine::bench(std::istream& args) {
     std::string token;
     uint64_t    num, nodes = 0, cnt = 1;
     uint64_t    nodesSearched = 0;
+    const auto& options       = engine.get_options();
 
-    engine.set_on_update_full([&](const Engine::InfoFull& i) { nodesSearched = i.nodes; });
-
-    engine.set_on_iter([](const auto&) {});
-    engine.set_on_update_no_moves([](const auto&) {});
-    engine.set_on_bestmove([](const auto&, const auto&) {});
-    engine.set_on_verify_networks([](const auto&) {});
+    engine.set_on_update_full([&](const auto& i) {
+        nodesSearched = i.nodes;
+        on_update_full(i, options["UCI_ShowWDL"]);
+    });
 
     std::vector<std::string> list = Benchmark::setup_bench(engine.fen(), args);
 
@@ -310,7 +318,8 @@ void UCIEngine::bench(std::istream& args) {
               << "\nNodes searched  : " << nodes    //
               << "\nNodes/second    : " << 1000 * nodes / elapsed << std::endl;
 
-    init_search_update_listeners();
+    // reset callback, to not capture a dangling reference to nodesSearched
+    engine.set_on_update_full([&](const auto& i) { on_update_full(i, options["UCI_ShowWDL"]); });
 }
 
 void UCIEngine::benchmark(std::istream& args) {
@@ -451,7 +460,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   " << engine_version_info()
+              << "\nVersion                    :   << ENGINE_NAME << " << __DATE__ << " " << __TIME__
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "
@@ -503,11 +512,10 @@ void UCIEngine::position(std::istringstream& is) {
         return;
 
     std::vector<std::string> moves;
-    moves.reserve(32);
 
     while (is >> token)
     {
-        moves.emplace_back(std::move(token));
+        moves.push_back(token);
     }
 
     engine.set_position(fen, moves);
@@ -605,12 +613,12 @@ std::string UCIEngine::move(Move m, bool chess960) {
     Square from = m.from_sq();
     Square to   = m.to_sq();
 
-    if (m.type_of() == MoveType::CASTLING && !chess960)
+    if (m.type_of() == CASTLING && !chess960)
         to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
 
     std::string move = square(from) + square(to);
 
-    if (m.type_of() == MoveType::PROMOTION)
+    if (m.type_of() == PROMOTION)
         move += " pnbrqk"[m.promotion_type()];
 
     return move;

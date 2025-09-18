@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef MISC_H_INCLUDED
+#define MISC_H_INCLUDED
 
 #include <algorithm>
 #include <array>
@@ -87,8 +88,6 @@ inline std::vector<std::string_view> split(std::string_view s, std::string_view 
 
     if (s.empty())
         return res;
-
-    res.reserve(1 + s.size() / delimiter.size());
 
     size_t begin = 0;
     for (;;)
@@ -336,3 +335,4 @@ void move_to_front(std::vector<T>& vec, Predicate pred) {
 
 }  // namespace Stockfish
 
+#endif  // #ifndef MISC_H_INCLUDED
