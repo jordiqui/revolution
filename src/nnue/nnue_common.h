@@ -18,7 +18,8 @@
 
 // Constants used in NNUE evaluation function
 
-#pragma once
+#ifndef NNUE_COMMON_H_INCLUDED
+#define NNUE_COMMON_H_INCLUDED
 
 #include <algorithm>
 #include <cassert>
@@ -284,3 +285,4 @@ inline void write_leb_128(std::ostream& stream, const IntType* values, std::size
 
 }  // namespace Stockfish::Eval::NNUE
 
+#endif  // #ifndef NNUE_COMMON_H_INCLUDED

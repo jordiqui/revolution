@@ -18,7 +18,8 @@
 
 // Definition of layer AffineTransformSparseInput of NNUE evaluation function
 
-#pragma once
+#ifndef NNUE_LAYERS_AFFINE_TRANSFORM_SPARSE_INPUT_H_INCLUDED
+#define NNUE_LAYERS_AFFINE_TRANSFORM_SPARSE_INPUT_H_INCLUDED
 
 #include <algorithm>
 #include <cstdint>
@@ -317,3 +318,4 @@ class AffineTransformSparseInput {
 
 }  // namespace Stockfish::Eval::NNUE::Layers
 
+#endif  // #ifndef NNUE_LAYERS_AFFINE_TRANSFORM_SPARSE_INPUT_H_INCLUDED

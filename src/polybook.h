@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef POLYBOOK_H_INCLUDED
+#define POLYBOOK_H_INCLUDED
 
 #include "bitboard.h"
 #include "position.h"
@@ -65,3 +66,4 @@ extern PolyBook polybook[2];
 
 }
 
+#endif  // #ifndef POLYBOOK_H_INCLUDED

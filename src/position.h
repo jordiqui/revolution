@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef POSITION_H_INCLUDED
+#define POSITION_H_INCLUDED
 
 #include <cassert>
 #include <deque>
@@ -41,8 +42,8 @@ struct StateInfo {
     Key    materialKey;
     Key    pawnKey;
     Key    minorPieceKey;
-      Key    nonPawnKey[static_cast<int>(Color::COLOR_NB)];
-      Value  nonPawnMaterial[static_cast<int>(Color::COLOR_NB)];
+    Key    nonPawnKey[COLOR_NB];
+    Value  nonPawnMaterial[COLOR_NB];
     int    castlingRights;
     int    rule50;
     int    pliesFromNull;
@@ -52,9 +53,8 @@ struct StateInfo {
     Key        key;
     Bitboard   checkersBB;
     StateInfo* previous;
-    int        previousIndex;
-      Bitboard   blockersForKing[static_cast<int>(Color::COLOR_NB)];
-      Bitboard   pinners[static_cast<int>(Color::COLOR_NB)];
+    Bitboard   blockersForKing[COLOR_NB];
+    Bitboard   pinners[COLOR_NB];
     Bitboard   checkSquares[PIECE_TYPE_NB];
     Piece      capturedPiece;
     int        repetition;
@@ -189,13 +189,12 @@ class Position {
     // Data members
     Piece      board[SQUARE_NB];
     Bitboard   byTypeBB[PIECE_TYPE_NB];
-      Bitboard   byColorBB[static_cast<int>(Color::COLOR_NB)];
+    Bitboard   byColorBB[COLOR_NB];
     int        pieceCount[PIECE_NB];
     int        castlingRightsMask[SQUARE_NB];
     Square     castlingRookSquare[CASTLING_RIGHT_NB];
     Bitboard   castlingPath[CASTLING_RIGHT_NB];
     StateInfo* st;
-    int        stateIndex;
     int        gamePly;
     Color      sideToMove;
     bool       chess960;
@@ -221,7 +220,7 @@ inline Bitboard Position::pieces(PieceTypes... pts) const {
     return (byTypeBB[pts] | ...);
 }
 
-inline Bitboard Position::pieces(Color c) const { return byColorBB[static_cast<int>(c)]; }
+inline Bitboard Position::pieces(Color c) const { return byColorBB[c]; }
 
 template<typename... PieceTypes>
 inline Bitboard Position::pieces(Color c, PieceTypes... pts) const {
@@ -235,7 +234,7 @@ inline int Position::count(Color c) const {
 
 template<PieceType Pt>
 inline int Position::count() const {
-    return count<Pt>(Color::WHITE) + count<Pt>(Color::BLACK);
+    return count<Pt>(WHITE) + count<Pt>(BLACK);
 }
 
 template<PieceType Pt>
@@ -268,8 +267,8 @@ template<PieceType Pt>
 inline Bitboard Position::attacks_by(Color c) const {
 
     if constexpr (Pt == PAWN)
-        return c == Color::WHITE ? pawn_attacks_bb<Color::WHITE>(pieces(Color::WHITE, PAWN))
-                                 : pawn_attacks_bb<Color::BLACK>(pieces(Color::BLACK, PAWN));
+        return c == WHITE ? pawn_attacks_bb<WHITE>(pieces(WHITE, PAWN))
+                          : pawn_attacks_bb<BLACK>(pieces(BLACK, PAWN));
     else
     {
         Bitboard threats   = 0;
@@ -282,9 +281,9 @@ inline Bitboard Position::attacks_by(Color c) const {
 
 inline Bitboard Position::checkers() const { return st->checkersBB; }
 
-inline Bitboard Position::blockers_for_king(Color c) const { return st->blockersForKing[static_cast<int>(c)]; }
+inline Bitboard Position::blockers_for_king(Color c) const { return st->blockersForKing[c]; }
 
-inline Bitboard Position::pinners(Color c) const { return st->pinners[static_cast<int>(c)]; }
+inline Bitboard Position::pinners(Color c) const { return st->pinners[c]; }
 
 inline Bitboard Position::check_squares(PieceType pt) const { return st->checkSquares[pt]; }
 
@@ -300,12 +299,12 @@ inline Key Position::material_key() const { return st->materialKey; }
 
 inline Key Position::minor_piece_key() const { return st->minorPieceKey; }
 
-inline Key Position::non_pawn_key(Color c) const { return st->nonPawnKey[static_cast<int>(c)]; }
+inline Key Position::non_pawn_key(Color c) const { return st->nonPawnKey[c]; }
 
-inline Value Position::non_pawn_material(Color c) const { return st->nonPawnMaterial[static_cast<int>(c)]; }
+inline Value Position::non_pawn_material(Color c) const { return st->nonPawnMaterial[c]; }
 
 inline Value Position::non_pawn_material() const {
-    return non_pawn_material(Color::WHITE) + non_pawn_material(Color::BLACK);
+    return non_pawn_material(WHITE) + non_pawn_material(BLACK);
 }
 
 inline int Position::game_ply() const { return gamePly; }
@@ -316,8 +315,7 @@ inline bool Position::is_chess960() const { return chess960; }
 
 inline bool Position::capture(Move m) const {
     assert(m.is_ok());
-    return (!empty(m.to_sq()) && m.type_of() != MoveType::CASTLING)
-        || m.type_of() == MoveType::EN_PASSANT;
+    return (!empty(m.to_sq()) && m.type_of() != CASTLING) || m.type_of() == EN_PASSANT;
 }
 
 // Returns true if a move is generated from the capture stage, having also
@@ -334,7 +332,7 @@ inline void Position::put_piece(Piece pc, Square s) {
 
     board[s] = pc;
     byTypeBB[ALL_PIECES] |= byTypeBB[type_of(pc)] |= s;
-    byColorBB[static_cast<int>(color_of(pc))] |= s;
+    byColorBB[color_of(pc)] |= s;
     pieceCount[pc]++;
     pieceCount[make_piece(color_of(pc), ALL_PIECES)]++;
 }
@@ -344,7 +342,7 @@ inline void Position::remove_piece(Square s) {
     Piece pc = board[s];
     byTypeBB[ALL_PIECES] ^= s;
     byTypeBB[type_of(pc)] ^= s;
-    byColorBB[static_cast<int>(color_of(pc))] ^= s;
+    byColorBB[color_of(pc)] ^= s;
     board[s] = NO_PIECE;
     pieceCount[pc]--;
     pieceCount[make_piece(color_of(pc), ALL_PIECES)]--;
@@ -356,7 +354,7 @@ inline void Position::move_piece(Square from, Square to) {
     Bitboard fromTo = from | to;
     byTypeBB[ALL_PIECES] ^= fromTo;
     byTypeBB[type_of(pc)] ^= fromTo;
-    byColorBB[static_cast<int>(color_of(pc))] ^= fromTo;
+    byColorBB[color_of(pc)] ^= fromTo;
     board[from] = NO_PIECE;
     board[to]   = pc;
 }
@@ -369,3 +367,4 @@ inline StateInfo* Position::state() const { return st; }
 
 }  // namespace Stockfish
 
+#endif  // #ifndef POSITION_H_INCLUDED

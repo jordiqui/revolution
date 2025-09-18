@@ -16,7 +16,8 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef NUMA_H_INCLUDED
+#define NUMA_H_INCLUDED
 
 #include <algorithm>
 #include <atomic>
@@ -1342,3 +1343,4 @@ inline const NumaConfig& NumaReplicatedBase::get_numa_config() const {
 }  // namespace Stockfish
 
 
+#endif  // #ifndef NUMA_H_INCLUDED

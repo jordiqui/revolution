@@ -36,7 +36,12 @@
 #include <string_view>
 
 #include "types.h"
-#include "version.h"
+#ifndef ENGINE_NAME
+    #define ENGINE_NAME "revolution v.2.45 180925"
+#endif
+#ifndef ENGINE_BUILD_DATE
+    #define ENGINE_BUILD_DATE ""
+#endif
 
 namespace Stockfish {
 
@@ -55,12 +60,11 @@ struct Tie: public std::streambuf {  // MSVC requires split streambuf for cin an
         logBuf(l) {}
 
     int sync() override { return logBuf->pubsync(), buf->pubsync(); }
-    int overflow(int c) override { return log(buf->sputc(static_cast<char>(c)), "<< "); }
+    int overflow(int c) override { return log(buf->sputc(char(c)), "<< "); }
     int underflow() override { return buf->sgetc(); }
     int uflow() override { return log(buf->sbumpc(), ">> "); }
 
-    std::streambuf* buf;
-    std::streambuf* logBuf;
+    std::streambuf *buf, *logBuf;
 
     int log(int c, const char* prefix) {
 
@@ -69,7 +73,7 @@ struct Tie: public std::streambuf {  // MSVC requires split streambuf for cin an
         if (last == '\n')
             logBuf->sputn(prefix, 3);
 
-        return last = logBuf->sputc(static_cast<char>(c));
+        return last = logBuf->sputc(char(c));
     }
 };
 
@@ -114,41 +118,8 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Revolution version. Append the
-// compilation architecture (when available) so GUIs show a fully qualified
-// identifier such as "revolution v.2.45 180925 x86-64-sse41-popcnt".
-std::string engine_version_info() {
-
-    std::string fullName = ENGINE_NAME;
-
-#if defined(_WIN32)
-    constexpr std::string_view kExecutableExtension = ".exe";
-#else
-    constexpr std::string_view kExecutableExtension = "";
-#endif
-
-#if defined(ARCH)
-    constexpr std::string_view arch = stringify(ARCH);
-
-    if (!arch.empty() && fullName.find(arch) == std::string::npos)
-    {
-        if (!fullName.empty() && fullName.back() != ' ')
-            fullName += ' ';
-
-        fullName.append(arch);
-    }
-#endif
-
-    if (!kExecutableExtension.empty()
-        && (fullName.size() < kExecutableExtension.size()
-            || fullName.compare(fullName.size() - kExecutableExtension.size(),
-                                kExecutableExtension.size(),
-                                kExecutableExtension)
-                 != 0))
-        fullName.append(kExecutableExtension);
-
-    return fullName;
-}
+// Returns the full name of the current Revolution version.
+std::string engine_version_info() { return std::string(ENGINE_NAME); }
 
 // Update author information
 std::string engine_info(bool to_uci) {

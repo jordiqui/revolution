@@ -126,7 +126,7 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
     // the current base eval, simulating the removal of the piece from its square.
     auto [psqt, positional] = networks.big.evaluate(pos, accumulators, &caches.big);
     Value base              = psqt + positional;
-    base                    = pos.side_to_move() == Color::WHITE ? base : -base;
+    base                    = pos.side_to_move() == WHITE ? base : -base;
 
     for (File f = FILE_A; f <= FILE_H; ++f)
         for (Rank r = RANK_1; r <= RANK_8; ++r)
@@ -142,7 +142,7 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
                 accumulators.reset();
                 std::tie(psqt, positional) = networks.big.evaluate(pos, accumulators, &caches.big);
                 Value eval                 = psqt + positional;
-                eval                       = pos.side_to_move() == Color::WHITE ? eval : -eval;
+                eval                       = pos.side_to_move() == WHITE ? eval : -eval;
                 v                          = base - eval;
 
                 pos.put_piece(pc, sq);
@@ -160,7 +160,7 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
     auto t = networks.big.trace_evaluate(pos, accumulators, &caches.big);
 
     ss << " NNUE network contributions "
-       << (pos.side_to_move() == Color::WHITE ? "(White to move)" : "(Black to move)") << std::endl
+       << (pos.side_to_move() == WHITE ? "(White to move)" : "(Black to move)") << std::endl
        << "+------------+------------+------------+------------+\n"
        << "|   Bucket   |  Material  | Positional |   Total    |\n"
        << "|            |   (PSQT)   |  (Layers)  |            |\n"

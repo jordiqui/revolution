@@ -1,6 +1,6 @@
 # Revolution Chess Engine
 
-**Version v.2.45 180925**
+**Version 1.0**
 
 <div align="center">
   <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
@@ -18,15 +18,12 @@
 
 **Revolution** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
 
-The engine identifies itself to any UCI-compatible GUI (including Fritz 20 and Cutechess) as **`revolution v.2.45 180925`**. This naming is also embedded into the executable so that chess computers display the same identifier during startup.
-
 As a UCI-compliant engine, Revolution operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
 
 ## Technical Architecture
 
 Revolution's architecture features:
 
-- Refactored position and related modules, migrating to `sts::vector` for memory-efficient data structures
 - Hybrid evaluation system combining classical heuristics with NNUE networks
 - SMP parallelization with YBWC (Young Brothers Wait Concept)
 - Advanced pruning techniques (Reverse Futility Pruning, Late Move Pruning)
@@ -41,11 +38,7 @@ The distribution includes:
 - `COPYING.txt` ([GNU GPLv3 license][gpl-link])
 - `AUTHORS` (contributor acknowledgments)
 - `src/` (source code with platform-specific Makefiles)
-- Embedded neural network weights (`nn-ae6a388e4a1a.nnue` and `nn-baff1ede1f90.nnue`)
-
-### Embedded Neural Networks
-
-Revolution v.2.45 180925 integrates **two** NNUE evaluation files directly into the engine binary: a full-size network (`nn-ae6a388e4a1a.nnue`) and a compact network (`nn-baff1ede1f90.nnue`). The engine automatically selects the requested network at runtime, keeping the deployment lightweight for dedicated chess computers and other constrained environments.
+- Neural network weights (`revolution.nnue`)
 
 ## Contributing
 
@@ -56,6 +49,11 @@ Contributions must adhere to:
 - Elo measurement via [OpenBench][openbench-link]
 - Compatibility with UCI protocol standard
 
+### Testing Infrastructure
+Improvements require extensive testing:
+- Install the [Revolution Test Worker][worker-link]
+- Participate in active tests on [Revolution Test Suite][testsuite-link]
+- Verify ELO gains through SPRT validation
 
 ### Community
 Technical discussions occur primarily through:
@@ -108,19 +106,25 @@ The file is loaded at engine startup and updated after each game if `Experience 
 
 ## UCI Options
 
-### Time Buffer
+### Minimum Thinking Time
 
-The `Time Buffer` option reserves a small amount of time on each move to
-reduce the risk of losing on time. The engine will not intentionally use
-this reserved buffer.
+The `Minimum Thinking Time` option ensures the engine spends at least a
+specified number of milliseconds searching for a move, even if it finds
+a good one instantly. This avoids extremely fast, low-quality replies.
+Set it with:
 
 ```
-setoption name Time Buffer value <milliseconds>
+setoption name Minimum Thinking Time value <milliseconds>
 ```
 
-Revolution automatically adjusts its time usage in blitz games (time controls
-of five minutes or less with minimal increment) to keep the search stable and
-avoid spending too much time on a single move.
+### Falcon Net
+
+Revolution can switch to an alternative neural network using the
+`FalconFile` option. To load the bundled `3.net` file, send:
+
+```
+setoption name FalconFile value 3.net
+```
 
 ## License
 
@@ -144,10 +148,11 @@ Revolution also benefits from:
 - Positional analysis concepts from [CPW research][cpw-link]
 
 [gpl-link]: https://www.gnu.org/licenses/gpl-3.0.html
-[doc-link]: [#](https://ijccrl.com/revolution-chess-engine/)
-
-[worker-link]: [(https://ijccrl.com/sprtrevolution_base-vs-revolution_dev/ ]
-[testsuite-link]: [https://github.com/Disservin/fastchess/?tab=readme-ov-file]
+[doc-link]: #
+[discord-link]: #
+[openbench-link]: #
+[worker-link]: #
+[testsuite-link]: #
 [discussions-link]: #
 [chesswiki-link]: https://www.chessprogramming.org
 [lichess-db]: https://database.lichess.org

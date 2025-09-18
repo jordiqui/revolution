@@ -1,18 +1,18 @@
-#Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-#Copyright(C) 2004 - 2025 The Stockfish developers(see AUTHORS file)
+# Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+# Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 #
-#Stockfish is free software : you can redistribute it and / or modify
-#it under the terms of the GNU General Public License as published by
-#the Free Software Foundation, either version 3 of the License, or
-#(at your option) any later version.
+# Stockfish is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
 #
-#Stockfish is distributed in the hope that it will be useful,
-#but WITHOUT ANY WARRANTY; without even the implied warranty of
-#MERCHANTABILITY or FITNESS FOR A PARTICULAR        PURPOSE.See the
-#GNU General Public License for more                details.
+# Stockfish is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
 #
-#You should have received a copy of the GNU General Public License
-#along with this program.If not, see < http:  //www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 ### ==========================================================================
@@ -49,10 +49,7 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-# Keep the default PGO benchmark short to avoid long step 2/4 runs.
-# Override PGOBENCH_ARGS on the make command line to customize the workload.
-PGOBENCH      = $(WINE_PATH) ./$(EXE) bench
-PGOBENCH_ARGS ?= 64 1 500 default nodes
+PGOBENCH = $(WINE_PATH) ./$(EXE) bench
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -78,49 +75,45 @@ VPATH = syzygy:nnue:nnue/features
 ### Section 2. High-level Configuration
 ### ==========================================================================
 #
-#flag-- - Comp switch -- -Description
-#-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --
+# flag                --- Comp switch        --- Description
+# ----------------------------------------------------------------------------
 #
-#debug    = yes / no-- - -DNDEBUG-- - Enable / Disable debug mode
-#sanitize = none / < sanitizer>...(-fsanitize)
-#-- -(undefined) -- - enable undefined behavior checks
-#-- -(thread) -- - enable threading error checks
-#-- -(address) -- - enable memory access checks
-#-- -... etc... -- - see compiler documentation for supported sanitizers
-#optimize = yes / no-- - (-O3 / -fast etc.)-- - Enable / Disable optimizations
-#arch     = (name)-- - (-arch)-- - Target architecture
-#bits     = 64 / 32 -- - -DIS_64BIT-- - 64 - / 32 - bit                     operating system
-#prefetch = yes / no-- - -DUSE_PREFETCH-- - Use                         prefetch asm - instruction
-#popcnt   = yes / no-- - -DUSE_POPCNT-- - Use                             popcnt asm - instruction
-#pext     = yes / no-- - -DUSE_PEXT-- - Use pext                            x86_64 asm - instruction
-#sse      = yes / no-- - -msse-- - Use Intel Streaming                       SIMD Extensions
-#mmx      = yes / no-- - -mmmx-- - Use Intel                                 MMX instructions
-#sse2     = yes / no-- - -msse2-- - Use Intel Streaming SIMD                Extensions 2
-#ssse3    = yes / no-- - -mssse3-- - Use Intel Supplemental Streaming SIMD Extensions 3
-#sse41    = yes / no-- - -msse4.1 -- -Use Intel Streaming SIMD             Extensions 4.1
-#avx      = yes / no-- - -mavx-- - Use Intel Advanced                        Vector Extensions
-#avx2     = yes / no-- - -mavx2-- - Use Intel Advanced Vector               Extensions 2
-#avxvnni  = yes / no-- - -mavxvnni-- - Use Intel Vector Neural Network   Instructions AVX
-#avx512   = yes / no-- - -mavx512bw-- - Use Intel Advanced Vector         Extensions 512
-#vnni256  = yes / no-- - -mavx256vnni-- \
-         - Use Intel Vector Neural Network Instructions 512 with 256bit operands
-#vnni512 = yes / no-- - -mavx512vnni-- - Use Intel Vector Neural Network Instructions 512
-#avx512icl = \
-  yes / no-- - ... multiple... -- -Use All AVX - 512 features available on both Intel Ice Lake \
-  and AMD                                  Zen 4
-#altivec = yes / no-- - -maltivec-- - Use PowerPC Altivec                     SIMD extension
-#vsx     = yes / no-- - -mvsx-- - Use POWER VSX                                   SIMD extension
-#neon    = yes / no-- - -DUSE_NEON-- - Use ARM                                   SIMD architecture
-#dotprod = yes / no-- - -DUSE_NEON_DOTPROD-- - Use ARM advanced SIMD Int8 dot product instructions
-#lsx     = yes / no-- - -mlsx-- - Use Loongson                                    SIMD eXtension
-#lasx    = yes / no-- - -mlasx-- - use Loongson Advanced                         SIMD eXtension
+# debug = yes/no      --- -DNDEBUG           --- Enable/Disable debug mode
+# sanitize = none/<sanitizer> ... (-fsanitize )
+#                     --- ( undefined )      --- enable undefined behavior checks
+#                     --- ( thread    )      --- enable threading error checks
+#                     --- ( address   )      --- enable memory access checks
+#                     --- ...etc...          --- see compiler documentation for supported sanitizers
+# optimize = yes/no   --- (-O3/-fast etc.)   --- Enable/Disable optimizations
+# arch = (name)       --- (-arch)            --- Target architecture
+# bits = 64/32        --- -DIS_64BIT         --- 64-/32-bit operating system
+# prefetch = yes/no   --- -DUSE_PREFETCH     --- Use prefetch asm-instruction
+# popcnt = yes/no     --- -DUSE_POPCNT       --- Use popcnt asm-instruction
+# pext = yes/no       --- -DUSE_PEXT         --- Use pext x86_64 asm-instruction
+# sse = yes/no        --- -msse              --- Use Intel Streaming SIMD Extensions
+# mmx = yes/no        --- -mmmx              --- Use Intel MMX instructions
+# sse2 = yes/no       --- -msse2             --- Use Intel Streaming SIMD Extensions 2
+# ssse3 = yes/no      --- -mssse3            --- Use Intel Supplemental Streaming SIMD Extensions 3
+# sse41 = yes/no      --- -msse4.1           --- Use Intel Streaming SIMD Extensions 4.1
+# avx2 = yes/no       --- -mavx2             --- Use Intel Advanced Vector Extensions 2
+# avxvnni = yes/no    --- -mavxvnni          --- Use Intel Vector Neural Network Instructions AVX
+# avx512 = yes/no     --- -mavx512bw         --- Use Intel Advanced Vector Extensions 512
+# vnni256 = yes/no    --- -mavx256vnni       --- Use Intel Vector Neural Network Instructions 512 with 256bit operands
+# vnni512 = yes/no    --- -mavx512vnni       --- Use Intel Vector Neural Network Instructions 512
+# avx512icl = yes/no  --- ... multiple ...   --- Use All AVX-512 features available on both Intel Ice Lake and AMD Zen 4
+# altivec = yes/no    --- -maltivec          --- Use PowerPC Altivec SIMD extension
+# vsx = yes/no        --- -mvsx              --- Use POWER VSX SIMD extension
+# neon = yes/no       --- -DUSE_NEON         --- Use ARM SIMD architecture
+# dotprod = yes/no    --- -DUSE_NEON_DOTPROD --- Use ARM advanced SIMD Int8 dot product instructions
+# lsx = yes/no        --- -mlsx              --- Use Loongson SIMD eXtension
+# lasx = yes/no       --- -mlasx             --- use Loongson Advanced SIMD eXtension
 #
-#Note that Makefile is space sensitive, so when adding new architectures
+# Note that Makefile is space sensitive, so when adding new architectures
 # or modifying existing flags, you have to make sure there are no extra spaces
-#at the end of the line for flag values.
+# at the end of the line for flag values.
 #
-#Example of use for these flags:
-#make build ARCH = x86 - 64 - avx512 debug = yes sanitize = "address undefined"
+# Example of use for these flags:
+# make build ARCH=x86-64-avx512 debug=yes sanitize="address undefined"
 
 
 ### 2.1. General and architecture defaults
@@ -133,8 +126,8 @@ ifeq ($(ARCH), native)
    override ARCH := $(shell $(SHELL) ../scripts/get_native_properties.sh | cut -d " " -f 1)
 endif
 
-#explicitly check for the list of supported architectures(as listed with make help),
-#the user can override with `make ARCH = x86 - 64 - avx512icl SUPPORTED_ARCH = true`
+# explicitly check for the list of supported architectures (as listed with make help),
+# the user can override with `make ARCH=x86-64-avx512icl SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
                  x86-64-avx512icl x86-64-vnni512 x86-64-vnni256 x86-64-avx512 x86-64-avxvnni \
                  x86-64-bmi2 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
@@ -158,7 +151,6 @@ mmx = no
 sse2 = no
 ssse3 = no
 sse41 = no
-avx = no
 avx2 = no
 avxvnni = no
 avx512 = no
@@ -184,7 +176,7 @@ endif
 
 ifeq ($(findstring x86,$(ARCH)),x86)
 
-#x86 - 32 / 64
+# x86-32/64
 
 ifeq ($(findstring x86-32,$(ARCH)),x86-32)
 	arch = i386
@@ -238,12 +230,12 @@ ifeq ($(findstring -modern,$(ARCH)),-modern)
 endif
 
 ifeq ($(findstring -avx2,$(ARCH)),-avx2)
-        popcnt = yes
-        sse = yes
-        sse2 = yes
-        ssse3 = yes
-        sse41 = yes
-        avx2 = yes
+	popcnt = yes
+	sse = yes
+	sse2 = yes
+	ssse3 = yes
+	sse41 = yes
+	avx2 = yes
 endif
 
 ifeq ($(findstring -avxvnni,$(ARCH)),-avxvnni)
@@ -318,14 +310,14 @@ ifeq ($(sse),yes)
 	prefetch = yes
 endif
 
-# 64 - bit pext is not available on x86 - 32
+# 64-bit pext is not available on x86-32
 ifeq ($(bits),32)
 	pext = no
 endif
 
 else
 
-#all other architectures
+# all other architectures
 
 ifeq ($(ARCH),general-32)
 	arch = any
@@ -553,11 +545,11 @@ ifeq ($(KERNEL),Darwin)
 	ifneq ($(arch),any)
 		CXXFLAGS += -arch $(arch)
 		LDFLAGS += -arch $(arch)
-        endif
+	endif
 	XCRUN = xcrun
 endif
 
-#To cross - compile for Android, use NDK version r27c or later.
+# To cross-compile for Android, use NDK version r27c or later.
 ifeq ($(COMP),ndk)
 	CXXFLAGS += -stdlib=libc++
 	comp=clang
@@ -594,12 +586,12 @@ ifdef COMPCXX
 	CXX=$(COMPCXX)
 endif
 
-#llvm - profdata must be version compatible with the specified CXX(be it clang, or the gcc alias)
-#make - j profile - build                                 CXX = clang++ - 20 COMP = clang
-#Locate the version in the same directory as the compiler used,
-#with fallback to a generic one if it                     can't be located
+# llvm-profdata must be version compatible with the specified CXX (be it clang, or the gcc alias)
+# make -j profile-build CXX=clang++-20 COMP=clang
+# Locate the version in the same directory as the compiler used,
+# with fallback to a generic one if it can't be located
 	LLVM_PROFDATA := $(dir $(realpath $(shell which $(CXX) 2> /dev/null)))llvm-profdata
-#for icx
+# for icx
 ifeq ($(wildcard $(LLVM_PROFDATA)),)
 	LLVM_PROFDATA := $(dir $(realpath $(shell which $(CXX) 2> /dev/null)))/compiler/llvm-profdata
 endif
@@ -634,9 +626,9 @@ endif
 ### On mingw use Windows threads, otherwise POSIX
 ifneq ($(comp),mingw)
 	CXXFLAGS += -DUSE_PTHREADS
-#On Android Bionic's C library comes with its own pthread implementation bundled in
+	# On Android Bionic's C library comes with its own pthread implementation bundled in
 	ifneq ($(OS),Android)
-#Haiku has pthreads in its libroot, so only link it in on other platforms
+		# Haiku has pthreads in its libroot, so only link it in on other platforms
 		ifneq ($(KERNEL),Haiku)
 			ifneq ($(COMP),ndk)
 				LDFLAGS += -lpthread
@@ -712,17 +704,11 @@ ifeq ($(popcnt),yes)
 endif
 
 ### 3.6 SIMD architectures
-ifeq ($(avx),yes)
-        ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-                CXXFLAGS += -mavx
-        endif
-endif
-
 ifeq ($(avx2),yes)
-        CXXFLAGS += -DUSE_AVX2
-        ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-                CXXFLAGS += -mavx2 -mbmi
-        endif
+	CXXFLAGS += -DUSE_AVX2
+	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+		CXXFLAGS += -mavx2 -mbmi
+	endif
 endif
 
 ifeq ($(avxvnni),yes)
@@ -854,14 +840,14 @@ ifneq ($(ARCH), )
 endif
 
 ### 3.8.4 Engine identity (UCI id name / build date)
-#UCI "id name" string shown in GUIs.
-#Defaults:
-#- ENGINE_NAME : "revolution 2.45 dev-180925"
-#- ENGINE_BUILD_DATE : optional build identifier
-#You can override on the command line:
-#make ENGINE_NAME = "revolution 2.45 dev-180925" ENGINE_BUILD_DATE = 20250918
+# UCI "id name" string shown in GUIs.
+# Defaults:
+#   - ENGINE_NAME: "revolution 2.45 dev-180925"
+#   - ENGINE_BUILD_DATE: optional build identifier
+# You can override on the command line:
+#   make ENGINE_NAME="revolution 2.45 dev-180925" ENGINE_BUILD_DATE=20250918
 ENGINE_NAME        ?= revolution 2.45 dev-180925
-ENGINE_BUILD_DATE  ?=
+ENGINE_BUILD_DATE  ?= $(shell date +%Y-%m-%d)
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
 ### 3.9 Link Time Optimization
@@ -879,8 +865,8 @@ ifeq ($(debug), no)
 		endif
 		LDFLAGS += $(CXXFLAGS)
 
-#GCC and CLANG use different methods for parallelizing LTO and CLANG pretends to be
-#GCC on some                                                                  systems.
+# GCC and CLANG use different methods for parallelizing LTO and CLANG pretends to be
+# GCC on some systems.
 	else ifeq ($(comp),gcc)
 	ifeq ($(gccisclang),)
 		CXXFLAGS += -flto -flto-partition=one
@@ -890,8 +876,8 @@ ifeq ($(debug), no)
 		LDFLAGS += $(CXXFLAGS)
 	endif
 
-#To use LTO and static linking on Windows,
-#the tool chain requires gcc      version 10.1 or later.
+# To use LTO and static linking on Windows,
+# the tool chain requires gcc version 10.1 or later.
 	else ifeq ($(comp),mingw)
 		CXXFLAGS += -flto -flto-partition=one
 		LDFLAGS += $(CXXFLAGS) -save-temps
@@ -934,9 +920,9 @@ help:
 	echo "x86-64-vnni256          > x86 64-bit with vnni 512bit support, limit operands to 256bit wide" && \
 	echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
 	echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
-        echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
-        echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
-        echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
+	echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
+	echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
+	echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
 	echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
 	echo "x86-64-ssse3            > x86 64-bit with ssse3 support" && \
 	echo "x86-64-sse3-popcnt      > x86 64-bit with sse3 compile and popcnt support" && \
@@ -969,11 +955,11 @@ help:
 	echo "icx                     > Intel oneAPI DPC++/C++ Compiler" && \
 	echo "ndk                     > Google NDK to cross-compile for Android" && \
 	echo "" && \
-        echo "Simple examples. If you don't know what to do, you likely want to run one of: " && \
-        echo "" && \
-        echo "make -j profile-build ARCH=x86-64-avx2    # typically a fast compile for common systems " && \
-        echo "make -j profile-build ARCH=x86-64-sse41-popcnt  # A more portable compile for 64-bit systems " && \
-        echo "make -j profile-build ARCH=x86-64         # A portable compile for 64-bit systems " && \
+	echo "Simple examples. If you don't know what to do, you likely want to run one of: " && \
+	echo "" && \
+	echo "make -j profile-build ARCH=x86-64-avx2    # typically a fast compile for common systems " && \
+	echo "make -j profile-build ARCH=x86-64-sse41-popcnt  # A more portable compile for 64-bit systems " && \
+	echo "make -j profile-build ARCH=x86-64         # A portable compile for 64-bit systems " && \
 	echo "" && \
 	echo "Advanced examples, for experienced users: " && \
 	echo "" && \
@@ -1006,7 +992,7 @@ profile-build: net config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
-	$(PGOBENCH) $(PGOBENCH_ARGS) > PGOBENCH.out 2>&1
+	$(PGOBENCH) > PGOBENCH.out 2>&1
 	tail -n 4 PGOBENCH.out
 	@echo ""
 	@echo "Step 3/4. Building optimized executable ..."
@@ -1024,11 +1010,11 @@ install:
 	-cp $(EXE) $(BINDIR)
 	$(STRIP) $(BINDIR)/$(EXE)
 
-#clean all
+# clean all
 clean: objclean profileclean
 	@rm -f .depend *~ core
 
-#clean binaries and objects
+# clean binaries and objects
 objclean:
 	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
 
@@ -1070,13 +1056,12 @@ config-sanity: net
 	echo "pext: '$(pext)'" && \
 	echo "sse: '$(sse)'" && \
 	echo "mmx: '$(mmx)'" && \
-        echo "sse2: '$(sse2)'" && \
-        echo "ssse3: '$(ssse3)'" && \
-        echo "sse41: '$(sse41)'" && \
-        echo "avx: '$(avx)'" && \
-        echo "avx2: '$(avx2)'" && \
-        echo "avxvnni: '$(avxvnni)'" && \
-        echo "avx512: '$(avx512)'" && \
+	echo "sse2: '$(sse2)'" && \
+	echo "ssse3: '$(ssse3)'" && \
+	echo "sse41: '$(sse41)'" && \
+	echo "avx2: '$(avx2)'" && \
+	echo "avxvnni: '$(avxvnni)'" && \
+	echo "avx512: '$(avx512)'" && \
 	echo "vnni256: '$(vnni256)'" && \
 	echo "vnni512: '$(vnni512)'" && \
 	echo "avx512icl: '$(avx512icl)'" && \
@@ -1110,11 +1095,10 @@ config-sanity: net
 	(test "$(sse)" = "yes" || test "$(sse)" = "no") && \
 	(test "$(mmx)" = "yes" || test "$(mmx)" = "no") && \
 	(test "$(sse2)" = "yes" || test "$(sse2)" = "no") && \
-        (test "$(ssse3)" = "yes" || test "$(ssse3)" = "no") && \
-        (test "$(sse41)" = "yes" || test "$(sse41)" = "no") && \
-        (test "$(avx)" = "yes" || test "$(avx)" = "no") && \
-        (test "$(avx2)" = "yes" || test "$(avx2)" = "no") && \
-        (test "$(avx512)" = "yes" || test "$(avx512)" = "no") && \
+	(test "$(ssse3)" = "yes" || test "$(ssse3)" = "no") && \
+	(test "$(sse41)" = "yes" || test "$(sse41)" = "no") && \
+	(test "$(avx2)" = "yes" || test "$(avx2)" = "no") && \
+	(test "$(avx512)" = "yes" || test "$(avx512)" = "no") && \
 	(test "$(vnni256)" = "yes" || test "$(vnni256)" = "no") && \
 	(test "$(vnni512)" = "yes" || test "$(vnni512)" = "no") && \
 	(test "$(avx512icl)" = "yes" || test "$(avx512icl)" = "no") && \

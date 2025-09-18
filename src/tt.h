@@ -16,12 +16,12 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#pragma once
+#ifndef TT_H_INCLUDED
+#define TT_H_INCLUDED
 
 #include <cstddef>
 #include <cstdint>
 #include <tuple>
-#include <vector>
 
 #include "memory.h"
 #include "types.h"
@@ -31,7 +31,6 @@ namespace Stockfish {
 class ThreadPool;
 struct TTEntry;
 struct Cluster;
-class TranspositionTable;
 
 // There is only one global hash table for the engine and all its threads. For chess in particular, we even allow racy
 // updates between threads to and from the TT, as taking the time to synchronize access would cost thinking time and
@@ -52,68 +51,38 @@ struct TTData {
     Depth depth;
     Bound bound;
     bool  is_pv;
-    uint16_t key16;
 
     TTData() = delete;
 
     // clang-format off
-    TTData(Move m, Value v, Value ev, Depth d, Bound b, bool pv, uint16_t k) :
+    TTData(Move m, Value v, Value ev, Depth d, Bound b, bool pv) :
         move(m),
         value(v),
         eval(ev),
         depth(d),
         bound(b),
-        is_pv(pv),
-        key16(k) {};
+        is_pv(pv) {};
     // clang-format on
 };
 
 
 // This is used to make racy writes to the global TT.
-// TTEntry struct is the 10 bytes transposition table entry.
-struct TTEntry {
-    TTData   read() const;
-    bool     is_occupied() const;
-    void     save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8);
-    uint8_t  relative_age(const uint8_t generation8) const;
-
-   private:
-    friend class TranspositionTable;
-    uint16_t key16;
-    uint8_t  depth8;
-    uint8_t  genBound8;
-    Move     move16;
-    int16_t  value16;
-    int16_t  eval16;
-};
-
-// A TranspositionTable is an array of Cluster, of size clusterCount. Each cluster consists of ClusterSize TTEntry.
-static constexpr int ClusterSize = 3;
-
-struct Cluster {
-    TTEntry entry[ClusterSize];
-    char    padding[2];  // Pad to 32 bytes
-};
-
-static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
-
 struct TTWriter {
    public:
     void write(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8);
-    bool is_replacing() const;
 
    private:
     friend class TranspositionTable;
-    TranspositionTable* tt;
-    size_t clusterIndex;
-    int    entryIndex;
-    TTWriter(TranspositionTable* t, size_t cIdx, int eIdx);
+    TTEntry* entry;
+    TTWriter(TTEntry* tte);
 };
 
 
 class TranspositionTable {
 
    public:
+    ~TranspositionTable() { aligned_large_pages_free(table); }
+
     void resize(size_t mbSize, ThreadPool& threads);  // Set TT size
     void clear(ThreadPool& threads);                  // Re-initialize memory, multithreaded
     int  hashfull(int maxAge = 0)
@@ -129,13 +98,13 @@ class TranspositionTable {
 
    private:
     friend struct TTEntry;
-    friend struct TTWriter;
 
-    size_t clusterCount = 0;
-    mutable std::vector<Cluster, LargePageAllocator<Cluster>> table;
+    size_t   clusterCount;
+    Cluster* table = nullptr;
 
     uint8_t generation8 = 0;  // Size must be not bigger than TTEntry::genBound8
 };
 
 }  // namespace Stockfish
 
+#endif  // #ifndef TT_H_INCLUDED

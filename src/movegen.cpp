@@ -110,13 +110,13 @@ Move* make_promotions(Move* moveList, [[maybe_unused]] Square to) {
     constexpr bool all = Type == EVASIONS || Type == NON_EVASIONS;
 
     if constexpr (Type == CAPTURES || all)
-        *moveList++ = Move::make<MoveType::PROMOTION>(to - D, to, QUEEN);
+        *moveList++ = Move::make<PROMOTION>(to - D, to, QUEEN);
 
     if constexpr ((Type == CAPTURES && Enemy) || (Type == QUIETS && !Enemy) || all)
     {
-          *moveList++ = Move::make<MoveType::PROMOTION>(to - D, to, ROOK);
-          *moveList++ = Move::make<MoveType::PROMOTION>(to - D, to, BISHOP);
-          *moveList++ = Move::make<MoveType::PROMOTION>(to - D, to, KNIGHT);
+        *moveList++ = Move::make<PROMOTION>(to - D, to, ROOK);
+        *moveList++ = Move::make<PROMOTION>(to - D, to, BISHOP);
+        *moveList++ = Move::make<PROMOTION>(to - D, to, KNIGHT);
     }
 
     return moveList;
@@ -127,11 +127,11 @@ template<Color Us, GenType Type>
 Move* generate_pawn_moves(const Position& pos, Move* moveList, Bitboard target) {
 
     constexpr Color     Them     = ~Us;
-    constexpr Bitboard  TRank7BB = (Us == Color::WHITE ? Rank7BB : Rank2BB);
-    constexpr Bitboard  TRank3BB = (Us == Color::WHITE ? Rank3BB : Rank6BB);
+    constexpr Bitboard  TRank7BB = (Us == WHITE ? Rank7BB : Rank2BB);
+    constexpr Bitboard  TRank3BB = (Us == WHITE ? Rank3BB : Rank6BB);
     constexpr Direction Up       = pawn_push(Us);
-    constexpr Direction UpRight  = (Us == Color::WHITE ? NORTH_EAST : SOUTH_WEST);
-    constexpr Direction UpLeft   = (Us == Color::WHITE ? NORTH_WEST : SOUTH_EAST);
+    constexpr Direction UpRight  = (Us == WHITE ? NORTH_EAST : SOUTH_WEST);
+    constexpr Direction UpLeft   = (Us == WHITE ? NORTH_WEST : SOUTH_EAST);
 
     const Bitboard emptySquares = ~pos.pieces();
     const Bitboard enemies      = Type == EVASIONS ? pos.checkers() : pos.pieces(Them);
@@ -197,7 +197,7 @@ Move* generate_pawn_moves(const Position& pos, Move* moveList, Bitboard target) 
             assert(b1);
 
             while (b1)
-                *moveList++ = Move::make<MoveType::EN_PASSANT>(pop_lsb(b1), pos.ep_square());
+                *moveList++ = Move::make<EN_PASSANT>(pop_lsb(b1), pos.ep_square());
         }
     }
 
@@ -254,7 +254,7 @@ Move* generate_all(const Position& pos, Move* moveList) {
     if ((Type == QUIETS || Type == NON_EVASIONS) && pos.can_castle(Us & ANY_CASTLING))
         for (CastlingRights cr : {Us & KING_SIDE, Us & QUEEN_SIDE})
             if (!pos.castling_impeded(cr) && pos.can_castle(cr))
-                *moveList++ = Move::make<MoveType::CASTLING>(ksq, pos.castling_rook_square(cr));
+                *moveList++ = Move::make<CASTLING>(ksq, pos.castling_rook_square(cr));
 
     return moveList;
 }
@@ -276,8 +276,8 @@ Move* generate(const Position& pos, Move* moveList) {
 
     Color us = pos.side_to_move();
 
-    return us == Color::WHITE ? generate_all<Color::WHITE, Type>(pos, moveList)
-                              : generate_all<Color::BLACK, Type>(pos, moveList);
+    return us == WHITE ? generate_all<WHITE, Type>(pos, moveList)
+                       : generate_all<BLACK, Type>(pos, moveList);
 }
 
 // Explicit template instantiations
@@ -299,7 +299,7 @@ Move* generate<LEGAL>(const Position& pos, Move* moveList) {
     moveList =
       pos.checkers() ? generate<EVASIONS>(pos, moveList) : generate<NON_EVASIONS>(pos, moveList);
     while (cur != moveList)
-        if (((pinned & cur->from_sq()) || cur->from_sq() == ksq || cur->type_of() == MoveType::EN_PASSANT)
+        if (((pinned & cur->from_sq()) || cur->from_sq() == ksq || cur->type_of() == EN_PASSANT)
             && !pos.legal(*cur))
             *cur = *(--moveList);
         else
