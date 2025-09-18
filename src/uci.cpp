@@ -247,6 +247,14 @@ void UCIEngine::go(std::istringstream& is) {
 void UCIEngine::bench(std::istream& args) {
     std::string token;
     uint64_t    num, nodes = 0, cnt = 1;
+    uint64_t    nodesSearched = 0;
+
+    engine.set_on_update_full([&](const Engine::InfoFull& i) { nodesSearched = i.nodes; });
+
+    engine.set_on_iter([](const auto&) {});
+    engine.set_on_update_no_moves([](const auto&) {});
+    engine.set_on_bestmove([](const auto&, const auto&) {});
+    engine.set_on_verify_networks([](const auto&) {});
 
     std::vector<std::string> list = Benchmark::setup_bench(engine.fen(), args);
 
@@ -269,16 +277,15 @@ void UCIEngine::bench(std::istream& args) {
                 Search::LimitsType limits = parse_limits(is);
 
                 if (limits.perft)
-                    nodes += perft(limits);
+                    nodesSearched = perft(limits);
                 else
                 {
-                    const uint64_t startNodes = engine.nodes_searched();
-
                     engine.go(limits);
                     engine.wait_for_search_finished();
-
-                    nodes += engine.nodes_searched() - startNodes;
                 }
+
+                nodes += nodesSearched;
+                nodesSearched = 0;
             }
             else
                 engine.trace_eval();
@@ -312,6 +319,14 @@ void UCIEngine::benchmark(std::istream& args) {
 
     std::string token;
     uint64_t    nodes = 0, cnt = 1;
+    uint64_t    nodesSearched = 0;
+
+    engine.set_on_update_full([&](const Engine::InfoFull& i) { nodesSearched = i.nodes; });
+
+    engine.set_on_iter([](const auto&) {});
+    engine.set_on_update_no_moves([](const auto&) {});
+    engine.set_on_bestmove([](const auto&, const auto&) {});
+    engine.set_on_verify_networks([](const auto&) {});
 
     Benchmark::BenchmarkSetup setup = Benchmark::setup_benchmark(args);
 
@@ -341,15 +356,16 @@ void UCIEngine::benchmark(std::istream& args) {
 
             Search::LimitsType limits = parse_limits(is);
 
-            TimePoint   elapsed    = now();
-            const auto  startNodes = engine.nodes_searched();
+            TimePoint elapsed = now();
 
+            // Run with silenced network verification
             engine.go(limits);
             engine.wait_for_search_finished();
 
             totalTime += now() - elapsed;
 
-            nodes += engine.nodes_searched() - startNodes;
+            nodes += nodesSearched;
+            nodesSearched = 0;
         }
         else if (token == "position")
             position(is);
@@ -364,9 +380,24 @@ void UCIEngine::benchmark(std::istream& args) {
 
     std::cerr << "\n";
 
-    cnt       = 1;
-    nodes     = 0;
-    totalTime = 0;
+    cnt   = 1;
+    nodes = 0;
+
+    int           numHashfullReadings = 0;
+    constexpr int hashfullAges[]      = {0, 999};  // Only normal hashfull and touched hash.
+    int           totalHashfull[std::size(hashfullAges)] = {0};
+    int           maxHashfull[std::size(hashfullAges)]   = {0};
+
+    auto updateHashfullReadings = [&]() {
+        numHashfullReadings += 1;
+
+        for (int i = 0; i < static_cast<int>(std::size(hashfullAges)); ++i)
+        {
+            const int hashfull = engine.get_hashfull(hashfullAges[i]);
+            maxHashfull[i]     = std::max(maxHashfull[i], hashfull);
+            totalHashfull[i] += hashfull;
+        }
+    };
 
     engine.search_clear();  // search_clear may take a while
 
@@ -382,15 +413,18 @@ void UCIEngine::benchmark(std::istream& args) {
 
             Search::LimitsType limits = parse_limits(is);
 
-            TimePoint   elapsed    = now();
-            const auto  startNodes = engine.nodes_searched();
+            TimePoint elapsed = now();
 
+            // Run with silenced network verification
             engine.go(limits);
             engine.wait_for_search_finished();
 
             totalTime += now() - elapsed;
 
-            nodes += engine.nodes_searched() - startNodes;
+            updateHashfullReadings();
+
+            nodes += nodesSearched;
+            nodesSearched = 0;
         }
         else if (token == "position")
             position(is);
@@ -404,10 +438,39 @@ void UCIEngine::benchmark(std::istream& args) {
 
     dbg_print();
 
-    std::cerr << "\n==========================="    //
-              << "\nTotal time (ms) : " << totalTime   //
-              << "\nNodes searched  : " << nodes       //
-              << "\nNodes/second    : " << 1000 * nodes / totalTime << std::endl;
+    std::cerr << "\n";
+
+    static_assert(
+      std::size(hashfullAges) == 2 && hashfullAges[0] == 0 && hashfullAges[1] == 999,
+      "Hardcoded for display. Would complicate the code needlessly in the current state.");
+
+    std::string threadBinding = engine.thread_binding_information_as_string();
+    if (threadBinding.empty())
+        threadBinding = "none";
+
+    // clang-format off
+
+    std::cerr << "==========================="
+              << "\nVersion                    :   " << engine_version_info()
+              << compiler_info()
+              << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
+              << "\nUser invocation            : " << BenchmarkCommand << " "
+              << setup.originalInvocation << "\nFilled invocation          : " << BenchmarkCommand
+              << " " << setup.filledInvocation
+              << "\nAvailable processors       : " << engine.get_numa_config_as_string()
+              << "\nThread count               : " << setup.threads
+              << "\nThread binding             : " << threadBinding
+              << "\nTT size [MiB]              : " << setup.ttSize
+              << "\nHash max, avg [per mille]  : "
+              << "\n    single search          : " << maxHashfull[0] << ", "
+              << totalHashfull[0] / numHashfullReadings
+              << "\n    single game            : " << maxHashfull[1] << ", "
+              << totalHashfull[1] / numHashfullReadings
+              << "\nTotal nodes searched       : " << nodes
+              << "\nTotal search time [s]      : " << totalTime / 1000.0
+              << "\nNodes/second               : " << 1000 * nodes / totalTime << std::endl;
+
+    // clang-format on
 
     init_search_update_listeners();
 }

@@ -46,8 +46,8 @@
 //     const unsigned int         gEmbeddedNNUESize;    // the size of the embedded file
 // Note that this does not work in Microsoft Visual Studio.
 #if !defined(_MSC_VER) && !defined(NNUE_EMBEDDING_OFF)
-INCBIN(EmbeddedNNUEBig, "nn-1c0000000000.nnue");
-INCBIN(EmbeddedNNUESmall, "nn-37f18f62d772.nnue");
+INCBIN(EmbeddedNNUEBig, "nn-ae6a388e4a1a.nnue");
+INCBIN(EmbeddedNNUESmall, "nn-baff1ede1f90.nnue");
 #else
 const unsigned char        gEmbeddedNNUEBigData[1]   = {0x0};
 const unsigned char* const gEmbeddedNNUEBigEnd       = &gEmbeddedNNUEBigData[1];
@@ -58,9 +58,9 @@ const unsigned int         gEmbeddedNNUESmallSize    = 1;
 #endif
 
 static_assert(Stockfish::Eval::EvalFileDefaultNameBig
-              == std::string_view{"nn-1c0000000000.nnue"});
+              == std::string_view{"nn-ae6a388e4a1a.nnue"});
 static_assert(Stockfish::Eval::EvalFileDefaultNameSmall
-              == std::string_view{"nn-37f18f62d772.nnue"});
+              == std::string_view{"nn-baff1ede1f90.nnue"});
 
 namespace {
 

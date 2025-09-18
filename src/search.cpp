@@ -845,9 +845,6 @@ void Search::Worker::clear() {
     minorPieceCorrectionHistory.fill(0);
     nonPawnCorrectionHistory.fill(0);
 
-    for (Value& o : optimism)
-        o = VALUE_ZERO;
-
     ttMoveHistory = 0;
 
     for (auto& to : continuationCorrectionHistory)

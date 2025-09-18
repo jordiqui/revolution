@@ -10,7 +10,7 @@ def run_bench(engine, name, value):
     proc = subprocess.Popen(
         [engine], cwd=engine_dir, stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True
     )
-    cmd = f"uci\nsetoption name EvalFile value {engine_dir}/nn-1c0000000000.nnue\n"
+    cmd = f"uci\nsetoption name EvalFile value {engine_dir}/nn-ae6a388e4a1a.nnue\n"
     cmd += f"setoption name {name} value {int(value)}\nbench\nquit\n"
     out, _ = proc.communicate(cmd)
     for line in out.splitlines():

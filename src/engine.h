@@ -96,7 +96,6 @@ class Engine {
     OptionsMap&       get_options();
 
     int get_hashfull(int maxAge = 0) const;
-    uint64_t               nodes_searched() const;
 
     std::string                            fen() const;
     void                                   flip();
