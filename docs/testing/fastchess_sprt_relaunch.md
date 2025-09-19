@@ -6,8 +6,10 @@ workflow recommended after the regression seen in the 2.60 vs 2.40 match.
 ## 1. Pre-SPRT gating match (sanity check)
 
 Run a 200-game gauntlet before investing time in a full SPRT. The batch script
-prompts for this step automatically; accept it unless you have already vetted
-the new network on the same positions.
+prompts for this step automatically and now inspects the resulting log: if the
+score dips below the configurable threshold (`GATING_MIN_SCORE`, default 47 %),
+it halts the SPRT unless you explicitly override the warning. Accept the gating
+match unless you have already vetted the new network on the same positions.
 
 Recommended expectations:
 
@@ -16,7 +18,9 @@ Recommended expectations:
   Stonewall/Leningrado structures reported earlier.
 
 If the gating match fails, stop and revisit the network or search parameters
-before proceeding.
+before proceeding. Lowering the threshold in the BAT file is possible but
+should be reserved for exceptional cases where you have other evidence that the
+candidate is stable.
 
 ## 2. Full SPRT configuration
 

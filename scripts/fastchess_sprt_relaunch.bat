@@ -34,6 +34,8 @@ set "BOOKPLIES=16"
 
 rem Pre-SPRT gating match (short sanity check)
 set "GATING_GAMES=200"
+rem Minimum score percentage required to proceed automatically with the SPRT
+set "GATING_MIN_SCORE=47"
 
 rem SPRT parameters
 set "ROUNDS=1000"
@@ -96,11 +98,36 @@ echo Running gating match (%GATING_GAMES% games) ...
  -report penta=true ^
  -ratinginterval 10 -scoreinterval 5 -autosaveinterval 50 ^
  -pgnout "%GATING_PGN%" ^
- -log file="%GATING_LOG%" level=info
+-log file="%GATING_LOG%" level=info
 if errorlevel 1 goto :fail
 
 echo [DONE] Gating log: "%GATING_LOG%"
 echo [DONE] Gating PGN: "%GATING_PGN%"
+
+rem Parse gating score from the log to enforce minimum expectations
+set "GATING_POINTS="
+set "GATING_PERCENT="
+for /f "usebackq tokens=1,2 delims=|" %%A in (`powershell -NoProfile -Command "$line = Select-String -Path '%GATING_LOG%' -Pattern 'Points:' | Select-Object -Last 1; if ($line -and $line.Line -match 'Points:\s*([0-9.,]+)\s*\(([0-9.,]+)\s*%') { $points = $matches[1].Replace(',', '.'); $pct = $matches[2].Replace(',', '.'); Write-Output \"$points|$pct\" }"`) do (
+    set "GATING_POINTS=%%A"
+    set "GATING_PERCENT=%%B"
+)
+
+if defined GATING_PERCENT (
+    echo [INFO] Resultado gating: !GATING_POINTS! puntos (!GATING_PERCENT! %%)
+    powershell -NoProfile -Command "if ([double]'!GATING_PERCENT!' -ge [double]'%GATING_MIN_SCORE%') { exit 0 } else { exit 1 }"
+    if errorlevel 1 (
+        echo [WARN] La puntuacion del match corto (!GATING_PERCENT! %%) esta por debajo del umbral recomendado (%GATING_MIN_SCORE%%%).
+        choice /m "Continuar con el SPRT a pesar de este resultado?" /c YN /d N /t 10
+        if errorlevel 2 (
+            echo [INFO] SPRT cancelado por puntuacion insuficiente en el gating.
+            goto :eof
+        )
+    ) else (
+        echo [OK] Resultado de gating igual o superior al umbral minimo (%GATING_MIN_SCORE%%%).
+    )
+) else (
+    echo [WARN] No se pudo determinar la puntuacion del gating a partir del log. Revise "%GATING_LOG%" manualmente.
+)
 
 :sprt
 echo Running SPRT (%ROUNDS% rounds, elo0=%ELO0%, elo1=%ELO1%) ...
