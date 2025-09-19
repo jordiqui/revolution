@@ -8,10 +8,11 @@ rem =============================================
 
 rem -------- User configurable paths --------
 set "FASTCHESS=C:\fastchess\fastchess.exe"
-set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution_2.60_candidate.exe"
+set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution_2.60_190925.exe"
 set "ENGINE_BASE=C:\fastchess\revolution-base\revolution-dev_v2.40_130925.exe"
 set "DIR_NEW=C:\fastchess\revolution-ad"
 set "DIR_BASE=C:\fastchess\revolution-base"
+rem Leave NNUE paths blank to rely on each engine's compiled-in default.
 set "NNUE_NEW=C:\fastchess\revolution-ad\networks\candidate.nnue"
 set "NNUE_BASE=C:\fastchess\revolution-base\networks\baseline.nnue"
 set "BOOK=C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn"
@@ -20,7 +21,7 @@ rem -------- Engine options (edit as needed) --------
 set "THREADS=1"
 set "HASH=32"
 set "PONDER=off"
-set "SYZYGY_PATH="
+set "SYZYGY_PATH=C:\Syzygy"
 
 rem -------- Test controls --------
 set "TC=10+0.1"
@@ -55,7 +56,15 @@ set "SPRT_PGN=%OUTDIR%\sprt_%TS%.pgn"
 
 rem Prepare optional Syzygy option
 set "SYZYGY_OPT="
-if not "%SYZYGY_PATH%"=="" set "SYZYGY_OPT= option.SyzygyPath=\"%SYZYGY_PATH%\""
+if not "%SYZYGY_PATH%"=="" for %%F in ("%SYZYGY_PATH%") do set "SYZYGY_OPT= option.SyzygyPath=^"%%~fF^""
+
+set "ENGINE_NEW_CORE=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
+set "ENGINE_BASE_CORE=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
+
+set "ENGINE_NEW_EVAL="
+if not "%NNUE_NEW%"=="" for %%F in ("%NNUE_NEW%") do set "ENGINE_NEW_EVAL= option.EvalFile=^"%%~fF^""
+set "ENGINE_BASE_EVAL="
+if not "%NNUE_BASE%"=="" for %%F in ("%NNUE_BASE%") do set "ENGINE_BASE_EVAL= option.EvalFile=^"%%~fF^""
 
 rem -------- Validations --------
 if not exist "%FASTCHESS%" (echo [ERR] FASTCHESS no existe: "%FASTCHESS%" & goto :fail)
@@ -76,12 +85,10 @@ if errorlevel 2 goto :sprt
 set "GATING_DONE=1"
 echo Running gating match (%GATING_GAMES% games) ...
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_NEW%" name="revolution_candidate" dir="%DIR_NEW%" ^
-    option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER% ^
-    option.EvalFile="%NNUE_NEW%" ^
+ -engine cmd="%ENGINE_NEW%" name="revolution_2.60_190925" dir="%DIR_NEW%" ^
+    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL% ^
  -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
-    option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER% ^
-    option.EvalFile="%NNUE_BASE%" ^
+    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL% ^
  -each tc=%TC%%SYZYGY_OPT% ^
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
@@ -98,12 +105,10 @@ echo [DONE] Gating PGN: "%GATING_PGN%"
 :sprt
 echo Running SPRT (%ROUNDS% rounds, elo0=%ELO0%, elo1=%ELO1%) ...
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_NEW%" name="revolution_candidate" dir="%DIR_NEW%" ^
-    option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER% ^
-    option.EvalFile="%NNUE_NEW%" ^
+ -engine cmd="%ENGINE_NEW%" name="revolution_2.60_190925" dir="%DIR_NEW%" ^
+    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL% ^
  -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
-    option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER% ^
-    option.EvalFile="%NNUE_BASE%" ^
+    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL% ^
  -each tc=%TC%%SYZYGY_OPT% ^
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
