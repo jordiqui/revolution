@@ -12,13 +12,16 @@ set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution_2.60_190925.exe"
 set "ENGINE_BASE=C:\fastchess\revolution-base\revolution-dev_v2.40_130925.exe"
 set "DIR_NEW=C:\fastchess\revolution-ad"
 set "DIR_BASE=C:\fastchess\revolution-base"
-rem Las redes NNUE integradas en cada binario se usan por defecto; no es necesaria configuracion adicional.
+rem Deje las rutas NNUE vacias para usar la red integrada de cada motor.
+set "NNUE_NEW="
+set "NNUE_BASE="
 set "BOOK=C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn"
 
 rem -------- Engine options (edit as needed) --------
 set "THREADS=1"
 set "HASH=32"
-set "PONDER=false"
+rem Asigne true/false segun lo admita el motor; deje en blanco para omitir la opcion.
+set "PONDER="
 set "SYZYGY_PATH=C:\Syzygy"
 
 rem -------- Test controls --------
@@ -64,6 +67,33 @@ if not "%SYZYGY_PATH%"=="" (
     )
 )
 
+rem Detectar red NNUE junto al binario nuevo si no se especifica otra.
+if "%NNUE_NEW%"=="" (
+    for %%F in ("%DIR_NEW%\nn-c01dc0ffeede.nnue") do if exist "%%~fF" set "NNUE_NEW=%%~fF"
+)
+
+set "ENGINE_NEW_EVAL="
+if not "%NNUE_NEW%"=="" (
+    for %%F in ("%NNUE_NEW%") do (
+        if exist "%%~fF" (
+            set "ENGINE_NEW_EVAL= option.EvalFile=^"%%~fF^""
+        ) else (
+            echo [WARN] NNUE_NEW no existe: "%%~fF" - se omite EvalFile
+        )
+    )
+)
+
+set "ENGINE_BASE_EVAL="
+if not "%NNUE_BASE%"=="" (
+    for %%F in ("%NNUE_BASE%") do (
+        if exist "%%~fF" (
+            set "ENGINE_BASE_EVAL= option.EvalFile=^"%%~fF^""
+        ) else (
+            echo [WARN] NNUE_BASE no existe: "%%~fF" - se omite EvalFile
+        )
+    )
+)
+
 set "ENGINE_CORE_OPTS=option.Threads=%THREADS% option.Hash=%HASH%"
 set "ENGINE_NEW_OPTS=%ENGINE_CORE_OPTS%"
 set "ENGINE_BASE_OPTS=%ENGINE_CORE_OPTS%"
@@ -71,6 +101,8 @@ if not "%PONDER%"=="" (
     set "ENGINE_NEW_OPTS=!ENGINE_NEW_OPTS! option.Ponder=%PONDER%"
     set "ENGINE_BASE_OPTS=!ENGINE_BASE_OPTS! option.Ponder=%PONDER%"
 )
+set "ENGINE_NEW_OPTS=!ENGINE_NEW_OPTS!!ENGINE_NEW_EVAL!"
+set "ENGINE_BASE_OPTS=!ENGINE_BASE_OPTS!!ENGINE_BASE_EVAL!"
 
 rem -------- Validations --------
 if not exist "%FASTCHESS%" (echo [ERR] FASTCHESS no existe: "%FASTCHESS%" & goto :fail)
