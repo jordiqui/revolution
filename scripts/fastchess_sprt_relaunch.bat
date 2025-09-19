@@ -12,15 +12,16 @@ set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution_2.60_190925.exe"
 set "ENGINE_BASE=C:\fastchess\revolution-base\revolution-dev_v2.40_130925.exe"
 set "DIR_NEW=C:\fastchess\revolution-ad"
 set "DIR_BASE=C:\fastchess\revolution-base"
-rem Ajusta estas rutas NNUE si utilizas redes externas.
-set "NNUE_NEW=C:\fastchess\revolution-ad\networks\candidate.nnue"
-set "NNUE_BASE=C:\fastchess\revolution-base\networks\baseline.nnue"
+rem Deja las rutas NNUE en blanco para usar la red integrada de cada motor.
+set "NNUE_NEW="
+set "NNUE_BASE="
 set "BOOK=C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn"
 
 rem -------- Engine options (edit as needed) --------
 set "THREADS=1"
 set "HASH=32"
-set "PONDER=off"
+rem Revolution espera valores booleanos true/false para Ponder.
+set "PONDER=false"
 set "SYZYGY_PATH=C:\Syzygy"
 
 rem -------- Test controls --------
@@ -56,15 +57,44 @@ set "SPRT_PGN=%OUTDIR%\sprt_%TS%.pgn"
 
 rem Prepare optional Syzygy option
 set "SYZYGY_OPT="
-if not "%SYZYGY_PATH%"=="" for %%F in ("%SYZYGY_PATH%") do set "SYZYGY_OPT= option.SyzygyPath=^"%%~fF^""
+if not "%SYZYGY_PATH%"=="" for %%F in ("%SYZYGY_PATH%") do (
+    if exist "%%~fF" (
+        set "SYZYGY_OPT= option.SyzygyPath=^"%%~fF^""
+    ) else (
+        echo [WARN] SYZYGY_PATH no existe: "%%~fF" - se omite SyzygyPath
+    )
+)
 
-set "ENGINE_NEW_CORE=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
-set "ENGINE_BASE_CORE=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
+set "ENGINE_NEW_OPTS=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
+set "ENGINE_BASE_OPTS=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
 
-set "ENGINE_NEW_EVAL="
-if not "%NNUE_NEW%"=="" for %%F in ("%NNUE_NEW%") do set "ENGINE_NEW_EVAL= option.EvalFile=^"%%~fF^""
-set "ENGINE_BASE_EVAL="
-if not "%NNUE_BASE%"=="" for %%F in ("%NNUE_BASE%") do set "ENGINE_BASE_EVAL= option.EvalFile=^"%%~fF^""
+rem Resolver redes NNUE opcionales
+set "NNUE_NEW_PATH="
+if not "%NNUE_NEW%"=="" (
+    for %%F in ("%NNUE_NEW%") do (
+        if exist "%%~fF" (
+            set "NNUE_NEW_PATH=%%~fF"
+        ) else (
+            echo [WARN] NNUE_NEW no existe: "%%~fF" - se omite EvalFile
+        )
+    )
+) else (
+    for %%F in ("%DIR_NEW%\nn-c01dc0ffeede.nnue") do if exist "%%~fF" (
+        set "NNUE_NEW_PATH=%%~fF"
+        echo [INFO] NNUE_NEW detectado: "%%~fF"
+    )
+)
+if defined NNUE_NEW_PATH set "ENGINE_NEW_OPTS=!ENGINE_NEW_OPTS! option.EvalFile=^"!NNUE_NEW_PATH!^""
+
+set "NNUE_BASE_PATH="
+if not "%NNUE_BASE%"=="" for %%F in ("%NNUE_BASE%") do (
+    if exist "%%~fF" (
+        set "NNUE_BASE_PATH=%%~fF"
+    ) else (
+        echo [WARN] NNUE_BASE no existe: "%%~fF" - se omite EvalFile
+    )
+)
+if defined NNUE_BASE_PATH set "ENGINE_BASE_OPTS=!ENGINE_BASE_OPTS! option.EvalFile=^"!NNUE_BASE_PATH!^""
 
 rem -------- Validations --------
 if not exist "%FASTCHESS%" (echo [ERR] FASTCHESS no existe: "%FASTCHESS%" & goto :fail)
@@ -83,10 +113,8 @@ if errorlevel 2 goto :sprt
 set "GATING_DONE=1"
 echo Running gating match (%GATING_GAMES% games) ...
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_NEW%" name="revolution_2.60_190925" dir="%DIR_NEW%" ^
-    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL% ^
- -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
-    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL% ^
+ -engine cmd="%ENGINE_NEW%" name="revolution_2.60_190925" dir="%DIR_NEW%" %ENGINE_NEW_OPTS% ^
+ -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" %ENGINE_BASE_OPTS% ^
  -each tc=%TC%%SYZYGY_OPT% ^
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
@@ -103,10 +131,8 @@ echo [DONE] Gating PGN: "%GATING_PGN%"
 :sprt
 echo Running SPRT (%ROUNDS% rounds, elo0=%ELO0%, elo1=%ELO1%) ...
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_NEW%" name="revolution_2.60_190925" dir="%DIR_NEW%" ^
-    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL% ^
- -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
-    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL% ^
+ -engine cmd="%ENGINE_NEW%" name="revolution_2.60_190925" dir="%DIR_NEW%" %ENGINE_NEW_OPTS% ^
+ -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" %ENGINE_BASE_OPTS% ^
  -each tc=%TC%%SYZYGY_OPT% ^
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
