@@ -291,11 +291,39 @@ void Search::Worker::start_searching() {
         && !skill.enabled() && rootMoves[0].pv[0] != Move::none())
         bestThread = threads.get_best_thread()->worker.get();
 
-    if (!usedBook && bestThread->completedDepth > 0
-        && bestThread->rootMoves[0].score != -VALUE_INFINITE)
+    auto thread_for_updates = [&](Worker* preferred) -> Worker* {
+        if (usedBook || !preferred)
+            return nullptr;
+
+        auto has_valid_score = [](const Worker* worker) {
+            return worker && !worker->rootMoves.empty()
+                   && worker->rootMoves[0].score != -VALUE_INFINITE;
+        };
+
+        if (!has_valid_score(preferred))
+            return nullptr;
+
+        if (preferred->completedDepth > 0)
+            return preferred;
+
+        for (auto&& th : threads)
+        {
+            Worker* candidate = th->worker.get();
+
+            if (!has_valid_score(candidate))
+                continue;
+
+            if (candidate->completedDepth > 0)
+                return candidate;
+        }
+
+        return preferred;
+    };
+
+    if (Worker* updateThread = thread_for_updates(bestThread))
     {
-        main_manager()->bestPreviousScore        = bestThread->rootMoves[0].score;
-        main_manager()->bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
+        main_manager()->bestPreviousScore        = updateThread->rootMoves[0].score;
+        main_manager()->bestPreviousAverageScore = updateThread->rootMoves[0].averageScore;
     }
 
     // Send again PV info if we have a new best thread
@@ -312,11 +340,13 @@ void Search::Worker::start_searching() {
     main_manager()->updates.onBestmove(bestmove, ponder);
 
     if (!usedBook && (bool) options["Experience Enabled"]
-        && !(bool) options["Experience Readonly"]
-        && bestThread->completedDepth > 0
-        && bestThread->rootMoves[0].score != -VALUE_INFINITE)
-        experience.update(rootPos, bestThread->rootMoves[0].pv[0], bestThread->rootMoves[0].score,
-                          bestThread->completedDepth);
+        && !(bool) options["Experience Readonly"])
+    {
+        if (Worker* experienceThread = thread_for_updates(bestThread))
+            experience.update(rootPos, experienceThread->rootMoves[0].pv[0],
+                              experienceThread->rootMoves[0].score,
+                              experienceThread->completedDepth);
+    }
 }
 
 // Main iterative deepening loop. It calls search()
