@@ -194,6 +194,7 @@ void Search::Worker::start_searching() {
 
     Move preferredMove = Move::none();
     Move bookMove      = Move::none();
+    bool usedBook      = false;
 
     if (rootMoves.empty())
     {
@@ -248,6 +249,7 @@ void Search::Worker::start_searching() {
                 std::swap(th->worker.get()->rootMoves[0],
                           *std::find(th->worker.get()->rootMoves.begin(),
                                      th->worker.get()->rootMoves.end(), bookMove));
+            usedBook = true;
         }
         else
         {
@@ -285,12 +287,16 @@ void Search::Worker::start_searching() {
     Skill   skill =
       Skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
-    if (int(options["MultiPV"]) == 1 && !limits.depth && !limits.mate && !skill.enabled()
-        && rootMoves[0].pv[0] != Move::none())
+    if (!usedBook && int(options["MultiPV"]) == 1 && !limits.depth && !limits.mate
+        && !skill.enabled() && rootMoves[0].pv[0] != Move::none())
         bestThread = threads.get_best_thread()->worker.get();
 
-    main_manager()->bestPreviousScore        = bestThread->rootMoves[0].score;
-    main_manager()->bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
+    if (!usedBook && bestThread->completedDepth > 0
+        && bestThread->rootMoves[0].score != -VALUE_INFINITE)
+    {
+        main_manager()->bestPreviousScore        = bestThread->rootMoves[0].score;
+        main_manager()->bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
+    }
 
     // Send again PV info if we have a new best thread
     if (bestThread != this)
@@ -305,7 +311,10 @@ void Search::Worker::start_searching() {
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
     main_manager()->updates.onBestmove(bestmove, ponder);
 
-    if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+    if (!usedBook && (bool) options["Experience Enabled"]
+        && !(bool) options["Experience Readonly"]
+        && bestThread->completedDepth > 0
+        && bestThread->rootMoves[0].score != -VALUE_INFINITE)
         experience.update(rootPos, bestThread->rootMoves[0].pv[0], bestThread->rootMoves[0].score,
                           bestThread->completedDepth);
 }
