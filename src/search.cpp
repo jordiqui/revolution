@@ -98,6 +98,9 @@ void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
                                const int       bonus) {
+    if (bonus == 0)
+        return;
+
     const Move  m  = (ss - 1)->currentMove;
     const Color us = pos.side_to_move();
 
@@ -149,13 +152,29 @@ Search::Worker::Worker(SharedState&                    sharedState,
     tt(sharedState.tt),
     networks(sharedState.networks),
     refreshTable(networks[token]) {
+    const auto& netsForToken = networks[token];
+    bigWeightsHandle         = netsForToken.big.weights_handle();
+    smallWeightsHandle       = netsForToken.small.weights_handle();
+    falconWeightsHandle      = netsForToken.falcon.weights_handle();
     clear();
 }
 
 void Search::Worker::ensure_network_replicated() {
-    // Access once to force lazy initialization.
-    // We do this because we want to avoid initialization during search.
-    (void) (networks[numaAccessToken]);
+    const auto& nets = networks[numaAccessToken];
+
+    auto newBig    = nets.big.weights_handle();
+    auto newSmall  = nets.small.weights_handle();
+    auto newFalcon = nets.falcon.weights_handle();
+
+    if (newBig == bigWeightsHandle && newSmall == smallWeightsHandle
+        && newFalcon == falconWeightsHandle)
+        return;
+
+    bigWeightsHandle    = std::move(newBig);
+    smallWeightsHandle  = std::move(newSmall);
+    falconWeightsHandle = std::move(newFalcon);
+
+    refreshTable.clear(nets);
 }
 
 void Search::Worker::start_searching() {
@@ -232,6 +251,10 @@ void Search::Worker::start_searching() {
         }
         else
         {
+            if ((bool) options["MCTS by Shashin"]) {
+                // Placeholder: Monte Carlo Tree Search integration point.
+                // Current build continues with standard alpha-beta search.
+            }
             threads.start_searching();  // start non-main threads
             iterative_deepening();      // main thread start searching
         }
@@ -304,7 +327,8 @@ void Search::Worker::iterative_deepening() {
     Value  bestValue     = -VALUE_INFINITE;
     Color  us            = rootPos.side_to_move();
     double timeReduction = 1, totBestMoveChanges = 0;
-    int    delta, iterIdx                        = 0;
+    int      delta, iterIdx                        = 0;
+    uint64_t previousBestMoveChanges               = 0;
 
     // Allocate stack with extra size to allow access from (ss - 7) to (ss + 2):
     // (ss - 7) is needed for update_continuation_histories(ss - 1) which accesses (ss - 6),
@@ -432,7 +456,9 @@ void Search::Worker::iterative_deepening() {
                 // otherwise exit the loop.
                 if (bestValue <= alpha)
                 {
-                    beta  = (3 * alpha + beta) / 4;
+                    beta =
+                      (alpha * 104 + beta * 4 + std::min(bestValue + delta, VALUE_INFINITE) * 9)
+                      / 117;
                     alpha = std::max(bestValue - delta, -VALUE_INFINITE);
 
                     failedHighCnt = 0;
@@ -441,6 +467,15 @@ void Search::Worker::iterative_deepening() {
                 }
                 else if (bestValue >= beta)
                 {
+                    if (bestMoveChanges > previousBestMoveChanges)
+                        alpha = (alpha * 126 + beta * 3
+                                 + std::max(bestValue - delta, -VALUE_INFINITE) * 2)
+                              / 131;
+                    else
+                        alpha = (alpha * 109 + beta * 4
+                                 + std::max(bestValue - delta, -VALUE_INFINITE) * 21)
+                              / 134;
+
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
                 }
@@ -507,6 +542,7 @@ void Search::Worker::iterative_deepening() {
             skill.pick_best(rootMoves, multiPV);
 
         // Use part of the gained time from a previous stable move for the current move
+        previousBestMoveChanges = bestMoveChanges;
         for (auto&& th : threads)
         {
             totBestMoveChanges += th->worker->bestMoveChanges;
@@ -1071,6 +1107,8 @@ moves_loop:  // When in check, search starts here
         movedPiece = pos.moved_piece(move);
         givesCheck = pos.gives_check(move);
 
+        const bool negativeSee = capture && !pos.see_ge(move, VALUE_ZERO);
+
         (ss + 1)->quietMoveStreak = (!capture && !givesCheck) ? (ss->quietMoveStreak + 1) : 0;
 
         // Calculate new depth for this move
@@ -1243,6 +1281,8 @@ moves_loop:  // When in check, search starts here
         // These reduction adjustments have no proven non-linear scaling
 
         r += 650;  // Base reduction offset to compensate for other tweaks
+        if (negativeSee)
+            r = std::max<int>(0, r - 1024);
         r -= moveCount * 69;
         r -= std::abs(correctionValue) / 27160;
 
@@ -1281,6 +1321,9 @@ moves_loop:  // When in check, search starts here
             // Apply a simple reduction limited between one ply and the remaining depth
             Depth d = std::max(1, newDepth - r / 1024);
 
+            if (negativeSee)
+                d = std::max(d, newDepth - 1);
+
             ss->reduction = newDepth - d;
             value         = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, d, true);
             ss->reduction = 0;
@@ -1301,9 +1344,12 @@ moves_loop:  // When in check, search starts here
             const int threshold2 = depth <= 4 ? 3500 : 4600;
 
             // Note that if expected reduction is high, we reduce search depth here
+            int depthReduction = (r > threshold1) + (r > threshold2 && newDepth > 2);
+            if (negativeSee)
+                depthReduction = std::min(depthReduction, 1);
+
             value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha,
-                                   newDepth - (r > threshold1) - (r > threshold2 && newDepth > 2),
-                                   !cutNode);
+                                   newDepth - depthReduction, !cutNode);
         }
 
         // For PV nodes only, do a full PV search on the first move or after a fail high,

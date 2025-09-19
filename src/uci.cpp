@@ -43,10 +43,10 @@
 #include "ucioption.h"
 
 #ifndef ENGINE_NAME
-    #define ENGINE_NAME "revolution v.2.45 180925"
+    #define ENGINE_NAME "Wordfish 2.42-190825"
 #endif
 #ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE __DATE__
+    #define ENGINE_BUILD_DATE ""
 #endif
 
 namespace Stockfish {
@@ -124,13 +124,10 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
+            // Force a stable, explicit UCI name so GUIs show "Wordfish 1.0"
             sync_cout_start();
-            std::cout << "id name " << ENGINE_NAME;
-            if (*ENGINE_BUILD_DATE)
-                std::cout << ' ' << ENGINE_BUILD_DATE;
             std::cout
-              << "\n"
+              << "id name " << ENGINE_NAME << "\n"
               << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
               << "\n"
               << engine.get_options() << std::endl;
@@ -171,9 +168,8 @@ void UCIEngine::loop() {
         else if (token == "eval")
             engine.trace_eval();
         else if (token == "showexp")
-            experience.show(engine.position(),
-                             (int) engine.get_options()["Experience Eval Weight"],
-                             (int) engine.get_options()["Experience Book Max Moves"]);
+            experience.show(engine.position(), (int) engine.get_options()["Experience Eval Weight"],
+                            (int) engine.get_options()["Experience Book Max Moves"]);
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
@@ -246,6 +242,13 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
 void UCIEngine::go(std::istringstream& is) {
 
     Search::LimitsType limits = parse_limits(is);
+
+    // Ensure the experience file has finished loading before starting a search.
+    // Some GUIs like Fritz or CuteChess may issue a "go" command immediately
+    // after "uci", while the experience file is still being loaded in a
+    // background thread. Waiting here avoids potential races that could
+    // terminate the engine unexpectedly.
+    experience.wait_until_loaded();
 
     if (limits.perft)
         perft(limits);
@@ -460,7 +463,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   << ENGINE_NAME << " << __DATE__ << " " << __TIME__
+              << "\nVersion                    :   << ENGINE_NAME"
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "

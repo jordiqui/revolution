@@ -63,7 +63,8 @@ Engine::Engine(std::optional<std::string> path) :
       numaContext,
       NN::Networks(
         NN::NetworkBig({EvalFileDefaultNameBig, "None", ""}, NN::EmbeddedNNUEType::BIG),
-        NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL))) {
+        NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL),
+        NN::NetworkFalcon({FalconFileDefaultName, "None", ""}, NN::EmbeddedNNUEType::FALCON))) {
     pos.set(StartFEN, false, &states->back());
 
 
@@ -195,6 +196,14 @@ Engine::Engine(std::optional<std::string> path) :
                     return std::nullopt;
                 }));
 
+    // MonteCarlo Tree Search section (experimental: thanks to original Stephan
+    // Nicolet work)
+    options.add("MCTS by Shashin", Option(false));
+    options.add("MCTSThreads", Option(0, 0, 512));
+    options.add("MCTS Multi Strategy", Option(20, 0, 100));
+    options.add("MCTS Multi MinVisits", Option(5, 0, 1000));
+    options.add("MCTS Explore", Option(false));
+
     // Optional experimental evaluation tweak that adapts weights based on
     // simple positional cues. Disabled by default so it does not alter
     // standard play unless explicitly requested by the user.
@@ -216,8 +225,8 @@ Engine::Engine(std::optional<std::string> path) :
       }));
 
     options.add(  //
-      "FalconFile", Option("3.net", [this](const Option& o) {
-          load_big_network(o);
+      "FalconFile", Option(FalconFileDefaultName, [this](const Option& o) {
+          load_falcon_network(o);
           return std::nullopt;
       }));
 
@@ -364,12 +373,14 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 void Engine::verify_networks() const {
     networks->big.verify(options["EvalFile"], onVerifyNetworks);
     networks->small.verify(options["EvalFileSmall"], onVerifyNetworks);
+    networks->falcon.verify(options["FalconFile"], onVerifyNetworks);
 }
 
 void Engine::load_networks() {
     networks.modify_and_replicate([this](NN::Networks& networks_) {
         networks_.big.load(binaryDirectory, options["EvalFile"]);
         networks_.small.load(binaryDirectory, options["EvalFileSmall"]);
+        networks_.falcon.load(binaryDirectory, options["FalconFile"]);
     });
     threads.clear();
     threads.ensure_network_replicated();
@@ -385,6 +396,15 @@ void Engine::load_big_network(const std::string& file) {
 void Engine::load_small_network(const std::string& file) {
     networks.modify_and_replicate(
       [this, &file](NN::Networks& networks_) { networks_.small.load(binaryDirectory, file); });
+    threads.clear();
+    threads.ensure_network_replicated();
+}
+
+void Engine::load_falcon_network(const std::string& file) {
+    networks.modify_and_replicate(
+      [this, &file](NN::Networks& networks_) {
+          networks_.falcon.load(binaryDirectory, file);
+      });
     threads.clear();
     threads.ensure_network_replicated();
 }

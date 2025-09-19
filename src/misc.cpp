@@ -37,7 +37,7 @@
 
 #include "types.h"
 #ifndef ENGINE_NAME
-    #define ENGINE_NAME "revolution v.2.45 180925"
+    #define ENGINE_NAME "Wordfish 2.42-190825"
 #endif
 #ifndef ENGINE_BUILD_DATE
     #define ENGINE_BUILD_DATE ""
@@ -118,7 +118,7 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Revolution version.
+// Returns the full name of the current Wordfish version.
 std::string engine_version_info() { return std::string(ENGINE_NAME); }
 
 // Update author information
@@ -416,9 +416,14 @@ void prefetch(const void* addr) {
 
 #ifdef _WIN32
     #include <direct.h>
+    #include <windows.h>
     #define GETCWD _getcwd
 #else
     #include <unistd.h>
+    #include <limits.h>
+#    if defined(__APPLE__)
+        #include <mach-o/dyld.h>
+#    endif
     #define GETCWD getcwd
 #endif
 
@@ -456,8 +461,32 @@ std::string CommandLine::get_binary_directory(std::string argv0) {
     if (!_get_pgmptr(&pgmptr) && pgmptr != nullptr && *pgmptr)
         argv0 = pgmptr;
     #endif
+    if (argv0.find('\\') == std::string::npos && argv0.find('/') == std::string::npos)
+    {
+        char buffer[MAX_PATH];
+        if (GetModuleFileName(nullptr, buffer, MAX_PATH))
+            argv0 = buffer;
+    }
 #else
     pathSeparator = "/";
+    if (argv0.find('/') == std::string::npos)
+    {
+#if defined(__APPLE__)
+        uint32_t size = 0;
+        _NSGetExecutablePath(nullptr, &size);
+        std::string path(size, '\0');
+        if (_NSGetExecutablePath(path.data(), &size) == 0)
+            argv0 = path.c_str();
+#else
+        std::array<char, 4096> buffer{};
+        ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
+        if (len > 0)
+        {
+            buffer[len] = '\0';
+            argv0 = buffer.data();
+        }
+#endif
+    }
 #endif
 
     // Extract the working directory
