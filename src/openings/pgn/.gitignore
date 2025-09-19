@@ -1,0 +1,4 @@
+# Ignore downloaded opening suites
+*.epd
+*.pgn
+*.zip
