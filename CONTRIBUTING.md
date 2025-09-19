@@ -49,6 +49,16 @@ further discussion._
 - Provide a clear and concise description of the changes in the pull request
   description.
 
+- Keep diffs manageable so reviewers and tooling can load them:
+  - Split large efforts into multiple focused commits or pull requests.
+  - Avoid committing generated artifacts and instead add them to `.gitignore`.
+  - Prefer Git LFS or an external artifact store for large binaries that must be
+    versioned.
+  - Group sweeping refactors or reformatting changes into dedicated commits with
+    clear messaging.
+  - Double-check the working tree before pushing (for example with
+    `git status -sb`) to ensure only the intended files are included.
+
 _First time contributors should add their name to [AUTHORS](./AUTHORS)._
 
 _Stockfish's development is not focused on adding new features. Thus any pull
