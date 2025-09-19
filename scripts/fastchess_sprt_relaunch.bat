@@ -12,9 +12,12 @@ set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution_2.60_190925.exe"
 set "ENGINE_BASE=C:\fastchess\revolution-base\revolution-dev_v2.40_130925.exe"
 set "DIR_NEW=C:\fastchess\revolution-ad"
 set "DIR_BASE=C:\fastchess\revolution-base"
-rem Leave NNUE paths blank (or pointing to nonexistent files) to rely on each engine's compiled-in default.
-set "NNUE_NEW=C:\fastchess\revolution-ad\networks\candidate.nnue"
-set "NNUE_BASE=C:\fastchess\revolution-base\networks\baseline.nnue"
+rem Leave NNUE paths blank to rely on each engine's compiled-in default.
+rem If you have an external network, set NNUE_NEW/NNUE_BASE to its path.
+set "NNUE_NEW="
+set "NNUE_BASE="
+rem Autodetect the bundled Revolution AD network when present alongside the binary.
+if "%NNUE_NEW%"=="" for %%F in ("%DIR_NEW%\nn-c01dc0ffeede.nnue") do if exist "%%~fF" set "NNUE_NEW=%%~fF"
 set "BOOK=C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn"
 
 rem -------- Engine options (edit as needed) --------
