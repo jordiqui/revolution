@@ -18,7 +18,9 @@
 
 #include "network.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -295,6 +297,46 @@ void Network<Arch, Transformer>::verify(std::string                             
           + std::to_string(storage->network[0].FC_0_OUTPUTS) + ", "
           + std::to_string(storage->network[0].FC_1_OUTPUTS) + ", 1))");
     }
+}
+
+
+template<typename Arch, typename Transformer>
+bool Network<Arch, Transformer>::verify_optional(
+  std::string evalfilePath, const std::function<void(std::string_view)>& f) const {
+    if (evalfilePath.empty())
+        evalfilePath = evalFile.defaultName;
+
+    std::string normalized = evalfilePath;
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+
+    const bool requested = !normalized.empty() && normalized != "none";
+
+    if (evalFile.current != evalfilePath || evalFile.current == "None")
+    {
+        if (requested && f)
+        {
+            f("WARNING: Optional network file " + evalfilePath
+              + " was not loaded; continuing without Falcon evaluations.");
+        }
+        return false;
+    }
+
+    if (f)
+    {
+        auto storage = weights_handle();
+        if (!storage)
+            return true;
+
+        size_t size = sizeof(*storage->featureTransformer) + sizeof(Arch) * LayerStacks;
+        f("NNUE evaluation using " + evalfilePath + " (" + std::to_string(size / (1024 * 1024))
+          + "MiB, (" + std::to_string(storage->featureTransformer->InputDimensions) + ", "
+          + std::to_string(storage->network[0].TransformedFeatureDimensions) + ", "
+          + std::to_string(storage->network[0].FC_0_OUTPUTS) + ", "
+          + std::to_string(storage->network[0].FC_1_OUTPUTS) + ", 1))");
+    }
+
+    return true;
 }
 
 
