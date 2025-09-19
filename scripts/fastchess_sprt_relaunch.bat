@@ -12,12 +12,9 @@ set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution_2.60_190925.exe"
 set "ENGINE_BASE=C:\fastchess\revolution-base\revolution-dev_v2.40_130925.exe"
 set "DIR_NEW=C:\fastchess\revolution-ad"
 set "DIR_BASE=C:\fastchess\revolution-base"
-rem Leave NNUE paths blank to rely on each engine's compiled-in default.
-rem If you have an external network, set NNUE_NEW/NNUE_BASE to its path.
-set "NNUE_NEW="
-set "NNUE_BASE="
-rem Autodetect the bundled Revolution AD network when present alongside the binary.
-if "%NNUE_NEW%"=="" for %%F in ("%DIR_NEW%\nn-c01dc0ffeede.nnue") do if exist "%%~fF" set "NNUE_NEW=%%~fF"
+rem Ajusta estas rutas NNUE si utilizas redes externas.
+set "NNUE_NEW=C:\fastchess\revolution-ad\networks\candidate.nnue"
+set "NNUE_BASE=C:\fastchess\revolution-base\networks\baseline.nnue"
 set "BOOK=C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn"
 
 rem -------- Engine options (edit as needed) --------
@@ -65,21 +62,9 @@ set "ENGINE_NEW_CORE=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%
 set "ENGINE_BASE_CORE=option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=%PONDER%"
 
 set "ENGINE_NEW_EVAL="
-if not "%NNUE_NEW%"=="" for %%F in ("%NNUE_NEW%") do (
-    if exist "%%~fF" (
-        set "ENGINE_NEW_EVAL= option.EvalFile=^"%%~fF^""
-    ) else (
-        echo [WARN] NNUE_NEW no existe: "%%~fF" - se omite EvalFile
-    )
-)
+if not "%NNUE_NEW%"=="" for %%F in ("%NNUE_NEW%") do set "ENGINE_NEW_EVAL= option.EvalFile=^"%%~fF^""
 set "ENGINE_BASE_EVAL="
-if not "%NNUE_BASE%"=="" for %%F in ("%NNUE_BASE%") do (
-    if exist "%%~fF" (
-        set "ENGINE_BASE_EVAL= option.EvalFile=^"%%~fF^""
-    ) else (
-        echo [WARN] NNUE_BASE no existe: "%%~fF" - se omite EvalFile
-    )
-)
+if not "%NNUE_BASE%"=="" for %%F in ("%NNUE_BASE%") do set "ENGINE_BASE_EVAL= option.EvalFile=^"%%~fF^""
 
 rem -------- Validations --------
 if not exist "%FASTCHESS%" (echo [ERR] FASTCHESS no existe: "%FASTCHESS%" & goto :fail)
