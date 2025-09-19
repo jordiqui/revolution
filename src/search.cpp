@@ -260,8 +260,11 @@ void Search::Worker::start_searching() {
             }
         }
 
-        threads.start_searching();  // start non-main threads
-        iterative_deepening();      // main thread start searching
+        if (!usedBook)
+        {
+            threads.start_searching();  // start non-main threads
+            iterative_deepening();      // main thread start searching
+        }
     }
 
     // When we reach the maximum depth, we can arrive here without a raise of
