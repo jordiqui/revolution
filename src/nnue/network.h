@@ -86,6 +86,8 @@ class Network {
 
 
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
+    bool verify_optional(std::string evalfilePath,
+                         const std::function<void(std::string_view)>&) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,
                                  AccumulatorStack&                       accumulatorStack,
                                  AccumulatorCaches::Cache<FTDimensions>* cache) const;

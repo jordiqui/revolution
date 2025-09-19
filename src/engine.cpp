@@ -373,7 +373,7 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 void Engine::verify_networks() const {
     networks->big.verify(options["EvalFile"], onVerifyNetworks);
     networks->small.verify(options["EvalFileSmall"], onVerifyNetworks);
-    networks->falcon.verify(options["FalconFile"], onVerifyNetworks);
+    networks->falcon.verify_optional(options["FalconFile"], onVerifyNetworks);
 }
 
 void Engine::load_networks() {
