@@ -43,7 +43,7 @@
 #include "ucioption.h"
 
 #ifndef ENGINE_NAME
-    #define ENGINE_NAME "Wordfish 2.42-190825"
+    #define ENGINE_NAME "revolution 2.60 190925"
 #endif
 #ifndef ENGINE_BUILD_DATE
     #define ENGINE_BUILD_DATE ""
@@ -124,7 +124,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Wordfish 1.0"
+            // Force a stable, explicit UCI name so GUIs show "revolution 2.60 190925"
             sync_cout_start();
             std::cout
               << "id name " << ENGINE_NAME << "\n"
