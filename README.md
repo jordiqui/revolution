@@ -1,63 +1,70 @@
-# Cute Chess
+# Revolution Chess Engine
 
-![GitHub CI](https://github.com/cutechess/cutechess/workflows/build%20cutechess/badge.svg)
+**Version 2.42**  
+This build identifies as `Revolution 2.42-190825`.
 
-Cute Chess is a graphical user interface, command-line interface and a library
-for playing chess. Cute Chess is written in C++ using the [Qt
-framework](https://www.qt.io/).
+## Project Overview
+Revolution is a free, open-source UCI chess engine derived from the world-class Stockfish project. Jorge Ruiz Centelles, working in tandem with ChatGPT Codex tooling, extends the Stockfish codebase to explore modern C++ refinements, improved maintainability, and experimental search ideas while preserving the GPLv3 heritage of the original engine. Revolution ships without a graphical interface and communicates through the UCI protocol, making it compatible with popular desktop chess GUIs that support external engines.
 
-## Installation
+## Latest Updates
+- Synchronized with the Stockfish mainline search and evaluation improvements up to August 2025.
+- Expanded NNUE integration to support multiple network profiles, including the experimental Falcon network.
+- Added faster startup routines for Syzygy tablebases through optional pre-mapping.
+- Refined experience learning heuristics that bias move ordering based on past games.
 
-### Binaries
+## Key Features
+- **Hybrid Evaluation** – Combines classical heuristics with NNUE-style neural networks.
+- **Advanced Search** – Implements YBWC parallelism, late move reductions, reverse futility pruning, and selective extensions.
+- **Experience Book** – Maintains a lightweight opening and root-move biasing cache governed by UCI options.
+- **Experimental MCTS Mode** – Optional Monte Carlo search inspired by Shashin positional classifications.
+- **Extensive UCI Control** – Rich option set for tablebases, network selection, and tuning parameters.
 
-See the [Releases](https://github.com/cutechess/cutechess/releases) page.
+## Architecture Highlights
+- Modernized C++17 patterns for clarity, safety, and maintainability.
+- Clean separation between search, evaluation, and NNUE components in `src/`.
+- Optional experience files (`experience.exp`) and neural network weights (`revolution.nnue`, `nn-c01dc0ffeede.nnue`).
 
-### Building from source
+## Building from Source
+Revolution reuses the well-established Stockfish build system. Typical workflow:
 
-Cute Chess requires Qt 5.15 or greater, a compiler with C++11 support and `cmake`.
-Cute Chess depends on the following Qt 5 modules:
+```bash
+cd src
+make -j ARCH=x86-64-modern
+```
 
-* qt5-widgets
-* qt5-svg
-* qt5-concurrent
-* qt5-printsupport
-* qt5-testlib (optional: unit tests)
+Supported `ARCH` targets include `x86-64`, `x86-64-modern`, `armv8`, and `ppc64`. Consult `docs/` for platform-specific notes and advanced configuration tips.
 
-Run these commands:
+## Testing & Quality Assurance
+Each change set is validated with rigorous testing methodologies:
 
-    $ mkdir build
-    $ cd build
-    $ cmake ..
-    $ make
+- **Perft Benchmarks** – Verify bitboard move generation accuracy.
+- **SPRT Matches** – Measure Elo impact against reference builds using sequential probability ratio testing.
+- **Regression Suites** – Continuous matches on OpenBench-style infrastructure to ensure stability across time controls.
 
-Documentation is available as Unix manual pages in the `docs/` directory.
+Testing evidence drives promotion, refinement, or rollback decisions to keep the engine competitive and reliable.
 
-For detailed build instruction for various operating systems, see the
-[Building from source](https://github.com/cutechess/cutechess/wiki/Building-from-source)
-wiki page.
+## Usage
+Load Revolution into any UCI-compatible GUI:
 
-## Running
+```text
+uci
+setoption name Minimum Thinking Time value 200
+setoption name SyzygyPath value /path/to/tablebases
+setoption name FalconFile value nn-c01dc0ffeede.nnue
+isready
+ucinewgame
+position startpos
+go movetime 5000
+```
 
-The `cutechess` program is the graphical user interface of Cute Chess.
-It can be run either from command-line or from your desktop environment's
-application launcher.
+Syzygy tablebases are automatically probed when `SyzygyPath` is set. Experience learning can be toggled via `Experience Enabled`, while `Experience Book` turns the cache into a soft opening book.
 
-The `cutechess-cli` program is the command-line interface for playing
-games between chess engines. For example, to play ten games between two Sloppy
-engines (assuming `sloppy` is in PATH) with a time control of 40 moves in 60
-seconds:
+## License & Credits
+Revolution is distributed under the [GNU General Public License v3](https://www.gnu.org/licenses/gpl-3.0.en.html). Because the engine incorporates Stockfish code, any redistribution must ship complete corresponding source, retain GPL notices, and document modifications.
 
-    $ cutechess-cli -engine cmd=sloppy -engine cmd=sloppy -each proto=xboard tc=40/60 -rounds 10
+**Authors and Credits:**
+- Stockfish developers and contributors – creators of the original engine and ongoing upstream innovations.
+- Jorge Ruiz Centelles – maintainer of Revolution, curating experimental features and release packaging.
+- ChatGPT Codex tooling – assisted code generation, documentation, and experimentation support.
 
-See `cutechess-cli -help` for descriptions of the supported options or manuals
-for full documentation.
-
-## License
-
-Cute Chess is released under the GPLv3+ license except for the components in
-the `projects/lib/components` and `projects/gui/components` directories which
-are released under the MIT License.
-
-## Credits
-
-Cute Chess was written by Ilari Pihlajisto, Arto Jonsson and [contributors](https://github.com/cutechess/cutechess/graphs/contributors)
+Community discussions mirror Stockfish norms, spanning the Chess Programming Wiki forums, Discord groups, and GitHub discussions. Contributions are welcomed when accompanied by reproducible tests and adherence to clean C++17 practices.
