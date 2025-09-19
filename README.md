@@ -1,125 +1,114 @@
-# Wordfish Chess Engine
+# Revolution Chess Engine
 
 **Version 2.42**
 
-This build identifies as `Wordfish 2.42-190825`.
+This build identifies as `Revolution 2.42-190825`.
 
-<div align="center">
-  <img src="[https://ijccrl.com/wp-content/uploads/2025/08/wordfish.png]" 
-  <h3>Wordfish</h3>
-  
-  A free and open-source UCI chess engine combining classical algorithms with neural network innovations.
-  <br>
-  <strong><a href="#">Explore Wordfish Documentation »</a>
+## Credits and Authors
 
-  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.</em>
-  
-</div>
+- **Original Engine:** Stockfish Project Team and Contributors – creators and maintainers of the foundational open-source engine.
+- **Derivative Work:** Jorge Ruiz Centelles, with implementation assistance and code generation support from ChatGPT's Codex models, exploring modern C++ refinements and experimental ideas on top of Stockfish.
 
 ## Overview
 
-**Wordfish** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Wordfish analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
+**Revolution** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, supported by ChatGPT Codex tooling, adapts the engine to prototype new approaches while modernizing C++ syntax and structure. The project aims to investigate search innovations, refined evaluation pipelines, and maintainability improvements without diverging from Stockfish's GPLv3 heritage.
 
-As a UCI-compliant engine, Wordfish operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
+Revolution integrates state-of-the-art search algorithms with neural network evaluation techniques. As a UCI-compliant engine, it runs without a built-in graphical interface and communicates with GUIs such as Arena, Scid vs. PC, Cute Chess, and other compatible tools.
 
 ## Technical Architecture
 
-Wordfish's architecture features:
+Revolution currently explores the following architectural components:
 
-- Hybrid evaluation system combining classical heuristics with NNUE networks
-- SMP parallelization with YBWC (Young Brothers Wait Concept)
-- Advanced pruning techniques (Reverse Futility Pruning, Late Move Pruning)
-- Efficient move ordering with history heuristics and killer moves
-- Optional root experience book storing previously played moves
+- Hybrid evaluation combining classical heuristics with NNUE-style neural networks.
+- SMP parallelization via the Young Brothers Wait Concept (YBWC).
+- Advanced pruning techniques including reverse futility pruning, late move reductions, and selective extensions.
+- Modernized C++17 code patterns to improve readability, safety, and maintainability.
+- Optional experience book support that records root move statistics for future searches.
 
 ## Files
 
-The distribution includes:
+The repository includes:
 
-- `README.md` (this documentation)
-- `COPYING.txt` ([GNU GPLv3 license][gpl-link])
-- `AUTHORS` (contributor acknowledgments)
-- `src/` (source code with platform-specific Makefiles)
-- Neural network weights (`wordfish.nnue`)
+- `README.md` – project overview (this document).
+- `COPYING.txt` – the GNU GPLv3 license text.
+- `AUTHORS` – acknowledgements for Stockfish developers and additional contributors.
+- `src/` – C++ source code and build scripts.
+- Neural network weights (`revolution.nnue` or compatible NNUE files).
 
-## Contributing
+## Development and Testing
 
-### Development Guidelines
-Contributions must adhere to:
-- Clean, documented C++17 implementations
-- Benchmark validation through perft testing
-- Elo measurement via [OpenBench][openbench-link]
-- Compatibility with UCI protocol standard
+### Collaborative Workflow
 
-### Testing Infrastructure
-Improvements require extensive testing:
-- Install the [Wordfish Test Worker][worker-link]
-- Participate in active tests on [Wordfish Test Suite][testsuite-link]
-- Verify ELO gains through SPRT validation
+Development decisions emerge from an iterative dialogue between Jorge Ruiz Centelles and ChatGPT assistance. Proposed changes are discussed, implemented, and reviewed collaboratively to ensure alignment with project goals.
 
-### Community
-Technical discussions occur primarily through:
-- [Wordfish Discord Server][discord-link]
-- [GitHub Discussions][discussions-link]
-- [Chess Programming Wiki][chesswiki-link]
+### Testing Strategy
+
+Every change is validated with rigorous testing:
+
+- **Perft benchmarks** verify move generation accuracy.
+- **SPRT (Sequential Probability Ratio Test)** sessions measure Elo impact against reference builds.
+- **Regression matches** on OpenBench-style frameworks assess stability and performance across various time controls.
+
+Evaluation results determine whether a modification is promoted, refined, or reverted, maintaining a data-driven development cycle.
+
+## Community and Contribution Guidelines
+
+Although Revolution is experimental, contributions should respect the standards established by the Stockfish community:
+
+- Follow clean, well-documented C++17 code practices.
+- Ensure compatibility with the UCI protocol and existing build systems.
+- Provide reproducible testing evidence (perft logs, SPRT statistics, match data) with each change proposal.
+
+Communication channels mirror those used by Stockfish contributors—Chess Programming forums, Discord communities, and GitHub discussions are ideal venues for sharing insights and feedback.
 
 ## Compilation
 
-Compile from source using included Makefiles:
+Compile Revolution from source using the provided Makefiles:
+
 ```bash
 cd src
 make -j ARCH=x86-64-modern
 ```
 
-Supported architectures:
-- `x86-64`: Modern x86 processors
-- `armv8`: ARMv8+ architectures
-- `ppc64`: PowerPC systems
+Supported architectures include:
 
-Full compilation guides available in [documentation][doc-link].
+- `x86-64` – modern x86 processors.
+- `armv8` – ARMv8+ CPUs.
+- `ppc64` – PowerPC systems.
+
+See the documentation in `docs/` for additional build configurations and platform-specific tips.
 
 ## Syzygy Tablebases
 
-Wordfish can probe [Syzygy](https://github.com/syzygy1) endgame tablebases when a
-directory is supplied via the `SyzygyPath` UCI option. The engine also exposes a
-`SyzygyPremap` boolean option. When set to `true`, `Tablebases::init` pre-maps all
-available WDL and DTZ tables during initialization, reducing probe latency at the
-expense of additional startup time and memory usage.
+Revolution can probe [Syzygy](https://github.com/syzygy1) endgame tablebases when a directory is supplied via the `SyzygyPath` UCI option. The engine also provides a `SyzygyPremap` boolean option. When enabled, `Tablebases::init` pre-maps available WDL and DTZ tables during initialization, reducing probe latency at the cost of extra startup time and memory.
 
 ## Experience Learning
 
-Wordfish includes a simple text-based cache that stores root moves and evaluations from
-previous games. Rather than forcing book moves, the cached information biases root move
-ordering during search. The following UCI options control this system:
+Revolution includes a text-based cache that stores root moves and evaluations from previous games. Instead of forcing book moves, the stored information biases root move ordering during search. The following UCI options control the system:
 
-- `Experience Enabled`: enables or disables the experience feature (default `true`).
-- `Experience File`: name of the file where the experience data is stored (default `experience.exp`; legacy `.bin` files are converted automatically to this format).
-- `Experience Readonly`: if `true`, no changes are written to the file.
-- `Experience Prior`: uses stored experience to bias root move ordering.
-- `Experience Width`: number of principal moves to consider (1–20).
-- `Experience Eval Weight`: weighting of evaluation when ordering moves (0–10).
-- `Experience Min Depth`: minimum depth required to store a move (4–64).
-- `Experience Max Moves`: maximum number of moves saved per position (1–100).
-- `Experience Book`: if `true`, use the experience file as an opening book.
-- `Experience Book Max Moves`: limit of moves considered when using the experience book (1–100, default 100).
-- `Experience Book Min Depth`: minimum depth required for a move to be used from the experience book (1–255, default 4).
+- `Experience Enabled` – toggles the experience feature (default `true`).
+- `Experience File` – filename for storing experience data (default `experience.exp`; legacy `.bin` files are converted automatically).
+- `Experience Readonly` – prevents updates when set to `true`.
+- `Experience Prior` – biases root move ordering using stored experience.
+- `Experience Width` – number of principal moves considered (1–20).
+- `Experience Eval Weight` – weighting of evaluation when ordering moves (0–10).
+- `Experience Min Depth` – minimum depth required to store a move (4–64).
+- `Experience Max Moves` – maximum moves saved per position (1–100).
+- `Experience Book` – uses the experience file as an opening book when `true`.
+- `Experience Book Max Moves` – move limit for opening book usage (1–100, default 100).
+- `Experience Book Min Depth` – minimum depth for book moves (1–255, default 4).
 
-The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
+The cache loads at startup and updates after each game if `Experience Readonly` is disabled.
 
 ## Monte Carlo Tree Search (Experimental)
 
-Wordfish exposes several options for experimenting with Monte Carlo Tree Search
-based on Shashin's position classification. For details see
-[docs/mcts.md](docs/mcts.md).
+Revolution exposes experimental Monte Carlo Tree Search options inspired by Shashin's positional classifications. For configuration details, refer to [`docs/mcts.md`](docs/mcts.md).
 
 ## UCI Options
 
 ### Minimum Thinking Time
 
-The `Minimum Thinking Time` option ensures the engine spends at least a
-specified number of milliseconds searching for a move, even if it finds
-a good one instantly. This avoids extremely fast, low-quality replies.
-Set it with:
+The `Minimum Thinking Time` option ensures the engine spends at least a specified number of milliseconds searching for a move, even if a satisfactory move is found immediately. This avoids extremely fast, low-quality replies.
 
 ```
 setoption name Minimum Thinking Time value <milliseconds>
@@ -127,11 +116,7 @@ setoption name Minimum Thinking Time value <milliseconds>
 
 ### Falcon Net
 
-Wordfish can switch to an alternative neural network using the
-`FalconFile` option. If a `nn-c01dc0ffeede.nnue` file is present in the
-engine directory it will be embedded automatically; otherwise the engine
-falls back to the standard networks. To load the `nn-c01dc0ffeede.nnue`
-file when available, send:
+Revolution can switch to an alternative neural network using the `FalconFile` option. If an `nn-c01dc0ffeede.nnue` file is present in the engine directory it will be embedded automatically; otherwise, the engine falls back to standard networks. To load the alternative network, send:
 
 ```
 setoption name FalconFile value nn-c01dc0ffeede.nnue
@@ -139,33 +124,42 @@ setoption name FalconFile value nn-c01dc0ffeede.nnue
 
 ## License
 
-Wordfish is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3).
-It integrates source code from:
+Revolution is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3). It integrates source code from:
 
 - [Stockfish](https://github.com/official-stockfish/Stockfish)
 
-Because Stockfish is GPLv3, any distribution of Wordfish must also comply with GPLv3.
-For a summary of your obligations under GPLv3 see <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
-When redistributing, you must:
-1. Include the original license text (`COPYING.txt`)
-2. Provide complete corresponding source code
-3. Disclose all modifications under GPLv3
+Because Stockfish is GPLv3, any distribution of Revolution must also comply with GPLv3. When redistributing, you must:
+
+1. Include the original license text (`COPYING.txt`).
+2. Provide complete corresponding source code.
+3. Disclose all modifications under GPLv3.
+
+For a summary of GPLv3 obligations, visit <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
 
 ## Acknowledgements
 
-Wordfish also benefits from:
-- Neural networks trained on [Lichess open database][lichess-db]
-- Search techniques from [CCC testing community][ccc-link]
-- Positional analysis concepts from [CPW research][cpw-link]
+Revolution benefits from:
 
-[gpl-link]: https://www.gnu.org/licenses/gpl-3.0.html
-[doc-link]: #
-[discord-link]: #
-[openbench-link]: #
-[worker-link]: #
-[testsuite-link]: #
-[discussions-link]: #
+- Neural networks trained on the [Lichess open database][lichess-db].
+- Testing infrastructure inspired by the [Computer Chess Club (CCC)][ccc-link] community.
+- Research shared on the [Chess Programming Wiki][chesswiki-link].
+
+## Useful Links
+
+- [Project Documentation][doc-link]
+- [OpenBench Testing Framework][openbench-link]
+- [Revolution Test Worker][worker-link]
+- [Revolution Test Suite][testsuite-link]
+- [Community Discord][discord-link]
+- [GitHub Discussions][discussions-link]
+
+<!-- Reference Links -->
+[gpl-link]: https://www.gnu.org/licenses/gpl-3.0.en.html
+[openbench-link]: https://github.com/official-stockfish/Stockfish/wiki/Benchmarks
+[worker-link]: https://github.com/official-stockfish/Stockfish/tree/master/worker
+[testsuite-link]: https://github.com/official-stockfish/Stockfish/wiki/Testing
+[discord-link]: https://discord.gg/stockfish
+[discussions-link]: https://github.com/official-stockfish/Stockfish/discussions
 [chesswiki-link]: https://www.chessprogramming.org
-[lichess-db]: https://database.lichess.org
-[ccc-link]: https://www.chess.com/computer-chess-championship
-[cpw-link]: https://www.chessprogramming.org
+[lichess-db]: https://database.lichess.org/
+[doc-link]: docs/
