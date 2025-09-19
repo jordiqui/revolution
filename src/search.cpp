@@ -251,15 +251,17 @@ void Search::Worker::start_searching() {
                                      th->worker.get()->rootMoves.end(), bookMove));
             usedBook = true;
         }
-        else
+
+        if (bookMove == Move::none())
         {
             if ((bool) options["MCTS by Shashin"]) {
                 // Placeholder: Monte Carlo Tree Search integration point.
                 // Current build continues with standard alpha-beta search.
             }
-            threads.start_searching();  // start non-main threads
-            iterative_deepening();      // main thread start searching
         }
+
+        threads.start_searching();  // start non-main threads
+        iterative_deepening();      // main thread start searching
     }
 
     // When we reach the maximum depth, we can arrive here without a raise of
