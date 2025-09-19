@@ -1,0 +1,6 @@
+# Ignore engine binaries and large resource files
+*.exe
+*.dll
+*.bin
+*.nnue
+*.zip
