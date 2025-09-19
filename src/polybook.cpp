@@ -435,7 +435,7 @@ Move PolyBook::probe(Position& pos, bool bestBookMove, int width) {
 
 
 Key PolyBook::polyglot_key(const Position& pos) {
-    Key      key = 0;
+    Key      key = PG.Zobrist.turn;
     Bitboard b   = pos.pieces();
 
     while (b)
@@ -459,7 +459,7 @@ Key PolyBook::polyglot_key(const Position& pos) {
     if (pos.ep_square() != SQ_NONE)
         key ^= PG.Zobrist.enpassant[file_of(pos.ep_square())];
 
-    if (pos.side_to_move() == WHITE)
+    if (pos.side_to_move() == BLACK)
         key ^= PG.Zobrist.turn;
 
     return key;
