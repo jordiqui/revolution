@@ -178,13 +178,23 @@ void Experience::load(const std::string& file) {
             {
                 BinV2 e;
                 while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, e.count);
+                {
+                    int value = e.value;
+                    if (e.key & Zobrist::side)
+                        value = -value;
+                    insert_entry(e.key, e.move, value, e.depth, e.count);
+                }
             }
             else
             {
                 BinV1 e;
                 while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, 1);
+                {
+                    int value = e.value;
+                    if (e.key & Zobrist::side)
+                        value = -value;
+                    insert_entry(e.key, e.move, value, e.depth, 1);
+                }
             }
         }
     }

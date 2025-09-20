@@ -121,17 +121,15 @@ int main() {
     const Move winningMove(SQ_H1, SQ_G1);
     const Move losingMove(SQ_H1, SQ_H2);
 
-    // SugaR experience files already store evaluations from the side-to-move
-    // perspective, matching what experience.save() produces.
     const BinV2 winningRecord{key,
                               static_cast<std::uint32_t>(winningMove.raw()),
-                              500,
+                              -500,
                               12,
                               1,
                               {0, 0}};
     const BinV2 losingRecord{key,
                              static_cast<std::uint32_t>(losingMove.raw()),
-                             -400,
+                             400,
                              12,
                              1,
                              {0, 0}};
@@ -199,15 +197,15 @@ int main() {
     for (const auto& rec : stored)
         storedScores.emplace(rec.move, rec.value);
 
-    if (storedScores[winningRecord.move] != winningRecord.value)
+    if (storedScores[winningRecord.move] != -winningRecord.value)
     {
-        std::cerr << "Winning move score changed unexpectedly" << std::endl;
+        std::cerr << "Winning move score was not flipped" << std::endl;
         return 1;
     }
 
-    if (storedScores[losingRecord.move] != losingRecord.value)
+    if (storedScores[losingRecord.move] != -losingRecord.value)
     {
-        std::cerr << "Losing move score changed unexpectedly" << std::endl;
+        std::cerr << "Losing move score was not flipped" << std::endl;
         return 1;
     }
 
