@@ -6,11 +6,69 @@
 #include "bitboard.h"
 #include "experience.h"
 #include "position.h"
+#include "uci.h"
+#include "tt.h"
 
 namespace Stockfish {
 namespace Zobrist {
 extern Key side;
 }  // namespace Zobrist
+std::string UCIEngine::square(Square s) {
+    return std::string{char('a' + file_of(s)), char('1' + rank_of(s))};
+}
+
+std::string UCIEngine::move(Move m, bool chess960) {
+    (void) chess960;
+    return square(m.from_sq()) + square(m.to_sq());
+}
+
+TTEntry* TranspositionTable::first_entry(const Key) const {
+    return nullptr;
+}
+
+void* std_aligned_alloc(size_t alignment, size_t size) {
+    if (alignment < sizeof(void*))
+        alignment = sizeof(void*);
+    size = ((size + alignment - 1) / alignment) * alignment;
+    return std::aligned_alloc(alignment, size);
+}
+
+void std_aligned_free(void* ptr) {
+    std::free(ptr);
+}
+
+void* aligned_large_pages_alloc(size_t size) {
+    return std_aligned_alloc(4096, size);
+}
+
+void aligned_large_pages_free(void* mem) {
+    std_aligned_free(mem);
+}
+
+bool has_large_pages() {
+    return false;
+}
+
+namespace Tablebases {
+
+int MaxCardinality = 0;
+
+WDLScore probe_wdl(Position&, ProbeState* result) {
+    if (result)
+        *result = FAIL;
+    return WDLDraw;
+}
+
+int probe_dtz(Position&, ProbeState* result) {
+    if (result)
+        *result = FAIL;
+    return 0;
+}
+
+void init(const std::string&, bool) {}
+void release() {}
+
+}  // namespace Tablebases
 }  // namespace Stockfish
 
 namespace {
