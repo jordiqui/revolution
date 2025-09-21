@@ -18,10 +18,20 @@ set "NNUE_BASE=C:\fastchess\revolution-base\networks\baseline.nnue"
 set "BOOK=C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn"
 
 rem -------- Engine options (edit as needed) --------
+set "BLOCK_EXP=Y"
 set "THREADS=1"
 set "HASH=32"
 set "PONDER=off"
 set "SYZYGY_PATH=C:\Syzygy"
+
+set "EXP_BLOCK_CHAIN="
+if /i "%BLOCK_EXP%"=="Y" (
+    set "EXP_BLOCK_CHAIN= ^|setoption name Experience Enabled value false"
+    set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience Book value false"
+    set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience Prior value false"
+    set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience Concurrent value false"
+    set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience File value <empty>"
+)
 
 rem -------- Test controls --------
 set "TC=10+0.1"
@@ -88,9 +98,9 @@ set "GATING_DONE=1"
 echo Running gating match (%GATING_GAMES% games) ...
 "%FASTCHESS%" ^
  -engine cmd="%ENGINE_NEW%" name="Revolution_2.70_210925" dir="%DIR_NEW%" ^
-    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL% ^
+    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL%%EXP_BLOCK_CHAIN% ^
  -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
-    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL% ^
+    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL%%EXP_BLOCK_CHAIN% ^
  -each tc=%TC%%SYZYGY_OPT% ^
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
@@ -133,9 +143,9 @@ if defined GATING_PERCENT (
 echo Running SPRT (%ROUNDS% rounds, elo0=%ELO0%, elo1=%ELO1%) ...
 "%FASTCHESS%" ^
  -engine cmd="%ENGINE_NEW%" name="Revolution_2.70_210925" dir="%DIR_NEW%" ^
-    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL% ^
+    %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL%%EXP_BLOCK_CHAIN% ^
  -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
-    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL% ^
+    %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL%%EXP_BLOCK_CHAIN% ^
  -each tc=%TC%%SYZYGY_OPT% ^
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
