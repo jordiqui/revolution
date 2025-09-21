@@ -4,7 +4,7 @@
 
 set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENGINE="${ENGINE:-$ROOT_DIR/src/revolution_2.60_190925}"
+ENGINE="${ENGINE:-$ROOT_DIR/src/revolution_2.70_210925}"
 OPPONENT="${1:?Opponent engine path required}"
 GAMES="${2:-10}"
 TC="${3:-40/0.4+0.4}"
@@ -15,7 +15,7 @@ if ! command -v cutechess-cli >/dev/null; then
 fi
 
 cutechess-cli \
-  -engine cmd="$ENGINE" name="revolution 2.60 190925" \
+  -engine cmd="$ENGINE" name="Revolution 2.70 210925" \
   -engine cmd="$OPPONENT" name=Opponent \
   -each proto=uci tc=$TC \
   -games $GAMES -concurrency 2 \
