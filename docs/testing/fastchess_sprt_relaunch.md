@@ -1,7 +1,7 @@
 # Fastchess SPRT relaunch checklist
 
 This guide accompanies `scripts/fastchess_sprt_relaunch.bat` and captures the
-workflow recommended after the regression seen in the 2.60 vs 2.40 match.
+workflow recommended after the regression seen in the 2.70 vs 2.40 match.
 
 ## 1. Pre-SPRT gating match (sanity check)
 
