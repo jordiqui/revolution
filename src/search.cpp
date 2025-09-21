@@ -497,8 +497,9 @@ void Search::Worker::iterative_deepening() {
     int searchAgainCounter = 0;
 
     // Start searches at depth 2 to skip the shallowest iteration and reach
-    // deeper analysis faster.
-    rootDepth = 1;
+    // deeper analysis faster, unless the user explicitly limits the search
+    // to depth 1 or lower where we still want to run a single iteration.
+    rootDepth = (limits.depth && limits.depth <= 1) ? Depth(0) : Depth(1);
 
     lowPlyHistory.fill(89);
 
