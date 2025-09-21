@@ -41,13 +41,7 @@
 #include "experience.h"
 #include "types.h"
 #include "ucioption.h"
-
-#ifndef ENGINE_NAME
-    #define ENGINE_NAME "Revolution 2.70 210925"
-#endif
-#ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE ""
-#endif
+#include "version.h"
 
 namespace Stockfish {
 
@@ -124,7 +118,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "Revolution 2.70 210925"
+            // Force a stable, explicit UCI name so GUIs show "revolution v.2.70 dev-210925"
             sync_cout_start();
             std::cout
               << "id name " << ENGINE_NAME << "\n"

@@ -23,11 +23,7 @@
 #include "tune.h"
 #include "bitboard.h"
 #include "position.h"
-
-#ifndef ENGINE_NAME
-    // override at build time with:  -DENGINE_NAME="\"Revolution 2.70 210925\""
-    #define ENGINE_NAME "Revolution 2.70 210925"
-#endif
+#include "version.h"
 
 using namespace Stockfish;
 
