@@ -85,13 +85,72 @@ int correction_value(const Worker& w, const Position& pos, const Stack* const ss
       m.is_ok() ? (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
                  : 0;
 
-    return 8867 * pcv + 8136 * micv + 10757 * (wnpcv + bnpcv) + 7232 * cntcv;
+    const int64_t combined = 8867LL * pcv + 8136LL * micv + 10757LL * (wnpcv + bnpcv)
+                           + 7232LL * cntcv;
+
+    if (combined == 0)
+        return 0;
+
+    const int depth       = ss ? ss->ply : 0;
+    int       depthFactor = 128 - std::min(48, std::max(0, depth - 6) * 3);
+
+    depthFactor = std::clamp(depthFactor, 80, 128);
+
+    if (w.has_experience_data())
+        depthFactor = depthFactor * 100 / 128;
+
+    if (cntcv && depth <= 6)
+        depthFactor = std::min(160, depthFactor + 16);
+
+    depthFactor = std::clamp(depthFactor, 64, 160);
+
+    return int((combined * depthFactor) / 128);
 }
 
 // Add correctionHistory value to raw staticEval and guarantee evaluation
 // does not hit the tablebase range.
 Value to_corrected_static_eval(const Value v, const int cv) {
     return std::clamp(v + cv / 131072, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
+}
+
+int king_file_exposure(const Position& pos, Color us) {
+    if (pos.count<KING>(us) != 1)
+        return 0;
+
+    const Square kingSq   = pos.square<KING>(us);
+    const File   kingFile = file_of(kingSq);
+
+    const Bitboard friendlyPawns = pos.pieces(us, PAWN);
+    const Bitboard enemyPawns    = pos.pieces(~us, PAWN);
+    const Bitboard heavyPieces   = pos.pieces(~us, ROOK) | pos.pieces(~us, QUEEN);
+    const Bitboard occupancy     = pos.pieces();
+    const Bitboard rookLines     = attacks_bb<ROOK>(kingSq, occupancy) & heavyPieces;
+
+    auto evaluate_file = [&](File f) {
+        Bitboard mask        = file_bb(f);
+        const bool friendly  = friendlyPawns & mask;
+        const bool opposing  = enemyPawns & mask;
+        const bool semiOpen  = !friendly;
+        const bool open      = semiOpen && !opposing;
+        const bool heavyLine = rookLines & mask;
+
+        if (heavyLine)
+            return 3;
+        if (open)
+            return 2;
+        if (semiOpen)
+            return 1;
+        return 0;
+    };
+
+    int exposure = evaluate_file(kingFile);
+
+    if (kingFile > FILE_A)
+        exposure += evaluate_file(File(kingFile - 1));
+    if (kingFile < FILE_H)
+        exposure += evaluate_file(File(kingFile + 1));
+
+    return std::min(exposure, 6);
 }
 
 void update_correction_history(const Position& pos,
@@ -106,16 +165,35 @@ void update_correction_history(const Position& pos,
 
     static constexpr int nonPawnWeight = 165;
 
-    workerThread.pawnCorrectionHistory[pawn_correction_history_index(pos)][us] << bonus;
-    workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][us] << bonus * 153 / 128;
+    int scaledBonus = bonus;
+    if (int exposure = king_file_exposure(pos, us))
+    {
+        if (scaledBonus > 0)
+        {
+            const int reduction = std::max(0, 8 * exposure - 4);
+            scaledBonus         = scaledBonus * std::max(64, 128 - reduction) / 128;
+            if (scaledBonus == 0)
+                scaledBonus = 1;
+        }
+        else
+        {
+            const int amplification = 6 * exposure;
+            scaledBonus             = scaledBonus * std::min(192, 128 + amplification) / 128;
+            if (scaledBonus == 0)
+                scaledBonus = -1;
+        }
+    }
+
+    workerThread.pawnCorrectionHistory[pawn_correction_history_index(pos)][us] << scaledBonus;
+    workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][us] << scaledBonus * 153 / 128;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<WHITE>(pos)][WHITE][us]
-      << bonus * nonPawnWeight / 128;
+      << scaledBonus * nonPawnWeight / 128;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<BLACK>(pos)][BLACK][us]
-      << bonus * nonPawnWeight / 128;
+      << scaledBonus * nonPawnWeight / 128;
 
     if (m.is_ok())
         (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
-          << bonus * 153 / 128;
+          << scaledBonus * 153 / 128;
 }
 
 // Add a small random component to draw evaluations to avoid 3-fold blindness
@@ -151,7 +229,8 @@ Search::Worker::Worker(SharedState&                    sharedState,
     threads(sharedState.threads),
     tt(sharedState.tt),
     networks(sharedState.networks),
-    refreshTable(networks[token]) {
+    refreshTable(networks[token]),
+    experienceAvailable(false) {
     const auto& netsForToken = networks[token];
     bigWeightsHandle         = netsForToken.big.weights_handle();
     smallWeightsHandle       = netsForToken.small.weights_handle();
@@ -222,6 +301,10 @@ void Search::Worker::start_searching() {
                                                (int) options["Experience Book Min Depth"],
                                                (int) options["Experience Book Max Moves"]);
             }
+
+            const bool hasExperiencePrior = preferredMove != Move::none();
+            for (auto&& th : threads)
+                th->worker.get()->experienceAvailable = hasExperiencePrior;
 
             if ((bool) options["Book1"]
                 && rootPos.game_ply() / 2 < (int) options["Book1 Depth"]
@@ -419,10 +502,15 @@ void Search::Worker::iterative_deepening() {
 
     lowPlyHistory.fill(89);
 
+    ensure_network_replicated();
+
     // Iterative deepening loop until requested to stop or the target depth is reached
     while (++rootDepth < MAX_PLY && !threads.stop
            && !(limits.depth && mainThread && rootDepth > limits.depth))
     {
+        if ((rootDepth & 3) == 0)
+            ensure_network_replicated();
+
         // Age out PV variability metric
         if (mainThread)
             totBestMoveChanges /= 2;
@@ -710,6 +798,7 @@ void Search::Worker::clear() {
         reductions[i] = int(2782 / 128.0 * std::log(i));
 
     refreshTable.clear(networks[numaAccessToken]);
+    experienceAvailable = false;
 }
 
 
