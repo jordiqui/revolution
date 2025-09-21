@@ -278,6 +278,7 @@ class Worker {
     bool is_mainthread() const { return threadIdx == 0; }
 
     void ensure_network_replicated();
+    bool has_experience_data() const { return experienceAvailable; }
 
     // Public because they need to be updatable by the stats
     ButterflyHistory mainHistory;
@@ -361,6 +362,8 @@ class Worker {
     Eval::NNUE::NetworkBig::WeightsPtr    bigWeightsHandle;
     Eval::NNUE::NetworkSmall::WeightsPtr  smallWeightsHandle;
     Eval::NNUE::NetworkFalcon::WeightsPtr falconWeightsHandle;
+
+    bool experienceAvailable;
 
     friend class Stockfish::ThreadPool;
     friend class SearchManager;
