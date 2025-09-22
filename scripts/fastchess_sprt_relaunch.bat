@@ -150,7 +150,7 @@ echo Running SPRT (%ROUNDS% rounds, elo0=%ELO0%, elo1=%ELO1%) ...
  -openings file="%BOOK%" format=pgn order=random -plies %BOOKPLIES% -repeat ^
  -adjudication movenumber=%ADJ_MOVES% score=%ADJ_MARGIN% -resign movecount=%RESIGN_MOVES% score=%RESIGN_SCORE% ^
  -sprt elo0=%ELO0% elo1=%ELO1% alpha=%ALPHA% beta=%BETA% ^
- -games 2 -rounds %ROUNDS% -concurrency %CONCURRENCY% -recover ^
+ -rounds %ROUNDS% -concurrency %CONCURRENCY% -recover ^
  -report penta=true ^
  -ratinginterval 1 -scoreinterval 1 -autosaveinterval 50 ^
  -pgnout "%SPRT_PGN%" ^
