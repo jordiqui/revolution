@@ -258,10 +258,11 @@ void UCIEngine::bench(std::istream& args) {
 
     struct ExperienceGuard {
         UCIEngine& uci;
-        bool       wasEnabled;
+        bool       restore;
 
-        ExperienceGuard(UCIEngine& engine, bool enabled) : uci(engine), wasEnabled(enabled) {
-            if (wasEnabled)
+        ExperienceGuard(UCIEngine& engine, bool enabled, bool shouldRestore) :
+            uci(engine), restore(enabled && shouldRestore) {
+            if (enabled)
             {
                 std::istringstream disable("name Experience Enabled value false");
                 uci.setoption(disable);
@@ -269,13 +270,13 @@ void UCIEngine::bench(std::istream& args) {
         }
 
         ~ExperienceGuard() {
-            if (wasEnabled)
+            if (restore)
             {
                 std::istringstream enable("name Experience Enabled value true");
                 uci.setoption(enable);
             }
         }
-    } experienceGuard(*this, (bool) options["Experience Enabled"]);
+    } experienceGuard(*this, (bool) options["Experience Enabled"], cli.argc == 1);
 
     engine.set_on_update_full([&](const auto& i) {
         nodesSearched = i.nodes;
