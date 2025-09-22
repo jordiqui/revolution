@@ -49,7 +49,22 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-PGOBENCH = $(WINE_PATH) ./$(EXE) bench
+# By default we run the newer 'speedtest' command with conservative settings so
+# that profile-guided builds do not stall on extremely long bench runs.  Users
+# can restore the previous behaviour by invoking make with
+#   PGOBENCH_COMMAND=bench
+# or override the individual parameters below when speedtest is used.
+PGOBENCH_COMMAND ?= speedtest
+
+ifeq ($(PGOBENCH_COMMAND),speedtest)
+        PGOBENCH_THREADS ?= 1
+        PGOBENCH_TIME ?= 20
+        PGOBENCH_TT ?= $(shell echo $$(( $(PGOBENCH_THREADS) * 128 )))
+        PGOBENCH = $(WINE_PATH) ./$(EXE) $(PGOBENCH_COMMAND) $(PGOBENCH_THREADS) \
+                    $(PGOBENCH_TT) $(PGOBENCH_TIME)
+else
+        PGOBENCH = $(WINE_PATH) ./$(EXE) $(PGOBENCH_COMMAND)
+endif
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
