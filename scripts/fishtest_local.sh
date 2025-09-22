@@ -4,7 +4,7 @@
 
 set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENGINE="$ROOT_DIR/src/revolution_2.70_210925"
+ENGINE="$ROOT_DIR/src/2.71-dev-220925-thsaf"
 FISHTEST_DIR="${FISHTEST_DIR:-$HOME/fishtest}"
 
 if [ ! -x "$ENGINE" ]; then

@@ -113,7 +113,7 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current revolution version.
+// Returns the full name of the current engine version.
 std::string engine_version_info() { return std::string(ENGINE_NAME); }
 
 // Update author information
