@@ -256,28 +256,6 @@ void UCIEngine::bench(std::istream& args) {
     uint64_t    nodesSearched = 0;
     const auto& options       = engine.get_options();
 
-    struct ExperienceGuard {
-        UCIEngine& uci;
-        bool       restore;
-
-        ExperienceGuard(UCIEngine& engine, bool enabled, bool shouldRestore) :
-            uci(engine), restore(enabled && shouldRestore) {
-            if (enabled)
-            {
-                std::istringstream disable("name Experience Enabled value false");
-                uci.setoption(disable);
-            }
-        }
-
-        ~ExperienceGuard() {
-            if (restore)
-            {
-                std::istringstream enable("name Experience Enabled value true");
-                uci.setoption(enable);
-            }
-        }
-    } experienceGuard(*this, (bool) options["Experience Enabled"], cli.argc == 1);
-
     engine.set_on_update_full([&](const auto& i) {
         nodesSearched = i.nodes;
         on_update_full(i, options["UCI_ShowWDL"]);
