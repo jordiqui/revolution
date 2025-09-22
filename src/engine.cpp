@@ -28,8 +28,6 @@
 #include <string_view>
 #include <utility>
 #include <vector>
-#include <iomanip>
-#include <random>
 
 #include "evaluate.h"
 #include "misc.h"
@@ -167,18 +165,8 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Book2 Width", Option(1, 1, 10));
 
-    options.add("Experience Enabled", Option(true, [this](const Option& o) {
-                    if (bool(o))
-                        experience.load_async(options["Experience File"]);
-                    else
-                        experience.clear();
-                    return std::nullopt;
-                }));
-
-    options.add("Experience File", Option("experience.exp", [this](const Option& o) {
-                    if ((bool) options["Experience Enabled"])
-                        experience.load_async(o);
-                    concurrentExperienceFile.clear();
+    options.add("Experience Enabled", Option(false, [](const Option&) {
+                    experience.clear();
                     return std::nullopt;
                 }));
 
@@ -191,10 +179,6 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Book", Option(false));
     options.add("Experience Book Max Moves", Option(100, 1, 100));
     options.add("Experience Book Min Depth", Option(4, 1, 255));
-    options.add("Experience Concurrent", Option(false, [this](const Option&) {
-                    concurrentExperienceFile.clear();
-                    return std::nullopt;
-                }));
 
     // MonteCarlo Tree Search section (experimental: thanks to original Stephan
     // Nicolet work)
@@ -264,27 +248,7 @@ void Engine::search_clear() {
     Tablebases::release();
 
     if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
-    {
-        std::string file = options["Experience File"];
-        if ((bool) options["Experience Concurrent"])
-        {
-            if (concurrentExperienceFile.empty())
-            {
-                std::random_device rd;
-                uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
-                std::ostringstream oss;
-                oss << std::hex << std::setfill('0') << std::setw(16) << r;
-                std::string suffix = oss.str();
-                auto        p      = file.find_last_of('.');
-                if (p != std::string::npos)
-                    concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
-                else
-                    concurrentExperienceFile = file + "-" + suffix;
-            }
-            file = concurrentExperienceFile;
-        }
-        experience.save(file);
-    }
+        experience.clear();
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {

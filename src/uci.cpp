@@ -118,7 +118,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "revolution v.2.70 dev-210925"
+            // Force a stable, explicit UCI name so GUIs show "revolution-dev-2209252kstc"
             sync_cout_start();
             std::cout
               << "id name " << ENGINE_NAME << "\n"
@@ -128,9 +128,6 @@ void UCIEngine::loop() {
             sync_cout_end();
 
             sync_cout << "uciok" << sync_endl;
-
-            if ((bool) engine.get_options()["Experience Enabled"])
-                experience.load_async(engine.get_options()["Experience File"]);
         }
 
         else if (token == "setoption")
