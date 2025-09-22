@@ -19,9 +19,9 @@ def run_bench(engine, name, value):
     raise RuntimeError("Unexpected bench output")
 
 def main():
-    p = argparse.ArgumentParser(description="SPSA tuning for 2.71-dev-220925-thsaf")
+    p = argparse.ArgumentParser(description="SPSA tuning for revolution v.2.72-dev-220925-chsteal")
     p.add_argument("--param", nargs=4, metavar=("NAME", "START", "MIN", "MAX"), action='append', required=True)
-    p.add_argument("--engine", default="src/2.71-dev-220925-thsaf")
+    p.add_argument("--engine", default="src/revolution-v.2.72-dev-220925-chsteal")
     p.add_argument("--iterations", type=int, default=10)
     args = p.parse_args()
 

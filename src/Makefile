@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = 2.71-dev-220925-thsaf.exe
+        EXE = revolution-v.2.72-dev-220925-chsteal.exe
 else
-        EXE = 2.71-dev-220925-thsaf
+        EXE = revolution-v.2.72-dev-220925-chsteal
 endif
 
 ### Installation dir definitions
