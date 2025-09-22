@@ -497,9 +497,8 @@ void Search::Worker::iterative_deepening() {
     int searchAgainCounter = 0;
 
     // Start searches at depth 2 to skip the shallowest iteration and reach
-    // deeper analysis faster, unless the user explicitly limits the search
-    // to depth 1 or lower where we still want to run a single iteration.
-    rootDepth = (limits.depth && limits.depth <= 1) ? Depth(0) : Depth(1);
+    // deeper analysis faster.
+    rootDepth = 1;
 
     lowPlyHistory.fill(89);
 
@@ -1720,8 +1719,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             return alpha;
     }
 
-    const Value originalAlpha = alpha;
-
     Move      pv[MAX_PLY + 1];
     StateInfo st;
 
@@ -1741,14 +1738,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     bestMove    = Move::none();
     ss->inCheck = pos.checkers();
     moveCount   = 0;
-
-    const auto ttBound = [&](Value v, Move m) {
-        if (v >= beta)
-            return BOUND_LOWER;
-        if (m.is_ok() && v > originalAlpha && v < beta)
-            return BOUND_EXACT;
-        return BOUND_UPPER;
-    };
 
     // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
     if (PvNode && selDepth < ss->ply + 1)
@@ -1811,9 +1800,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!is_decisive(bestValue))
                 bestValue = (bestValue + beta) / 2;
             if (!ss->ttHit)
-                ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), false,
-                               ttBound(bestValue, bestMove), DEPTH_UNSEARCHED, Move::none(),
-                               unadjustedStaticEval, tt.generation());
+                ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
+                               DEPTH_UNSEARCHED, Move::none(), unadjustedStaticEval,
+                               tt.generation());
             return bestValue;
         }
 
@@ -1948,8 +1937,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     // Save gathered info in transposition table. The static evaluation
     // is saved as it was before adjustment by correction history.
     ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), pvHit,
-                   ttBound(bestValue, bestMove), DEPTH_QS, bestMove, unadjustedStaticEval,
-                   tt.generation());
+                   bestValue >= beta ? BOUND_LOWER : BOUND_UPPER, DEPTH_QS, bestMove,
+                   unadjustedStaticEval, tt.generation());
 
     assert(bestValue > -VALUE_INFINITE && bestValue < VALUE_INFINITE);
 
