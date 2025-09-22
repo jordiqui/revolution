@@ -314,11 +314,59 @@ if(WITH_TESTS)
 	add_unit_test(mersenne projects/lib/tests/mersenne/tst_mersenne.cpp)
 	add_unit_test(tournamentplayer projects/lib/tests/tournamentplayer/tst_tournamentplayer.cpp)
 	add_unit_test(tournamentpair projects/lib/tests/tournamentpair/tst_tournamentpair.cpp)
-	add_unit_test(polyglotbook projects/lib/tests/polyglotbook/tst_polyglotbook.cpp)
-	add_unit_test(xboardengine projects/lib/tests/xboardengine/tst_xboardengine.cpp)
-	if(WIN32)
-		add_unit_test(pipereader projects/lib/tests/pipereader/tst_pipereader.cpp)
-	endif()
+        add_unit_test(polyglotbook projects/lib/tests/polyglotbook/tst_polyglotbook.cpp)
+        add_unit_test(xboardengine projects/lib/tests/xboardengine/tst_xboardengine.cpp)
+        if(WIN32)
+                add_unit_test(pipereader projects/lib/tests/pipereader/tst_pipereader.cpp)
+        endif()
+
+        find_package(Threads REQUIRED)
+
+        set(STOCKFISH_EVAL_TEST_SOURCES
+                src/benchmark.cpp
+                src/bitboard.cpp
+                src/engine.cpp
+                src/evaluate.cpp
+                src/experience.cpp
+                src/memory.cpp
+                src/misc.cpp
+                src/movegen.cpp
+                src/movepick.cpp
+                src/polybook.cpp
+                src/position.cpp
+                src/score.cpp
+                src/search.cpp
+                src/thread.cpp
+                src/timeman.cpp
+                src/tt.cpp
+                src/tune.cpp
+                src/uci.cpp
+                src/ucioption.cpp
+                src/nnue/nnue_accumulator.cpp
+                src/nnue/nnue_misc.cpp
+                src/nnue/features/half_ka_v2_hm.cpp
+                src/nnue/network.cpp
+                src/syzygy/tbprobe.cpp)
+
+        add_library(stockfish_eval_test_lib STATIC ${STOCKFISH_EVAL_TEST_SOURCES})
+        target_compile_features(stockfish_eval_test_lib PUBLIC cxx_std_17)
+        target_compile_definitions(stockfish_eval_test_lib
+                PUBLIC
+                        NNUE_EMBEDDING_OFF
+                        IS_64BIT
+                        USE_PTHREADS)
+        target_include_directories(stockfish_eval_test_lib
+                PUBLIC
+                        ${CMAKE_CURRENT_SOURCE_DIR}/src
+                        ${CMAKE_CURRENT_SOURCE_DIR}/src/incbin
+                        ${CMAKE_CURRENT_SOURCE_DIR}/src/nnue
+                        ${CMAKE_CURRENT_SOURCE_DIR}/src/nnue/features
+                        ${CMAKE_CURRENT_SOURCE_DIR}/src/nnue/layers
+                        ${CMAKE_CURRENT_SOURCE_DIR}/src/syzygy)
+
+        add_executable(eval_symmetry_test tests/eval_symmetry_test.cpp)
+        target_link_libraries(eval_symmetry_test PRIVATE stockfish_eval_test_lib Threads::Threads)
+        add_test(NAME stockfish_eval_symmetry COMMAND eval_symmetry_test)
 endif()
 
 install(TARGETS cli DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime)
