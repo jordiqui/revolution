@@ -285,6 +285,12 @@ void UCIEngine::bench(std::istream& args) {
                     nodesSearched = perft(limits);
                 else
                 {
+                    // Ensure any background experience loading has finished
+                    // before starting the search. This mirrors the behaviour
+                    // of the regular UCI "go" command and prevents rare races
+                    // when bench is run immediately after the engine starts.
+                    experience.wait_until_loaded();
+
                     engine.go(limits);
                     engine.wait_for_search_finished();
                 }
