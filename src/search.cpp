@@ -186,10 +186,11 @@ void update_correction_history(const Position& pos,
 
     workerThread.pawnCorrectionHistory[pawn_correction_history_index(pos)][us] << scaledBonus;
     workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][us] << scaledBonus * 153 / 128;
+    const int nonPawnDelta = scaledBonus * nonPawnWeight / 128;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<WHITE>(pos)][WHITE][us]
-      << scaledBonus * nonPawnWeight / 128;
+      << correction_sign(WHITE, us) * nonPawnDelta;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<BLACK>(pos)][BLACK][us]
-      << scaledBonus * nonPawnWeight / 128;
+      << correction_sign(BLACK, us) * nonPawnDelta;
 
     if (m.is_ok())
         (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
