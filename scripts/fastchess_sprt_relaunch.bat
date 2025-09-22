@@ -29,8 +29,6 @@ if /i "%BLOCK_EXP%"=="Y" (
     set "EXP_BLOCK_CHAIN= ^|setoption name Experience Enabled value false"
     set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience Book value false"
     set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience Prior value false"
-    set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience Concurrent value false"
-    set "EXP_BLOCK_CHAIN=!EXP_BLOCK_CHAIN!^|setoption name Experience File value <empty>"
 )
 
 rem -------- Test controls --------
