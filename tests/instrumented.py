@@ -384,6 +384,32 @@ class TestInteractive(metaclass=OrderedClassMembers):
 
         self.stockfish.starts_with("bestmove c6d7")
 
+    def test_only_pawn_capture_prevents_false_stalemate(self):
+        self.stockfish.send_command("ucinewgame")
+        self.stockfish.send_command(
+            "position fen 8/7k/4p3/3pP3/5n2/5n2/4n3/7K w - d6 0 1"
+        )
+        self.stockfish.send_command("go depth 5")
+
+        def callback(output):
+            if output.startswith("bestmove"):
+                assert output.startswith("bestmove e5d6")
+                return True
+
+            return False
+
+        self.stockfish.check_output(callback)
+
+        history = [line for line in self.stockfish.get_output() if line.startswith("info depth")]
+        assert history, "Search did not report any info depth lines"
+
+        match = re.search(r"score (cp|mate) (-?\d+)", history[-1])
+        assert match is not None
+
+        score_type, value = match.group(1), int(match.group(2))
+        if score_type == "cp":
+            assert value != 0
+
     def test_fen_position_with_moves_with_mate_go_depth_and_searchmoves(self):
         self.stockfish.send_command("ucinewgame")
         self.stockfish.send_command(

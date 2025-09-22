@@ -1924,9 +1924,30 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     if (!ss->inCheck && !moveCount && !pos.non_pawn_material(us)
         && type_of(pos.captured_piece()) >= ROOK)
     {
-        if (!((us == WHITE ? shift<NORTH>(pos.pieces(us, PAWN))
-                           : shift<SOUTH>(pos.pieces(us, PAWN)))
-              & ~pos.pieces()))  // no pawn pushes available
+        const Bitboard pawns        = pos.pieces(us, PAWN);
+        const Bitboard emptySquares = ~pos.pieces();
+        const Bitboard enemyPieces  = pos.pieces(~us);
+        const Square   epSquare     = pos.ep_square();
+        const Bitboard epTarget     = epSquare != SQ_NONE ? square_bb(epSquare) : 0;
+
+        Bitboard pawnPushes, pawnCaptures;
+
+        if (us == WHITE)
+        {
+            const Bitboard singlePushes = shift<NORTH>(pawns) & emptySquares;
+            const Bitboard doublePushes = shift<NORTH>(singlePushes & Rank3BB) & emptySquares;
+            pawnPushes                  = singlePushes | doublePushes;
+            pawnCaptures = pawn_attacks_bb<WHITE>(pawns) & (enemyPieces | epTarget);
+        }
+        else
+        {
+            const Bitboard singlePushes = shift<SOUTH>(pawns) & emptySquares;
+            const Bitboard doublePushes = shift<SOUTH>(singlePushes & Rank6BB) & emptySquares;
+            pawnPushes                  = singlePushes | doublePushes;
+            pawnCaptures = pawn_attacks_bb<BLACK>(pawns) & (enemyPieces | epTarget);
+        }
+
+        if (!pawnPushes && !pawnCaptures)
         {
             pos.state()->checkersBB = Rank1BB;  // search for legal king-moves only
             if (!MoveList<LEGAL>(pos).size())   // stalemate
