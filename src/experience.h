@@ -52,8 +52,9 @@ class Experience {
    private:
     bool                                                  is_ready() const;
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
-    bool                                                  binaryFormat     = false;
-    bool                                                  brainLearnFormat = true;
+    bool                                                  binaryFormat       = false;
+    bool                                                  brainLearnFormat   = true;
+    std::string                                           brainLearnHeaderData;
     std::future<void>                                     loader;
 };
 

@@ -1,6 +1,7 @@
 #include "experience.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <future>
 #include <chrono>
@@ -11,6 +12,7 @@
 #include <iterator>
 #include <memory>
 #include <sstream>
+#include <string_view>
 #include <limits>
 #include <vector>
 #include <zlib.h>
@@ -18,6 +20,103 @@
 #include "misc.h"
 #include "position.h"
 #include "uci.h"
+
+#if defined(_MSC_VER)
+#    define PACKED_STRUCT_BEGIN __pragma(pack(push, 1))
+#    define PACKED_STRUCT_END __pragma(pack(pop))
+#    define PACKED_STRUCT struct
+#else
+#    define PACKED_STRUCT_BEGIN
+#    define PACKED_STRUCT_END
+#    define PACKED_STRUCT struct __attribute__((packed))
+#endif
+
+namespace {
+
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT BrainLearnRecord {
+    std::uint64_t key;
+    std::int32_t  depth;
+    std::int32_t  value;
+    std::uint16_t move;
+    std::uint16_t pad;
+    std::int32_t  perf;
+};
+PACKED_STRUCT_END
+
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT SugaRBinV1 {
+    std::uint64_t key;
+    std::uint32_t move;
+    std::int32_t  value;
+    std::int32_t  depth;
+    std::uint8_t  pad[4];
+};
+
+PACKED_STRUCT SugaRBinV2Minimal {
+    std::uint64_t key;
+    std::uint32_t move;
+    std::int32_t  value;
+    std::int32_t  depth;
+    std::uint16_t count;
+    std::uint8_t  pad[2];
+};
+
+PACKED_STRUCT SugaRBinV2Full {
+    std::uint64_t key;
+    std::uint16_t move;
+    std::int16_t  score;
+    std::int16_t  depth;
+    std::int16_t  count;
+    std::int32_t  wins;
+    std::int32_t  losses;
+    std::int32_t  draws;
+    std::int16_t  flags;
+    std::int16_t  age;
+    std::int16_t  pad;
+};
+PACKED_STRUCT_END
+
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT SugaRHeader {
+    std::uint8_t  version;
+    std::uint64_t seed;
+    std::uint32_t bucketSize;
+    std::uint32_t entrySize;
+};
+
+PACKED_STRUCT SugaRMetaBlock {
+    std::uint32_t hashBits;
+    std::uint32_t reserved;
+    std::uint16_t endianTag;
+    float         kFactor;
+    std::uint64_t counters;
+};
+
+PACKED_STRUCT SugaRBinV2 {
+    std::uint64_t key;
+    std::uint16_t move;
+    std::int16_t  score;
+    std::int16_t  depth;
+    std::int16_t  count;
+    std::int32_t  wins;
+    std::int32_t  losses;
+    std::int32_t  draws;
+    std::int16_t  flags;
+    std::int16_t  age;
+    std::int16_t  pad;
+};
+PACKED_STRUCT_END
+
+constexpr std::size_t BrainLearnHeaderCandidate = 8;
+
+bool has_brainlearn_header_prefix(std::string_view buffer) {
+    if (buffer.size() < 2)
+        return false;
+    return (buffer[0] == 'B' || buffer[0] == 'b') && (buffer[1] == 'L' || buffer[1] == 'l');
+}
+
+}  // namespace
 
 namespace Stockfish {
 
@@ -39,6 +138,7 @@ bool Experience::is_ready() const {
 void Experience::clear() {
     wait_until_loaded();
     table.clear();
+    brainLearnHeaderData.clear();
 }
 
 void Experience::load(const std::string& file) {
@@ -72,6 +172,8 @@ void Experience::load(const std::string& file) {
     if (path != file)
         display += " (from " + file + ")";
 
+    brainLearnHeaderData.clear();
+
     std::string buffer;
     if (compressed)
     {
@@ -104,9 +206,36 @@ void Experience::load(const std::string& file) {
     const std::string sigV1 = "SugaR";
     std::string       header(sigV2.size(), '\0');
     in.read(header.data(), header.size());
-    bool isV2 = header == sigV2;
-    bool isV1 = !isV2 && header.substr(0, sigV1.size()) == sigV1;
-    bool isBL = !isV1 && !isV2 && buffer.size() >= 24 && (buffer.size() % 24 == 0);
+    bool        isV2 = header == sigV2;
+    bool        isV1 = !isV2 && header.substr(0, sigV1.size()) == sigV1;
+    bool        isBL = false;
+    std::size_t blOffset = 0;
+
+    if (!isV1 && !isV2 && buffer.size() >= sizeof(BrainLearnRecord))
+    {
+        constexpr std::array<std::size_t, 3> offsets = {0u, BrainLearnHeaderCandidate,
+                                                        2 * BrainLearnHeaderCandidate};
+        const std::size_t                     size    = buffer.size();
+
+        for (const auto offset : offsets)
+        {
+            if (size <= offset)
+                continue;
+
+            if ((size - offset) % sizeof(BrainLearnRecord) != 0)
+                continue;
+
+            if (offset == 0
+                || has_brainlearn_header_prefix(std::string_view(buffer).substr(0, offset)))
+            {
+                isBL     = true;
+                blOffset = offset;
+                if (offset > 0)
+                    brainLearnHeaderData.assign(buffer.data(), offset);
+                break;
+            }
+        }
+    }
     in.clear();
     in.seekg(0, std::ios::beg);
 
@@ -139,57 +268,21 @@ void Experience::load(const std::string& file) {
     {
         if (isBL)
         {
-            struct BinBL {
-                uint64_t key;
-                int32_t  depth;
-                int32_t  value;
-                uint16_t move;
-                uint16_t pad;
-                int32_t  perf;
-            };
-            BinBL e;
+            in.seekg(static_cast<std::streamoff>(blOffset), std::ios::beg);
+
+            BrainLearnRecord e{};
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
             {
                 int value = e.value;
                 if (e.key & Zobrist::side)
                     value = -value;
-                insert_entry(e.key, e.move, value, e.depth, 1);
+                const int storedCount = std::max(1, e.perf);
+                insert_entry(e.key, e.move, value, e.depth, storedCount);
             }
         }
         else
         {
             in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
-
-            struct BinV1 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint8_t  pad[4];
-            };
-
-            struct BinV2Minimal {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
-            };
-
-            struct BinV2Full {
-                uint64_t key;
-                uint16_t move;
-                int16_t  score;
-                int16_t  depth;
-                int16_t  count;
-                int32_t  wins;
-                int32_t  losses;
-                int32_t  draws;
-                int16_t  flags;
-                int16_t  age;
-                int16_t  pad;
-            };
 
             if (isV2)
             {
@@ -232,7 +325,8 @@ void Experience::load(const std::string& file) {
                     out.bucketSize = read_u32(ptr);
                     out.entrySize  = read_u32(ptr);
 
-                    if (out.version != 2 || out.entrySize < sizeof(BinV2Full) || out.entrySize > 4096)
+                    if (out.version != 2 || out.entrySize < sizeof(SugaRBinV2Full)
+                        || out.entrySize > 4096)
                         return false;
 
                     const std::size_t metaSize  = sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
@@ -284,7 +378,7 @@ void Experience::load(const std::string& file) {
                 bool         hasHeader = parse_v2_header(header);
 
                 std::size_t entryOffset = sigV2.size();
-                std::size_t entrySize   = sizeof(BinV2Minimal);
+                std::size_t entrySize   = sizeof(SugaRBinV2Minimal);
 
                 if (hasHeader)
                 {
@@ -341,7 +435,7 @@ void Experience::load(const std::string& file) {
                 }
                 else
                 {
-                    BinV2Minimal e;
+                    SugaRBinV2Minimal e{};
                     while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
                     {
                         int value = e.value;
@@ -353,7 +447,7 @@ void Experience::load(const std::string& file) {
             }
             else
             {
-                BinV1 e;
+                SugaRBinV1 e{};
                 while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
                 {
                     int value = e.value;
@@ -452,18 +546,20 @@ void Experience::save(const std::string& file) const {
 
     if (brainLearnFormat)
     {
-        struct BinBL {
-            uint64_t key;
-            int32_t  depth;
-            int32_t  value;
-            uint16_t move;
-            uint16_t pad;
-            int32_t  perf;
-        };
+        if (!brainLearnHeaderData.empty())
+            buffer.append(brainLearnHeaderData);
+
         for (const auto& [key, vec] : table)
             for (const auto& e : vec)
             {
-                BinBL be{key, e.depth, e.score, static_cast<uint16_t>(e.move.raw()), 0, e.count};
+                BrainLearnRecord be{key,
+                                    e.depth,
+                                    e.score,
+                                    static_cast<std::uint16_t>(e.move.raw()),
+                                    0,
+                                    std::clamp(e.count,
+                                               1,
+                                               std::numeric_limits<std::int32_t>::max())};
                 buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
                 totalMoves++;
             }
@@ -473,42 +569,17 @@ void Experience::save(const std::string& file) const {
         const std::string sig = "SugaR Experience version 2";
         buffer.append(sig);
 
-        struct Header {
-            std::uint8_t  version;
-            std::uint64_t seed;
-            std::uint32_t bucketSize;
-            std::uint32_t entrySize;
-        };
-        struct MetaBlock {
-            std::uint32_t hashBits;
-            std::uint32_t reserved;
-            std::uint16_t endianTag;
-            float         kFactor;
-            std::uint64_t counters;
-        };
-        struct BinV2 {
-            std::uint64_t key;
-            std::uint16_t move;
-            std::int16_t  score;
-            std::int16_t  depth;
-            std::int16_t  count;
-            std::int32_t  wins;
-            std::int32_t  losses;
-            std::int32_t  draws;
-            std::int16_t  flags;
-            std::int16_t  age;
-            std::int16_t  pad;
-        };
-
-        static_assert(sizeof(Header) == 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t),
+        static_assert(sizeof(SugaRHeader) == 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t),
                       "Unexpected header packing");
-        static_assert(sizeof(MetaBlock) == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
-                                           + sizeof(float) + sizeof(std::uint64_t),
+        static_assert(sizeof(SugaRMetaBlock) == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
+                                                + sizeof(float) + sizeof(std::uint64_t),
                       "Unexpected meta block packing");
-        static_assert(sizeof(BinV2) == 34, "Unexpected V2 entry size");
+        static_assert(sizeof(SugaRBinV2) == 34, "Unexpected V2 entry size");
 
-        const Header header{2, 0x103380A463E28000ULL, 6u, static_cast<std::uint32_t>(sizeof(BinV2))};
-        const MetaBlock metaBlocks[2] = {{23u, 1u, 0x0002u, 11.978f, 0u}, {23u, 1u, 0x0002u, 11.978f, 0u}};
+        const SugaRHeader header{2, 0x103380A463E28000ULL, 6u,
+                                 static_cast<std::uint32_t>(sizeof(SugaRBinV2))};
+        const SugaRMetaBlock metaBlocks[2] = {{23u, 1u, 0x0002u, 11.978f, 0u},
+                                              {23u, 1u, 0x0002u, 11.978f, 0u}};
 
         buffer.append(reinterpret_cast<const char*>(&header), sizeof(header));
         buffer.append(reinterpret_cast<const char*>(metaBlocks), sizeof(metaBlocks));
@@ -531,7 +602,7 @@ void Experience::save(const std::string& file) const {
         for (const auto& [key, vec] : table)
             for (const auto& e : vec)
             {
-                BinV2 be{};
+                SugaRBinV2 be{};
                 be.key   = key;
                 be.move  = static_cast<std::uint16_t>(e.move.raw());
                 be.score = clamp_i16(e.score);
@@ -673,3 +744,7 @@ void Experience::show(const Position& pos, int evalImportance, int maxMoves) con
 }
 
 }  // namespace Stockfish
+
+#undef PACKED_STRUCT_BEGIN
+#undef PACKED_STRUCT_END
+#undef PACKED_STRUCT
