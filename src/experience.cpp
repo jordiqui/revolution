@@ -30,11 +30,6 @@ Experience experience;
 
 namespace {
 
-constexpr std::size_t SugaRV2FullEntrySize    = 34;
-constexpr std::size_t SugaRV2MinimalEntrySize = 24;
-constexpr std::size_t SugaRV2MetaBlockSize    = sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
-                                               + sizeof(float) + sizeof(std::uint64_t);
-
 #pragma pack(push, 1)
 struct SugaRV2Header {
     std::uint8_t  version;
@@ -82,10 +77,8 @@ static_assert(sizeof(SugaRV2MetaBlock)
                   == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t) + sizeof(float)
                          + sizeof(std::uint64_t),
               "Unexpected meta block packing");
-static_assert(sizeof(BinV2Minimal) == SugaRV2MinimalEntrySize,
-              "Unexpected minimal V2 entry size");
-static_assert(sizeof(BinV2Full) == SugaRV2FullEntrySize,
-              "Unexpected V2 entry size");
+static_assert(sizeof(BinV2Minimal) == 24, "Unexpected minimal V2 entry size");
+static_assert(sizeof(BinV2Full) == 34, "Unexpected V2 entry size");
 
 }  // namespace
 
@@ -271,10 +264,10 @@ void Experience::load(const std::string& file) {
                     out.bucketSize = read_u32(ptr);
                     out.entrySize  = read_u32(ptr);
 
-                    if (out.version != 2 || out.entrySize < SugaRV2FullEntrySize || out.entrySize > 4096)
+                    if (out.version != 2 || out.entrySize < sizeof(BinV2Full) || out.entrySize > 4096)
                         return false;
 
-                    const std::size_t metaSize  = SugaRV2MetaBlockSize;
+                    const std::size_t metaSize  = sizeof(SugaRV2MetaBlock);
                     const std::size_t available = static_cast<std::size_t>(end - ptr);
 
                     if (available < metaSize)
@@ -366,9 +359,6 @@ void Experience::load(const std::string& file) {
                         // Skip wins/losses/draws/flags/age/padding
                         ptr += sizeof(std::int32_t) * 3;  // wins, losses, draws
                         ptr += sizeof(std::int16_t) * 3;  // flags, age, pad
-
-                        if (entrySize > SugaRV2FullEntrySize)
-                            ptr += entrySize - SugaRV2FullEntrySize;
 
                         int value = score;
                         if (key & Zobrist::side)
