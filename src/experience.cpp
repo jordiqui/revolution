@@ -35,6 +35,58 @@ constexpr std::size_t SugaRV2MinimalEntrySize = 24;
 constexpr std::size_t SugaRV2MetaBlockSize    = sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
                                                + sizeof(float) + sizeof(std::uint64_t);
 
+#pragma pack(push, 1)
+struct SugaRV2Header {
+    std::uint8_t  version;
+    std::uint64_t seed;
+    std::uint32_t bucketSize;
+    std::uint32_t entrySize;
+};
+
+struct SugaRV2MetaBlock {
+    std::uint32_t hashBits;
+    std::uint32_t reserved;
+    std::uint16_t endianTag;
+    float         kFactor;
+    std::uint64_t counters;
+};
+
+struct BinV2Minimal {
+    std::uint64_t key;
+    std::uint32_t move;
+    std::int32_t  value;
+    std::int32_t  depth;
+    std::uint16_t count;
+    std::uint8_t  pad[2];
+};
+
+struct BinV2Full {
+    std::uint64_t key;
+    std::uint16_t move;
+    std::int16_t  score;
+    std::int16_t  depth;
+    std::int16_t  count;
+    std::int32_t  wins;
+    std::int32_t  losses;
+    std::int32_t  draws;
+    std::int16_t  flags;
+    std::int16_t  age;
+    std::int16_t  pad;
+};
+#pragma pack(pop)
+
+static_assert(sizeof(SugaRV2Header)
+                  == 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t),
+              "Unexpected header packing");
+static_assert(sizeof(SugaRV2MetaBlock)
+                  == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t) + sizeof(float)
+                         + sizeof(std::uint64_t),
+              "Unexpected meta block packing");
+static_assert(sizeof(BinV2Minimal) == SugaRV2MinimalEntrySize,
+              "Unexpected minimal V2 entry size");
+static_assert(sizeof(BinV2Full) == SugaRV2FullEntrySize,
+              "Unexpected V2 entry size");
+
 }  // namespace
 
 void Experience::wait_until_loaded() const {
@@ -178,18 +230,6 @@ void Experience::load(const std::string& file) {
                 uint8_t  pad[4];
             };
 
-            struct BinV2Minimal {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
-            };
-
-            static_assert(sizeof(BinV2Minimal) == SugaRV2MinimalEntrySize,
-                          "Unexpected minimal V2 entry size");
-
             if (isV2)
             {
                 struct V2HeaderInfo {
@@ -282,7 +322,7 @@ void Experience::load(const std::string& file) {
                 bool         hasHeader = parse_v2_header(header);
 
                 std::size_t entryOffset = sigV2.size();
-                std::size_t entrySize   = SugaRV2MinimalEntrySize;
+                std::size_t entrySize   = sizeof(BinV2Minimal);
 
                 if (hasHeader)
                 {
@@ -474,49 +514,13 @@ void Experience::save(const std::string& file) const {
         const std::string sig = "SugaR Experience version 2";
         buffer.append(sig);
 
-        auto append_u8 = [&](std::uint8_t value) { buffer.push_back(static_cast<char>(value)); };
-        auto append_u16 = [&](std::uint16_t value) {
-            buffer.push_back(static_cast<char>(value & 0xFF));
-            buffer.push_back(static_cast<char>((value >> 8) & 0xFF));
-        };
-        auto append_u32 = [&](std::uint32_t value) {
-            for (int i = 0; i < 4; ++i)
-                buffer.push_back(static_cast<char>((value >> (8 * i)) & 0xFF));
-        };
-        auto append_u64 = [&](std::uint64_t value) {
-            for (int i = 0; i < 8; ++i)
-                buffer.push_back(static_cast<char>((value >> (8 * i)) & 0xFF));
-        };
-        auto append_i16 = [&](std::int16_t value) { append_u16(static_cast<std::uint16_t>(value)); };
-        auto append_i32 = [&](std::int32_t value) { append_u32(static_cast<std::uint32_t>(value)); };
-        auto append_float = [&](float value) {
-            static_assert(sizeof(float) == sizeof(std::uint32_t), "Unexpected float size");
-            std::uint32_t bits = 0;
-            std::memcpy(&bits, &value, sizeof(bits));
-            append_u32(bits);
-        };
+        const SugaRV2Header header{2, 0x103380A463E28000ULL, 6u,
+                                   static_cast<std::uint32_t>(sizeof(BinV2Full))};
+        const SugaRV2MetaBlock metaBlocks[2] = {{23u, 1u, 0x0002u, 11.978f, 0u},
+                                                {23u, 1u, 0x0002u, 11.978f, 0u}};
 
-        append_u8(2);  // version
-        append_u64(0x103380A463E28000ULL);  // seed
-        append_u32(6u);  // bucket size
-        append_u32(static_cast<std::uint32_t>(SugaRV2FullEntrySize));
-
-        const struct {
-            std::uint32_t hashBits;
-            std::uint32_t reserved;
-            std::uint16_t endianTag;
-            float         kFactor;
-            std::uint64_t counters;
-        } metaBlocks[2] = {{23u, 1u, 0x0002u, 11.978f, 0u}, {23u, 1u, 0x0002u, 11.978f, 0u}};
-
-        for (const auto& meta : metaBlocks)
-        {
-            append_u32(meta.hashBits);
-            append_u32(meta.reserved);
-            append_u16(meta.endianTag);
-            append_float(meta.kFactor);
-            append_u64(meta.counters);
-        }
+        buffer.append(reinterpret_cast<const char*>(&header), sizeof(header));
+        buffer.append(reinterpret_cast<const char*>(metaBlocks), sizeof(metaBlocks));
 
         auto clamp_i16 = [](int value) {
             if (value > std::numeric_limits<std::int16_t>::max())
@@ -536,17 +540,20 @@ void Experience::save(const std::string& file) const {
         for (const auto& [key, vec] : table)
             for (const auto& e : vec)
             {
-                append_u64(key);
-                append_u16(static_cast<std::uint16_t>(e.move.raw()));
-                append_i16(clamp_i16(e.score));
-                append_i16(clamp_i16(e.depth));
-                append_i16(clamp_count(e.count));
-                append_i32(0);  // wins
-                append_i32(0);  // losses
-                append_i32(0);  // draws
-                append_i16(0);  // flags
-                append_i16(0);  // age
-                append_i16(0);  // pad
+                BinV2Full be{};
+                be.key   = key;
+                be.move  = static_cast<std::uint16_t>(e.move.raw());
+                be.score = clamp_i16(e.score);
+                be.depth = clamp_i16(e.depth);
+                be.count = clamp_count(e.count);
+                be.wins  = 0;
+                be.losses = 0;
+                be.draws  = 0;
+                be.flags  = 0;
+                be.age    = 0;
+                be.pad    = 0;
+
+                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
 
                 totalMoves++;
             }
