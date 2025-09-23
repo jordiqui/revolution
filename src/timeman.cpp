@@ -138,7 +138,7 @@ void TimeManagement::init(Search::LimitsType& limits,
 
     // In very fast time controls (e.g. bullet), cap thinking time to avoid
     // losing on time due to overly deep searches.
-    if (limits.time[us] < 60000)
+    if (!useNodesTime && limits.time[us] < 60000)
     {
         optimumTime = std::min(optimumTime, TimePoint(limits.time[us] / 40));
         maximumTime = std::min(maximumTime, TimePoint(limits.time[us] / 20));
