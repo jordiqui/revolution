@@ -8,7 +8,7 @@ Revolution is a free, open-source UCI chess engine derived from the world-class 
 
 ## Latest Updates
 - Synchronized with the Stockfish mainline search and evaluation improvements up to August 2025.
-- Expanded NNUE integration to support multiple network profiles, including the experimental Falcon network.
+- Streamlined NNUE integration around the proven dual-network (big + small) configuration.
 - Added faster startup routines for Syzygy tablebases through optional pre-mapping.
 - Refined experience learning heuristics that bias move ordering based on past games.
 
@@ -22,7 +22,7 @@ Revolution is a free, open-source UCI chess engine derived from the world-class 
 ## Architecture Highlights
 - Modernized C++17 patterns for clarity, safety, and maintainability.
 - Clean separation between search, evaluation, and NNUE components in `src/`.
-- Optional experience files (`experience.exp`) and neural network weights (`revolution.nnue`, `nn-c01dc0ffeede.nnue`).
+- Optional experience files (`experience.exp`) and neural network weights (`nn-1c0000000000.nnue`, `nn-baff1ede1f90.nnue`).
 
 ## Building from Source
 Revolution reuses the well-established Stockfish build system. Typical workflow:
@@ -50,7 +50,6 @@ Load Revolution into any UCI-compatible GUI:
 uci
 setoption name Minimum Thinking Time value 200
 setoption name SyzygyPath value /path/to/tablebases
-setoption name FalconFile value nn-c01dc0ffeede.nnue
 isready
 ucinewgame
 position startpos

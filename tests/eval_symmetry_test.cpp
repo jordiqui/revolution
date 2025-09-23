@@ -21,14 +21,12 @@ Eval::NNUE::Networks load_networks() {
 
     NetworkBig   big({Eval::EvalFileDefaultNameBig, "None", ""}, EmbeddedNNUEType::BIG);
     NetworkSmall small({Eval::EvalFileDefaultNameSmall, "None", ""}, EmbeddedNNUEType::SMALL);
-    NetworkFalcon falcon({FalconFileDefaultName, "None", ""}, EmbeddedNNUEType::FALCON);
 
     const char* rootOverride = std::getenv("REVOLUTION_EVAL_SYMMETRY_NET_ROOT");
     const std::string rootDir = rootOverride ? rootOverride : std::string();
 
-    const char* bigOverride    = std::getenv("REVOLUTION_EVAL_SYMMETRY_BIG");
-    const char* smallOverride  = std::getenv("REVOLUTION_EVAL_SYMMETRY_SMALL");
-    const char* falconOverride = std::getenv("REVOLUTION_EVAL_SYMMETRY_FALCON");
+    const char* bigOverride   = std::getenv("REVOLUTION_EVAL_SYMMETRY_BIG");
+    const char* smallOverride = std::getenv("REVOLUTION_EVAL_SYMMETRY_SMALL");
 
     const auto load_net = [&](auto& network, const char* overrideName, const char* defaultName) {
         const std::string filename = overrideName ? overrideName : defaultName;
@@ -37,9 +35,8 @@ Eval::NNUE::Networks load_networks() {
 
     load_net(big, bigOverride, Eval::EvalFileDefaultNameBig);
     load_net(small, smallOverride, Eval::EvalFileDefaultNameSmall);
-    load_net(falcon, falconOverride, FalconFileDefaultName);
 
-    return Networks(std::move(big), std::move(small), std::move(falcon));
+    return Networks(std::move(big), std::move(small));
 }
 
 Value evaluate_position(const Position& pos, const Eval::NNUE::Networks& networks) {

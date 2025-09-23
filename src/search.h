@@ -358,10 +358,9 @@ class Worker {
 
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
-    Eval::NNUE::AccumulatorCaches refreshTable;
+    Eval::NNUE::AccumulatorCaches         refreshTable;
     Eval::NNUE::NetworkBig::WeightsPtr    bigWeightsHandle;
     Eval::NNUE::NetworkSmall::WeightsPtr  smallWeightsHandle;
-    Eval::NNUE::NetworkFalcon::WeightsPtr falconWeightsHandle;
 
     bool experienceAvailable;
 

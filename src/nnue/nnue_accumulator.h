@@ -104,13 +104,10 @@ struct AccumulatorCaches {
     void clear(const Networks& networks) {
         big.clear(networks.big);
         small.clear(networks.small);
-        falcon.clear(networks.falcon);
     }
 
     Cache<TransformedFeatureDimensionsBig>   big;
     Cache<TransformedFeatureDimensionsSmall> small;
-    // Falcon network uses the small-network dimensions
-    Cache<TransformedFeatureDimensionsSmall> falcon;
 };
 
 

@@ -47,7 +47,6 @@ namespace Stockfish::Eval::NNUE {
 enum class EmbeddedNNUEType {
     BIG,
     SMALL,
-    FALCON,
 };
 
 using NetworkOutput = std::tuple<Value, Value>;
@@ -132,19 +131,15 @@ using BigNetworkArchitecture = NetworkArchitecture<TransformedFeatureDimensionsB
 
 using NetworkBig   = Network<BigNetworkArchitecture, BigFeatureTransformer>;
 using NetworkSmall = Network<SmallNetworkArchitecture, SmallFeatureTransformer>;
-// Falcon network now uses the small-network architecture
-using NetworkFalcon = Network<SmallNetworkArchitecture, SmallFeatureTransformer>;
 
 
 struct Networks {
-    Networks(NetworkBig&& nB, NetworkSmall&& nS, NetworkFalcon&& nF) :
+    Networks(NetworkBig&& nB, NetworkSmall&& nS) :
         big(std::move(nB)),
-        small(std::move(nS)),
-        falcon(std::move(nF)) {}
+        small(std::move(nS)) {}
 
     NetworkBig    big;
     NetworkSmall  small;
-    NetworkFalcon falcon;
 };
 
 

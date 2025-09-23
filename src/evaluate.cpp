@@ -81,20 +81,8 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
         nnueComplexity             = std::abs(psqt - positional);
     }
 
-    // Blend optimism and eval with nnue complexity.
-    // Positive optimism still scales up in sharp positions to encourage
-    // taking initiative, but negative optimism (typically when defending)
-    // is damped instead of amplified.  This avoids over-penalising the side
-    // to move in complex positions where the network already signals danger,
-    // which in practice helps the engine hold tougher positions when
-    // playing with the black pieces.
-    if (optimism > 0)
-        optimism += optimism * nnueComplexity / 468;
-    else if (optimism < 0)
-    {
-        const int dampDenom = 512 + nnueComplexity / 2;
-        optimism            = optimism * 512 / std::max(512, dampDenom);
-    }
+    // Blend optimism and eval with nnue complexity
+    optimism += optimism * nnueComplexity / 468;
 
     nnue -= nnue * nnueComplexity / 18000;
 
