@@ -1,12 +1,28 @@
 #include <gtest/gtest.h>
 #include <cstdint>
+#include <cstdio>
 #include <fstream>
 #include <string>
 #include <vector>
 
+#include "experience.h"
+
 namespace {
 
 #pragma pack(push,1)
+struct HeaderV2 {
+    std::uint8_t  version;
+    std::uint64_t seed;
+    std::uint32_t bucket_size;
+    std::uint32_t entry_size;
+};
+struct MetaBlockV2 {
+    std::uint32_t hash_bits;
+    std::uint32_t reserved;
+    std::uint16_t endian_tag;
+    float         k_factor;
+    std::uint64_t counters;
+};
 struct EntryV2 {
     uint64_t key;
     uint16_t move;
@@ -21,6 +37,11 @@ struct EntryV2 {
     int16_t  pad;   // padding hasta 34
 };
 #pragma pack(pop)
+static_assert(sizeof(HeaderV2) == 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t),
+              "HeaderV2 must be 17 bytes");
+static_assert(sizeof(MetaBlockV2) == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
+                                         + sizeof(float) + sizeof(std::uint64_t),
+              "MetaBlockV2 must be 22 bytes");
 static_assert(sizeof(EntryV2) == 34, "EntryV2 must be 34 bytes");
 
 constexpr const char* kSig = "SugaR Experience version 2";
@@ -70,13 +91,16 @@ std::string WriteExpFile(const std::string& path, size_t nEntries) {
     return path;
 }
 
-// Validador: firma, cabecera mínima, múltiplo de 34, y lectura de la primera entrada (si existe)
+// Validador: firma, cabecera completa y lectura de la primera entrada (si existe)
 ::testing::AssertionResult ValidateExpFile(const std::string& path) {
     std::ifstream in(path, std::ios::binary | std::ios::ate);
     if (!in)
         return ::testing::AssertionFailure() << "No se puede abrir: " << path;
 
-    const std::streamsize size = in.tellg();
+    const std::streamsize sizeStream = in.tellg();
+    if (sizeStream < 0)
+        return ::testing::AssertionFailure() << "Tamaño de archivo inválido";
+    const std::size_t size = static_cast<std::size_t>(sizeStream);
     in.seekg(0, std::ios::beg);
 
     const std::string sig(kSig);
@@ -87,26 +111,65 @@ std::string WriteExpFile(const std::string& path, size_t nEntries) {
     if (std::string(buf.begin(), buf.end()) != sig)
         return ::testing::AssertionFailure() << "Firma inválida";
 
-    const std::size_t headerExtra = sizeof(kHeaderExtra); // 61
-    if (size < static_cast<std::streamsize>(sig.size() + headerExtra))
-        return ::testing::AssertionFailure() << "Cabecera incompleta";
+    HeaderV2 header{};
+    in.read(reinterpret_cast<char*>(&header), sizeof(header));
+    if (!in)
+        return ::testing::AssertionFailure() << "Cabecera truncada";
 
-    const auto afterHeader = size - static_cast<std::streamsize>(sig.size() + headerExtra);
-    if (afterHeader % 34 != 0)
-        return ::testing::AssertionFailure() << "Cuerpo no múltiplo de 34 bytes";
+    if (header.version != 2)
+        return ::testing::AssertionFailure() << "Versión de cabecera inesperada";
+    if (header.entry_size < sizeof(EntryV2))
+        return ::testing::AssertionFailure() << "entry_size demasiado pequeño";
 
-    // Si no hay entradas, es válido igualmente
+    const std::size_t headerBasic   = sizeof(header);
+    const std::size_t metaBlockSize = sizeof(MetaBlockV2);
+
+    if (size < sig.size() + headerBasic)
+        return ::testing::AssertionFailure() << "Archivo truncado en la cabecera";
+
+    const std::size_t headerRemaining = size - (sig.size() + headerBasic);
+    if (headerRemaining < metaBlockSize)
+        return ::testing::AssertionFailure() << "Metadatos ausentes";
+
+    std::size_t metaBlocks = 0;
+    for (std::size_t blocks = 1; blocks <= headerRemaining / metaBlockSize; ++blocks)
+    {
+        const std::size_t afterHeader = headerRemaining - blocks * metaBlockSize;
+        if (afterHeader % header.entry_size == 0)
+        {
+            metaBlocks = blocks;
+            break;
+        }
+    }
+
+    if (!metaBlocks)
+        return ::testing::AssertionFailure() << "No se pudo determinar el número de metabloques";
+
+    in.seekg(static_cast<std::streamoff>(sig.size() + headerBasic), std::ios::beg);
+    for (std::size_t i = 0; i < metaBlocks; ++i)
+    {
+        MetaBlockV2 meta{};
+        in.read(reinterpret_cast<char*>(&meta), sizeof(meta));
+        if (!in)
+            return ::testing::AssertionFailure() << "Metabloque truncado";
+        if (meta.endian_tag != 0x0002)
+            return ::testing::AssertionFailure() << "Endianness inesperada";
+    }
+
+    const std::size_t afterHeader = headerRemaining - metaBlocks * metaBlockSize;
+    if (afterHeader % header.entry_size != 0)
+        return ::testing::AssertionFailure() << "Cuerpo no múltiplo de entry_size";
+
     if (afterHeader == 0)
         return ::testing::AssertionSuccess();
 
-    // Leer primera entrada
-    in.seekg(static_cast<std::streamoff>(sig.size() + headerExtra), std::ios::beg);
+    in.seekg(static_cast<std::streamoff>(sig.size() + headerBasic + metaBlocks * metaBlockSize),
+             std::ios::beg);
     EntryV2 first{};
     in.read(reinterpret_cast<char*>(&first), sizeof(first));
     if (!in)
         return ::testing::AssertionFailure() << "Fallo leyendo la primera entrada";
 
-    // Sanity checks básicos
     if (first.count <= 0)
         return ::testing::AssertionFailure() << "count inválido (<=0)";
 
@@ -125,6 +188,24 @@ TEST(ExperienceFileFormat, ValidWithOneEntry) {
     const std::string path = "gtest_one_entry.exp";
     ASSERT_FALSE(WriteExpFile(path, 1).empty());
     EXPECT_TRUE(ValidateExpFile(path));
+}
+
+TEST(ExperienceFileFormat, SaveProducesValidStream) {
+    const std::string input  = "gtest_roundtrip_input.exp";
+    const std::string output = "gtest_roundtrip_output.exp";
+
+    ASSERT_FALSE(WriteExpFile(input, 1).empty());
+
+    {
+        Stockfish::Experience exp;
+        exp.load(input);
+        exp.save(output);
+    }
+
+    EXPECT_TRUE(ValidateExpFile(output));
+
+    std::remove(input.c_str());
+    std::remove(output.c_str());
 }
 
 // Test opcional contra un archivo real producido por el motor.
