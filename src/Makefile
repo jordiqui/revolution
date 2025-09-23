@@ -859,11 +859,11 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "2.71-dev-220925-thsaf"
+#   - ENGINE_NAME: "revolution-2.73-dev-230925-wk"
 #   - ENGINE_BUILD_DATE: optional build identifier
 # You can override on the command line:
-#   make ENGINE_NAME="2.71-dev-220925-thsaf" ENGINE_BUILD_DATE=20250907
-ENGINE_NAME        ?= 2.71-dev-220925-thsaf
+#   make ENGINE_NAME="revolution-2.73-dev-230925-wk" ENGINE_BUILD_DATE=20250907
+ENGINE_NAME        ?= revolution-2.73-dev-230925-wk
 ENGINE_BUILD_DATE  ?=
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
