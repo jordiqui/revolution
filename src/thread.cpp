@@ -284,15 +284,17 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     // shared since they are read-only.
     for (auto&& th : threads)
     {
-        th->run_custom_job([&]() {
-            th->worker->limits = limits;
-            th->worker->nodes = th->worker->tbHits = th->worker->nmpMinPly =
-              th->worker->bestMoveChanges          = 0;
-            th->worker->rootDepth = th->worker->completedDepth = 0;
-            th->worker->rootMoves                              = rootMoves;
-            th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
-            th->worker->rootState = setupStates->back();
-            th->worker->tbConfig  = tbConfig;
+        Thread* thread = th.get();
+        auto*   worker = thread->worker.get();
+
+        thread->run_custom_job([this, worker, &pos, &rootMoves, limits, tbConfig]() {
+            worker->limits = limits;
+            worker->nodes = worker->tbHits = worker->nmpMinPly = worker->bestMoveChanges = 0;
+            worker->rootDepth = worker->completedDepth = 0;
+            worker->rootMoves                         = rootMoves;
+            worker->rootPos.set(pos.fen(), pos.is_chess960(), &worker->rootState);
+            worker->rootState = setupStates->back();
+            worker->tbConfig  = tbConfig;
         });
     }
 
