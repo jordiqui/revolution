@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution-v.2.72-dev-220925-chsteal.exe
+        EXE = revolution-2.73-dev-230925-wk.exe
 else
-        EXE = revolution-v.2.72-dev-220925-chsteal
+        EXE = revolution-2.73-dev-230925-wk
 endif
 
 ### Installation dir definitions
