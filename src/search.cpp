@@ -233,26 +233,22 @@ Search::Worker::Worker(SharedState&                    sharedState,
     refreshTable(networks[token]),
     experienceAvailable(false) {
     const auto& netsForToken = networks[token];
-    bigWeightsHandle         = netsForToken.big.weights_handle();
-    smallWeightsHandle       = netsForToken.small.weights_handle();
-    falconWeightsHandle      = netsForToken.falcon.weights_handle();
+    bigWeightsHandle   = netsForToken.big.weights_handle();
+    smallWeightsHandle = netsForToken.small.weights_handle();
     clear();
 }
 
 void Search::Worker::ensure_network_replicated() {
     const auto& nets = networks[numaAccessToken];
 
-    auto newBig    = nets.big.weights_handle();
-    auto newSmall  = nets.small.weights_handle();
-    auto newFalcon = nets.falcon.weights_handle();
+    auto newBig   = nets.big.weights_handle();
+    auto newSmall = nets.small.weights_handle();
 
-    if (newBig == bigWeightsHandle && newSmall == smallWeightsHandle
-        && newFalcon == falconWeightsHandle)
+    if (newBig == bigWeightsHandle && newSmall == smallWeightsHandle)
         return;
 
-    bigWeightsHandle    = std::move(newBig);
-    smallWeightsHandle  = std::move(newSmall);
-    falconWeightsHandle = std::move(newFalcon);
+    bigWeightsHandle   = std::move(newBig);
+    smallWeightsHandle = std::move(newSmall);
 
     refreshTable.clear(nets);
 }
