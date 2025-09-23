@@ -22,7 +22,7 @@ extern Key side;
 
 namespace {
 
-struct BinV2 {
+struct LegacyEntry {
     std::uint64_t key;
     std::uint32_t move;
     std::int32_t  value;
@@ -30,6 +30,41 @@ struct BinV2 {
     std::uint16_t count;
     std::uint8_t  pad[2];
 };
+
+#pragma pack(push,1)
+struct HeaderV2 {
+    std::uint8_t  version;
+    std::uint64_t seed;
+    std::uint32_t bucket_size;
+    std::uint32_t entry_size;
+};
+struct MetaBlockV2 {
+    std::uint32_t hash_bits;
+    std::uint32_t reserved;
+    std::uint16_t endian_tag;
+    float         k_factor;
+    std::uint64_t counters;
+};
+struct EntryV2 {
+    std::uint64_t key;
+    std::uint16_t move;
+    std::int16_t  score;
+    std::int16_t  depth;
+    std::int16_t  count;
+    std::int32_t  wins;
+    std::int32_t  losses;
+    std::int32_t  draws;
+    std::int16_t  flags;
+    std::int16_t  age;
+    std::int16_t  pad;
+};
+#pragma pack(pop)
+static_assert(sizeof(HeaderV2) == 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t),
+              "HeaderV2 must be 17 bytes");
+static_assert(sizeof(MetaBlockV2) == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
+                                         + sizeof(float) + sizeof(std::uint64_t),
+              "MetaBlockV2 must be 22 bytes");
+static_assert(sizeof(EntryV2) == 34, "EntryV2 must be 34 bytes");
 
 constexpr char kSignature[] = "SugaR Experience version 2";
 
@@ -121,18 +156,18 @@ int main() {
     const Move winningMove(SQ_H1, SQ_G1);
     const Move losingMove(SQ_H1, SQ_H2);
 
-    const BinV2 winningRecord{key,
-                              static_cast<std::uint32_t>(winningMove.raw()),
-                              -500,
-                              12,
-                              1,
-                              {0, 0}};
-    const BinV2 losingRecord{key,
-                             static_cast<std::uint32_t>(losingMove.raw()),
-                             400,
-                             12,
-                             1,
-                             {0, 0}};
+    const LegacyEntry winningRecord{key,
+                                    static_cast<std::uint32_t>(winningMove.raw()),
+                                    -500,
+                                    12,
+                                    1,
+                                    {0, 0}};
+    const LegacyEntry losingRecord{key,
+                                   static_cast<std::uint32_t>(losingMove.raw()),
+                                   400,
+                                   12,
+                                   1,
+                                   {0, 0}};
 
     const auto inputPath  = make_temp_path("sugar_black_flip_input.exp");
     const auto outputPath = make_temp_path("sugar_black_flip_output.exp");
@@ -161,7 +196,7 @@ int main() {
 
     exp.save(outputPath.string());
 
-    std::vector<BinV2> stored(2);
+    std::vector<EntryV2> stored(2);
     {
         std::ifstream in(outputPath, std::ios::binary);
         if (!in)
@@ -176,6 +211,62 @@ int main() {
         {
             std::cerr << "Stored file is missing SugaR signature" << std::endl;
             return 1;
+        }
+
+        HeaderV2 header{};
+        in.read(reinterpret_cast<char*>(&header), sizeof(header));
+        if (!in || header.version != 2)
+        {
+            std::cerr << "Stored file has an invalid header" << std::endl;
+            return 1;
+        }
+
+        std::error_code sizeEc;
+        const auto       fileSize = std::filesystem::file_size(outputPath, sizeEc);
+        if (sizeEc)
+        {
+            std::cerr << "Failed to determine output file size" << std::endl;
+            return 1;
+        }
+
+        const std::size_t sigSize       = sizeof(kSignature) - 1;
+        const std::size_t headerBasic   = sizeof(HeaderV2);
+        const std::size_t metaBlockSize = sizeof(MetaBlockV2);
+
+        if (static_cast<std::size_t>(fileSize) < sigSize + headerBasic)
+        {
+            std::cerr << "Stored file is shorter than expected" << std::endl;
+            return 1;
+        }
+
+        const std::size_t headerRemaining = static_cast<std::size_t>(fileSize) - (sigSize + headerBasic);
+
+        std::size_t metaBlocks = 0;
+        for (std::size_t blocks = 1; blocks <= headerRemaining / metaBlockSize; ++blocks)
+        {
+            const std::size_t afterHeader = headerRemaining - blocks * metaBlockSize;
+            if (afterHeader % header.entry_size == 0)
+            {
+                metaBlocks = blocks;
+                break;
+            }
+        }
+
+        if (!metaBlocks)
+        {
+            std::cerr << "Unable to determine metadata length" << std::endl;
+            return 1;
+        }
+
+        for (std::size_t i = 0; i < metaBlocks; ++i)
+        {
+            MetaBlockV2 meta{};
+            in.read(reinterpret_cast<char*>(&meta), sizeof(meta));
+            if (!in)
+            {
+                std::cerr << "Stored file has a truncated metadata block" << std::endl;
+                return 1;
+            }
         }
 
         for (auto& rec : stored)
@@ -193,17 +284,19 @@ int main() {
     std::filesystem::remove(inputPath, ec);
     std::filesystem::remove(outputPath, ec);
 
-    std::map<std::uint32_t, std::int32_t> storedScores;
+    std::map<std::uint16_t, int> storedScores;
     for (const auto& rec : stored)
-        storedScores.emplace(rec.move, rec.value);
+        storedScores.emplace(rec.move, static_cast<int>(rec.score));
 
-    if (storedScores[winningRecord.move] != -winningRecord.value)
+    const std::uint16_t winMoveId = static_cast<std::uint16_t>(winningRecord.move & 0xFFFF);
+    if (storedScores[winMoveId] != -winningRecord.value)
     {
         std::cerr << "Winning move score was not flipped" << std::endl;
         return 1;
     }
 
-    if (storedScores[losingRecord.move] != -losingRecord.value)
+    const std::uint16_t loseMoveId = static_cast<std::uint16_t>(losingRecord.move & 0xFFFF);
+    if (storedScores[loseMoveId] != -losingRecord.value)
     {
         std::cerr << "Losing move score was not flipped" << std::endl;
         return 1;
