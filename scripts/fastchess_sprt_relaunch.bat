@@ -8,7 +8,7 @@ rem =============================================
 
 rem -------- User configurable paths --------
 set "FASTCHESS=C:\fastchess\fastchess.exe"
-set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution-v.2.74-dev240925-EXP.exe"
+set "ENGINE_NEW=C:\fastchess\revolution-ad\revolution v2.74-dev-250925-tsd1.exe"
 set "ENGINE_BASE=C:\fastchess\revolution-base\revolution-dev_v2.40_130925.exe"
 set "DIR_NEW=C:\fastchess\revolution-ad"
 set "DIR_BASE=C:\fastchess\revolution-base"
@@ -97,7 +97,7 @@ if errorlevel 2 goto :sprt
 set "GATING_DONE=1"
 echo Running gating match (%GATING_GAMES% games) ...
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_NEW%" name="revolution v.2.74-dev240925-EXP" dir="%DIR_NEW%" ^
+ -engine cmd="%ENGINE_NEW%" name="revolution v2.74-dev-250925-tsd1" dir="%DIR_NEW%" ^
     %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL%%EXP_BLOCK_CHAIN% ^
  -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
     %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL%%EXP_BLOCK_CHAIN% ^
@@ -142,7 +142,7 @@ if defined GATING_PERCENT (
 :sprt
 echo Running SPRT (%ROUNDS% rounds, elo0=%ELO0%, elo1=%ELO1%) ...
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_NEW%" name="revolution v.2.74-dev240925-EXP" dir="%DIR_NEW%" ^
+ -engine cmd="%ENGINE_NEW%" name="revolution v2.74-dev-250925-tsd1" dir="%DIR_NEW%" ^
     %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL%%EXP_BLOCK_CHAIN% ^
  -engine cmd="%ENGINE_BASE%" name="revolution_dev_v2.40" dir="%DIR_BASE%" ^
     %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL%%EXP_BLOCK_CHAIN% ^
