@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -30,7 +31,17 @@ class ExperienceWriteLock {
    public:
     explicit ExperienceWriteLock(const std::filesystem::path& target) {
 #ifdef _WIN32
-        std::wstring name = L"Global\\RevolutionExperience.lock";
+        const std::string targetUtf8 = target.u8string();
+        std::uint64_t     hash       = 1469598103934665603ULL; // FNV-1a 64-bit offset basis
+        for (unsigned char c : targetUtf8) {
+            hash ^= static_cast<std::uint64_t>(c);
+            hash *= 1099511628211ULL; // FNV-1a 64-bit prime
+        }
+
+        wchar_t hashBuffer[32];
+        std::swprintf(hashBuffer, sizeof(hashBuffer) / sizeof(hashBuffer[0]), L"%016llX",
+                      static_cast<unsigned long long>(hash));
+        std::wstring name = L"Global\\RevolutionExperience-" + std::wstring(hashBuffer);
         handle        = CreateMutexW(nullptr, FALSE, name.c_str());
         if (handle)
             locked = WaitForSingleObject(handle, INFINITE) == WAIT_OBJECT_0;
