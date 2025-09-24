@@ -134,8 +134,8 @@ void UCIEngine::loop() {
 
             sync_cout << "uciok" << sync_endl;
 
-            if ((bool) engine.get_options()["Experience Enabled"])
-                experience.load_async(engine.get_options()["Experience File"]);
+            if ((bool) engine.get_options()["Experience"])
+                experience.load_async(engine.get_options()["ExperienceFile"]);
         }
 
         else if (token == "setoption")

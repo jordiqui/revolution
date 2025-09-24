@@ -56,7 +56,7 @@ position startpos
 go movetime 5000
 ```
 
-Syzygy tablebases are automatically probed when `SyzygyPath` is set. Experience learning can be toggled via `Experience Enabled`, while `Experience Book` turns the cache into a soft opening book.
+Syzygy tablebases are automatically probed when `SyzygyPath` is set. Experience learning can be toggled via `Experience`, while `Experience Book` turns the cache into a soft opening book.
 
 ## License & Credits
 Revolution is distributed under the [GNU General Public License v3](https://www.gnu.org/licenses/gpl-3.0.en.html). Because the engine incorporates Stockfish code, any redistribution must ship complete corresponding source, retain GPL notices, and document modifications.

@@ -1,4 +1,5 @@
 #include "experience.h"
+#include "experience_io.h"
 
 #include <algorithm>
 #include <array>
@@ -6,6 +7,7 @@
 #include <future>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -198,6 +200,50 @@ void Experience::load(const std::string& file) {
             return;
         }
         buffer.assign(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
+    }
+
+    if (!buffer.empty())
+    {
+        bool handledExpHeader = false;
+        if (buffer.size() >= sizeof(ExpHeader))
+        {
+            ExpHeader header{};
+            std::memcpy(&header, buffer.data(), sizeof(header));
+            if (Experience_IsCompatible(header))
+            {
+                handledExpHeader = true;
+                const std::size_t payload = buffer.size() - sizeof(ExpHeader);
+
+                if (payload == 0)
+                {
+                    sync_cout << "info string " << display
+                              << " -> Experience header detected (no entries)." << sync_endl;
+                }
+                else if (payload % header.record_size == 0)
+                {
+                    const std::size_t records = payload / header.record_size;
+                    sync_cout << "info string " << display
+                              << " -> Experience format with record size " << header.record_size
+                              << " is not supported yet; ignoring " << records
+                              << (records == 1 ? " record." : " records.") << sync_endl;
+                }
+                else
+                {
+                    sync_cout << "info string " << display
+                              << " -> Experience header detected but payload size " << payload
+                              << " does not align with record size " << header.record_size
+                              << "; ignoring file." << sync_endl;
+                }
+
+                table.clear();
+                brainLearnHeaderData.clear();
+                binaryFormat     = true;
+                brainLearnFormat = false;
+            }
+        }
+
+        if (handledExpHeader)
+            return;
     }
 
     std::istringstream in(buffer);
