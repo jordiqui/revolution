@@ -205,25 +205,25 @@ void Experience::load(const std::string& file) {
     if (!buffer.empty())
     {
         bool handledExpHeader = false;
-        if (buffer.size() >= sizeof(ExpHeader))
+        if (buffer.size() >= sizeof(ExperienceHeader))
         {
-            ExpHeader header{};
+            ExperienceHeader header{};
             std::memcpy(&header, buffer.data(), sizeof(header));
             if (Experience_IsCompatible(header))
             {
                 handledExpHeader = true;
-                const std::size_t payload = buffer.size() - sizeof(ExpHeader);
+                const std::size_t payload = buffer.size() - sizeof(ExperienceHeader);
 
                 if (payload == 0)
                 {
                     sync_cout << "info string " << display
                               << " -> Experience header detected (no entries)." << sync_endl;
                 }
-                else if (payload % header.record_size == 0)
+                else if (payload % header.recordSize == 0)
                 {
-                    const std::size_t records = payload / header.record_size;
+                    const std::size_t records = payload / header.recordSize;
                     sync_cout << "info string " << display
-                              << " -> Experience format with record size " << header.record_size
+                              << " -> Experience format with record size " << header.recordSize
                               << " is not supported yet; ignoring " << records
                               << (records == 1 ? " record." : " records.") << sync_endl;
                 }
@@ -231,7 +231,7 @@ void Experience::load(const std::string& file) {
                 {
                     sync_cout << "info string " << display
                               << " -> Experience header detected but payload size " << payload
-                              << " does not align with record size " << header.record_size
+                              << " does not align with record size " << header.recordSize
                               << "; ignoring file." << sync_endl;
                 }
 
