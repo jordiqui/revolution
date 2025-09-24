@@ -38,6 +38,8 @@
 
 namespace {
 
+void ensure_parent_directory(const std::filesystem::path& path);
+
 class ExperienceWriteLock {
    public:
     explicit ExperienceWriteLock(const std::filesystem::path& target) {
