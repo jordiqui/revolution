@@ -324,6 +324,27 @@ bool write_zero_filled(const std::filesystem::path& target, std::uint32_t bucket
     return true;
 }
 
+bool ensure_readonly_status(const std::filesystem::path& path, bool& readOnly) {
+    errno = 0;
+    std::FILE* f = fopen_compat(path, "rb+");
+    if (f) {
+        std::fclose(f);
+        readOnly = false;
+        return true;
+    }
+
+    errno = 0;
+    f = fopen_compat(path, "rb");
+    if (!f)
+        return false;
+    std::fclose(f);
+    readOnly = true;
+    log_info("experience: path not writable, continuing read-only");
+    return true;
+}
+
+}  // namespace
+
 bool Experience_WriteBufferAtomically(const std::string& path, const std::string& buffer) {
     if (path.empty())
         return false;
@@ -382,27 +403,6 @@ bool Experience_WriteBufferAtomically(const std::string& path, const std::string
 
     return true;
 }
-
-bool ensure_readonly_status(const std::filesystem::path& path, bool& readOnly) {
-    errno = 0;
-    std::FILE* f = fopen_compat(path, "rb+");
-    if (f) {
-        std::fclose(f);
-        readOnly = false;
-        return true;
-    }
-
-    errno = 0;
-    f = fopen_compat(path, "rb");
-    if (!f)
-        return false;
-    std::fclose(f);
-    readOnly = true;
-    log_info("experience: path not writable, continuing read-only");
-    return true;
-}
-
-}  // namespace
 
 std::uint32_t Experience_NormalizeBucketCount(std::uint32_t requested) {
     if (requested < kMinExperienceBuckets)
