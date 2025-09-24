@@ -176,6 +176,27 @@ void Experience::load(const std::string& file) {
 
     brainLearnHeaderData.clear();
 
+    std::size_t totalMoves     = 0;
+    std::size_t duplicateMoves = 0;
+
+    auto insert_entry = [&](uint64_t key, unsigned move, int score, int depth, int count) {
+        totalMoves++;
+        auto& vec = table[key];
+        bool  dup = false;
+        for (auto& e : vec)
+            if (e.move.raw() == move)
+            {
+                dup = true;
+                duplicateMoves++;
+                e.score = score;
+                e.depth = depth;
+                e.count += count;
+                break;
+            }
+        if (!dup)
+            vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+    };
+
     std::string buffer;
     if (compressed)
     {
@@ -204,6 +225,7 @@ void Experience::load(const std::string& file) {
 
     if (!buffer.empty())
     {
+        table.clear();
         bool handledExpHeader = false;
         if (buffer.size() >= sizeof(ExperienceHeader))
         {
@@ -272,7 +294,6 @@ void Experience::load(const std::string& file) {
                               << "; ignoring file." << sync_endl;
                 }
 
-                table.clear();
                 brainLearnHeaderData.clear();
                 binaryFormat     = true;
                 brainLearnFormat = false;
@@ -325,27 +346,6 @@ void Experience::load(const std::string& file) {
     table.clear();
     binaryFormat     = isV1 || isV2 || isBL;
     brainLearnFormat = isBL;
-
-    std::size_t totalMoves     = 0;
-    std::size_t duplicateMoves = 0;
-
-    auto insert_entry = [&](uint64_t key, unsigned move, int score, int depth, int count) {
-        totalMoves++;
-        auto& vec = table[key];
-        bool  dup = false;
-        for (auto& e : vec)
-            if (e.move.raw() == move)
-            {
-                dup = true;
-                duplicateMoves++;
-                e.score = score;
-                e.depth = depth;
-                e.count += count;
-                break;
-            }
-        if (!dup)
-            vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
-    };
 
     if (binaryFormat)
     {
