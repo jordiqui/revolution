@@ -12,11 +12,11 @@ struct ExpHeader {
     std::uint32_t marker;
 };
 
-constexpr std::uint32_t kMagic_Accepted1 = 0x562F59FB;
-constexpr std::uint32_t kEngineRecordSize = 796;
-constexpr std::uint32_t kDefaultVerFlags  = 0x8F8F01D4;
-constexpr std::uint32_t kDefaultField3    = 20;
-constexpr std::uint32_t kDefaultField4    = 123;
+constexpr std::uint32_t kMagic_Accepted1 = 0x915DF0F9;
+constexpr std::uint32_t kEngineRecordSize = 1383;
+constexpr std::uint32_t kDefaultVerFlags  = 0x80E34492;
+constexpr std::uint32_t kDefaultField3    = 245;
+constexpr std::uint32_t kDefaultField4    = 31999;
 constexpr std::uint32_t kDefaultMarker    = 1;
 
 bool Experience_OpenForReadWrite(const std::string& path);
