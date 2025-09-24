@@ -1,7 +1,5 @@
-#ifndef WORDFISH_SPARSEHASH_TEMPLATE_UTIL_H
-#define WORDFISH_SPARSEHASH_TEMPLATE_UTIL_H
+#pragma once
 
-// Utility templates for the Wordfish project's sparsehash placeholders.
+// Utility templates for the Revolution project's sparsehash placeholders.
 // Implementation intentionally minimal.
 
-#endif // WORDFISH_SPARSEHASH_TEMPLATE_UTIL_H
