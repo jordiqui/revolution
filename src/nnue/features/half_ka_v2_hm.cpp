@@ -30,8 +30,10 @@ namespace Stockfish::Eval::NNUE::Features {
 // Index of a feature for a given king position and another piece on some square
 template<Color Perspective>
 inline IndexType HalfKAv2_hm::make_index(Square s, Piece pc, Square ksq) {
-    return IndexType((int(s) ^ OrientTBL[Perspective][ksq]) + PieceSquareIndex[Perspective][pc]
-                     + KingBuckets[Perspective][ksq]);
+    // Color is an enum class, so cast to int when using as array index.
+    return IndexType((int(s) ^ OrientTBL[static_cast<int>(Perspective)][ksq])
+                     + PieceSquareIndex[static_cast<int>(Perspective)][pc]
+                     + KingBuckets[static_cast<int>(Perspective)][ksq]);
 }
 
 // Get a list of indices for active features
@@ -47,10 +49,10 @@ void HalfKAv2_hm::append_active_indices(const Position& pos, IndexList& active) 
 }
 
 // Explicit template instantiations
-template void HalfKAv2_hm::append_active_indices<WHITE>(const Position& pos, IndexList& active);
-template void HalfKAv2_hm::append_active_indices<BLACK>(const Position& pos, IndexList& active);
-template IndexType HalfKAv2_hm::make_index<WHITE>(Square s, Piece pc, Square ksq);
-template IndexType HalfKAv2_hm::make_index<BLACK>(Square s, Piece pc, Square ksq);
+template void HalfKAv2_hm::append_active_indices<Color::WHITE>(const Position& pos, IndexList& active);
+template void HalfKAv2_hm::append_active_indices<Color::BLACK>(const Position& pos, IndexList& active);
+template IndexType HalfKAv2_hm::make_index<Color::WHITE>(Square s, Piece pc, Square ksq);
+template IndexType HalfKAv2_hm::make_index<Color::BLACK>(Square s, Piece pc, Square ksq);
 
 // Get a list of indices for recently changed features
 template<Color Perspective>
@@ -70,14 +72,14 @@ void HalfKAv2_hm::append_changed_indices(Square            ksq,
 }
 
 // Explicit template instantiations
-template void HalfKAv2_hm::append_changed_indices<WHITE>(Square            ksq,
-                                                         const DirtyPiece& dp,
-                                                         IndexList&        removed,
-                                                         IndexList&        added);
-template void HalfKAv2_hm::append_changed_indices<BLACK>(Square            ksq,
-                                                         const DirtyPiece& dp,
-                                                         IndexList&        removed,
-                                                         IndexList&        added);
+template void HalfKAv2_hm::append_changed_indices<Color::WHITE>(Square            ksq,
+                                                                const DirtyPiece& dp,
+                                                                IndexList&        removed,
+                                                                IndexList&        added);
+template void HalfKAv2_hm::append_changed_indices<Color::BLACK>(Square            ksq,
+                                                                const DirtyPiece& dp,
+                                                                IndexList&        removed,
+                                                                IndexList&        added);
 
 bool HalfKAv2_hm::requires_refresh(const DirtyPiece& dirtyPiece, Color perspective) {
     return dirtyPiece.pc == make_piece(perspective, KING);

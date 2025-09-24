@@ -18,8 +18,7 @@
 
 //Definition of input features HalfKP of NNUE evaluation function
 
-#ifndef NNUE_FEATURES_HALF_KA_V2_HM_H_INCLUDED
-#define NNUE_FEATURES_HALF_KA_V2_HM_H_INCLUDED
+#pragma once
 
 #include <cstdint>
 
@@ -54,7 +53,7 @@ class HalfKAv2_hm {
         PS_NB       = 11 * SQUARE_NB
     };
 
-    static constexpr IndexType PieceSquareIndex[COLOR_NB][PIECE_NB] = {
+    static constexpr IndexType PieceSquareIndex[static_cast<int>(Color::COLOR_NB)][PIECE_NB] = {
       // Convention: W - us, B - them
       // Viewed from other side, W and B are reversed
       {PS_NONE, PS_W_PAWN, PS_W_KNIGHT, PS_W_BISHOP, PS_W_ROOK, PS_W_QUEEN, PS_KING, PS_NONE,
@@ -75,7 +74,7 @@ class HalfKAv2_hm {
 
 #define B(v) (v * PS_NB)
     // clang-format off
-    static constexpr int KingBuckets[COLOR_NB][SQUARE_NB] = {
+    static constexpr int KingBuckets[static_cast<int>(Color::COLOR_NB)][SQUARE_NB] = {
       { B(28), B(29), B(30), B(31), B(31), B(30), B(29), B(28),
         B(24), B(25), B(26), B(27), B(27), B(26), B(25), B(24),
         B(20), B(21), B(22), B(23), B(23), B(22), B(21), B(20),
@@ -97,7 +96,7 @@ class HalfKAv2_hm {
 #undef B
     // clang-format off
     // Orient a square according to perspective (rotates by 180 for black)
-    static constexpr int OrientTBL[COLOR_NB][SQUARE_NB] = {
+    static constexpr int OrientTBL[static_cast<int>(Color::COLOR_NB)][SQUARE_NB] = {
       { SQ_H1, SQ_H1, SQ_H1, SQ_H1, SQ_A1, SQ_A1, SQ_A1, SQ_A1,
         SQ_H1, SQ_H1, SQ_H1, SQ_H1, SQ_A1, SQ_A1, SQ_A1, SQ_A1,
         SQ_H1, SQ_H1, SQ_H1, SQ_H1, SQ_A1, SQ_A1, SQ_A1, SQ_A1,
@@ -141,4 +140,3 @@ class HalfKAv2_hm {
 
 }  // namespace Stockfish::Eval::NNUE::Features
 
-#endif  // #ifndef NNUE_FEATURES_HALF_KA_V2_HM_H_INCLUDED
