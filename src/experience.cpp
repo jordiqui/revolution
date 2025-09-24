@@ -696,6 +696,7 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
+    wait_until_loaded();
     if (!is_ready())
         return;
     const int storedScore = pos.side_to_move() == Color::WHITE ? score : -score;
@@ -717,6 +718,7 @@ void Experience::update(Position& pos, Move move, int score, int depth) {
 }
 
 void Experience::show(const Position& pos, int evalImportance, int maxMoves) const {
+    wait_until_loaded();
     if (!is_ready())
         return;
     auto it = table.find(pos.key());
