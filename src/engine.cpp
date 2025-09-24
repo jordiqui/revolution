@@ -185,6 +185,13 @@ Engine::Engine(std::optional<std::string> path) :
         return "experience.exp";
     };
 
+    auto getExperienceBuckets = [this]() -> std::uint32_t {
+        if (options.count("Experience Buckets"))
+            return Experience_NormalizeBucketCount(
+              static_cast<std::uint32_t>(int(options["Experience Buckets"])));
+        return kDefaultExperienceBuckets;
+    };
+
     auto lower_ext = [](const std::string& filePath) -> std::string {
         const auto dot = filePath.find_last_of('.');
         if (dot == std::string::npos)
@@ -196,7 +203,11 @@ Engine::Engine(std::optional<std::string> path) :
         return ext;
     };
 
-    auto ensureExperienceReady = [this, &setOptionSilently, &getExperienceFile, &lower_ext](bool enable) -> std::optional<std::string> {
+    auto ensureExperienceReady = [this,
+                                  &setOptionSilently,
+                                  &getExperienceFile,
+                                  &getExperienceBuckets,
+                                  &lower_ext](bool enable) -> std::optional<std::string> {
         if (!enable)
         {
             experience.clear();
@@ -209,7 +220,18 @@ Engine::Engine(std::optional<std::string> path) :
         const std::string file = getExperienceFile();
         const std::string ext  = lower_ext(file);
 
-        if (ext == ".exp" && !Experience_OpenForReadWrite(file))
+        bool        readOnly = options.count("Experience Readonly")
+                            && bool(options["Experience Readonly"]);
+        bool        openOk   = true;
+
+        if (ext == ".exp")
+        {
+            auto openResult = Experience_OpenForReadWrite(file, getExperienceBuckets());
+            openOk          = openResult.ok;
+            readOnly        = openResult.readOnly;
+        }
+
+        if (!openOk)
         {
             sync_cout << "info string Experience disabled due to file error: " << file << sync_endl;
             experience.clear();
@@ -218,6 +240,9 @@ Engine::Engine(std::optional<std::string> path) :
                 setOptionSilently("Experience Enabled", "false");
             return std::nullopt;
         }
+
+        if (options.count("Experience Readonly"))
+            setOptionSilently("Experience Readonly", readOnly ? "true" : "false");
 
         experience.load_async(file);
         sync_cout << "info string Experience OK: " << file << sync_endl;
@@ -246,6 +271,11 @@ Engine::Engine(std::optional<std::string> path) :
                     return ensureExperienceReady(bool(o));
                 }));
 
+    options.add("Experience Buckets",
+                Option(static_cast<double>(kDefaultExperienceBuckets),
+                       static_cast<int>(kMinExperienceBuckets),
+                       static_cast<int>(kMaxExperienceBuckets)));
+
     options.add("ExperienceFile", Option("experience.exp", [applyExperienceFile](const Option& o) {
                     return applyExperienceFile(std::string(o));
                 }));
@@ -254,12 +284,16 @@ Engine::Engine(std::optional<std::string> path) :
                     return applyExperienceFile(std::string(o));
                 }));
 
-    options.add("ClearExperience", Option([this, &getExperienceFile, &lower_ext, &ensureExperienceReady](const Option&) {
+    options.add("ClearExperience", Option([this,
+                                            &getExperienceFile,
+                                            &getExperienceBuckets,
+                                            &lower_ext,
+                                            &ensureExperienceReady](const Option&) {
                     const std::string target = getExperienceFile();
                     const std::string ext    = lower_ext(target);
                     bool              ok     = false;
                     if (ext == ".exp")
-                        ok = Experience_InitNew(target);
+                        ok = Experience_InitNew(target, getExperienceBuckets());
                     if (!ok)
                     {
                         sync_cout << "info string ClearExperience failed for: " << target << sync_endl;

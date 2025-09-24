@@ -10,8 +10,8 @@ int main(int argc, char** argv) {
     }
 
     const std::string path = argv[1];
-    bool ok                 = Experience_OpenForReadWrite(path);
-    std::printf("%s\n", ok ? "OK" : "FAIL");
-    return ok ? 0 : 2;
+    auto result = Experience_OpenForReadWrite(path);
+    std::printf("%s\n", result.ok ? "OK" : "FAIL");
+    return result.ok ? 0 : 2;
 }
 
