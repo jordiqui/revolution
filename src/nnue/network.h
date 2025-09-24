@@ -16,14 +16,11 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef NETWORK_H_INCLUDED
-#define NETWORK_H_INCLUDED
+#pragma once
 
-#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <iostream>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -56,15 +53,7 @@ class Network {
     static constexpr IndexType FTDimensions = Arch::TransformedFeatureDimensions;
 
    public:
-    struct Weights {
-        Weights();
-        LargePagePtr<Transformer> featureTransformer;
-        AlignedPtr<Arch[]>        network;
-    };
-    using WeightsPtr = std::shared_ptr<Weights>;
-
     Network(EvalFile file, EmbeddedNNUEType type) :
-        weights(std::make_shared<Weights>()),
         evalFile(file),
         embeddedType(type) {}
 
@@ -77,16 +66,12 @@ class Network {
     void load(const std::string& rootDirectory, std::string evalfilePath);
     bool save(const std::optional<std::string>& filename) const;
 
-    WeightsPtr weights_handle() const;
-
     NetworkOutput evaluate(const Position&                         pos,
                            AccumulatorStack&                       accumulatorStack,
                            AccumulatorCaches::Cache<FTDimensions>* cache) const;
 
 
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
-    bool verify_optional(std::string evalfilePath,
-                         const std::function<void(std::string_view)>&) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,
                                  AccumulatorStack&                       accumulatorStack,
                                  AccumulatorCaches::Cache<FTDimensions>* cache) const;
@@ -95,19 +80,22 @@ class Network {
     void load_user_net(const std::string&, const std::string&);
     void load_internal();
 
-    WeightsPtr allocate_weights() const;
+    void initialize();
 
-    bool save(std::ostream&, const std::string&, const std::string&, const Weights&) const;
+    bool                       save(std::ostream&, const std::string&, const std::string&) const;
     std::optional<std::string> load(std::istream&);
 
     bool read_header(std::istream&, std::uint32_t*, std::string*) const;
     bool write_header(std::ostream&, std::uint32_t, const std::string&) const;
 
-    bool read_parameters(std::istream&, std::string&, Weights&) const;
-    bool write_parameters(std::ostream&, const std::string&, const Weights&) const;
+    bool read_parameters(std::istream&, std::string&) const;
+    bool write_parameters(std::ostream&, const std::string&) const;
 
     // Input feature converter
-    WeightsPtr weights;
+    LargePagePtr<Transformer> featureTransformer;
+
+    // Evaluation function
+    AlignedPtr<Arch[]> network;
 
     EvalFile         evalFile;
     EmbeddedNNUEType embeddedType;
@@ -138,11 +126,10 @@ struct Networks {
         big(std::move(nB)),
         small(std::move(nS)) {}
 
-    NetworkBig    big;
-    NetworkSmall  small;
+    NetworkBig   big;
+    NetworkSmall small;
 };
 
 
 }  // namespace Stockfish
 
-#endif

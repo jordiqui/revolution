@@ -18,11 +18,9 @@
 
 // Class for difference calculation of NNUE evaluation function
 
-#ifndef NNUE_ACCUMULATOR_H_INCLUDED
-#define NNUE_ACCUMULATOR_H_INCLUDED
+#pragma once
 
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -47,9 +45,9 @@ class FeatureTransformer;
 // Class that holds the result of affine transformation of input features
 template<IndexType Size>
 struct alignas(CacheLineSize) Accumulator {
-    std::int16_t               accumulation[COLOR_NB][Size];
-    std::int32_t               psqtAccumulation[COLOR_NB][PSQTBuckets];
-    std::array<bool, COLOR_NB> computed;
+    std::int16_t               accumulation[static_cast<int>(Color::COLOR_NB)][Size];
+    std::int32_t               psqtAccumulation[static_cast<int>(Color::COLOR_NB)][PSQTBuckets];
+    std::array<bool, static_cast<int>(Color::COLOR_NB)> computed;
 };
 
 
@@ -72,7 +70,7 @@ struct AccumulatorCaches {
         struct alignas(CacheLineSize) Entry {
             BiasType       accumulation[Size];
             PSQTWeightType psqtAccumulation[PSQTBuckets];
-            Bitboard       byColorBB[COLOR_NB];
+              Bitboard       byColorBB[static_cast<int>(Color::COLOR_NB)];
             Bitboard       byTypeBB[PIECE_TYPE_NB];
 
             // To initialize a refresh entry, we set all its bitboards empty,
@@ -87,17 +85,16 @@ struct AccumulatorCaches {
 
         template<typename Network>
         void clear(const Network& network) {
-            auto weights = network.weights_handle();
-            assert(weights);
-
             for (auto& entries1D : entries)
                 for (auto& entry : entries1D)
-                    entry.clear(weights->featureTransformer->biases);
+                    entry.clear(network.featureTransformer->biases);
         }
 
-        std::array<Entry, COLOR_NB>& operator[](Square sq) { return entries[sq]; }
+          std::array<Entry, static_cast<int>(Color::COLOR_NB)>& operator[](Square sq) {
+              return entries[sq];
+          }
 
-        std::array<std::array<Entry, COLOR_NB>, SQUARE_NB> entries;
+          std::array<std::array<Entry, static_cast<int>(Color::COLOR_NB)>, SQUARE_NB> entries;
     };
 
     template<typename Networks>
@@ -188,4 +185,3 @@ class AccumulatorStack {
 
 }  // namespace Stockfish::Eval::NNUE
 
-#endif  // NNUE_ACCUMULATOR_H_INCLUDED
