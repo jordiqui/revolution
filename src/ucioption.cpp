@@ -60,19 +60,25 @@ void OptionsMap::setoption(std::istringstream& is) {
 
     if (options_map.count(name))
         options_map[name] = value;
+    else if (auto aliasIt = alias_map.find(name); aliasIt != alias_map.end())
+        options_map[aliasIt->second] = value;
     else
         sync_cout << "No such option: " << name << sync_endl;
 }
 
 const Option& OptionsMap::operator[](const std::string& name) const {
     auto it = options_map.find(name);
-    assert(it != options_map.end());
-    return it->second;
+    if (it != options_map.end())
+        return it->second;
+
+    auto aliasIt = alias_map.find(name);
+    assert(aliasIt != alias_map.end());
+    return options_map.find(aliasIt->second)->second;
 }
 
 // Inits options and assigns idx in the correct printing order
 void OptionsMap::add(const std::string& name, const Option& option) {
-    if (!options_map.count(name))
+    if (!options_map.count(name) && !alias_map.count(name))
     {
         static size_t insert_order = 0;
 
@@ -89,7 +95,28 @@ void OptionsMap::add(const std::string& name, const Option& option) {
 }
 
 
-std::size_t OptionsMap::count(const std::string& name) const { return options_map.count(name); }
+void OptionsMap::add_alias(const std::string& alias, const std::string& target) {
+    auto canonical = options_map.find(target);
+    if (canonical == options_map.end())
+    {
+        std::cerr << "Alias target \"" << target << "\" does not exist" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    if (options_map.count(alias) || alias_map.count(alias))
+    {
+        std::cerr << "Alias \"" << alias << "\" conflicts with an existing option" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    alias_map[alias] = target;
+}
+
+std::size_t OptionsMap::count(const std::string& name) const {
+    if (options_map.count(name))
+        return 1;
+    return alias_map.count(name);
+}
 
 Option::Option(const OptionsMap* map) :
     parent(map) {}
