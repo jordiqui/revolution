@@ -18,7 +18,7 @@ the previous search.
 ## Test procedure
 
 1. Launch the freshly built binary (e.g. `./build/revolution` or
-   `./src/revolution-2.73-dev-230925-wk`) and switch to UCI mode by sending `uci` and
+   `./src/revolution-v.2.74-dev240925-EXP`) and switch to UCI mode by sending `uci` and
    waiting for `uciok`.
 2. Enable the logger so that the session can be inspected afterwards:
    `setoption name Debug Log File value book-regression.log`.
