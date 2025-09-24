@@ -18,8 +18,7 @@
   Modifications Copyright (C) 2024 Jorge Ruiz Centelles
 */
 
-#ifndef EXPERIENCE_H_INCLUDED
-#define EXPERIENCE_H_INCLUDED
+#pragma once
 
 #include <unordered_map>
 #include <vector>
@@ -52,9 +51,8 @@ class Experience {
    private:
     bool                                                  is_ready() const;
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
-    bool                                                  binaryFormat       = false;
-    bool                                                  brainLearnFormat   = true;
-    std::string                                           brainLearnHeaderData;
+    bool                                                  binaryFormat     = false;
+    bool                                                  brainLearnFormat = true;
     std::future<void>                                     loader;
 };
 
@@ -62,4 +60,3 @@ extern Experience experience;
 
 }  // namespace Stockfish
 
-#endif  // EXPERIENCE_H_INCLUDED

@@ -18,14 +18,11 @@
 
 #include "engine.h"
 
-#include "experience_io.h"
-
 #include <algorithm>
 #include <cassert>
 #include <deque>
 #include <iosfwd>
 #include <memory>
-#include <optional>
 #include <ostream>
 #include <sstream>
 #include <string_view>
@@ -60,13 +57,16 @@ int            MaxThreads = std::max(1024, 4 * int(get_hardware_concurrency()));
 Engine::Engine(std::optional<std::string> path) :
     binaryDirectory(path ? CommandLine::get_binary_directory(*path) : ""),
     numaContext(NumaConfig::from_system()),
-    states(new std::deque<StateInfo>(1)),
+    states(std::make_unique<std::deque<StateInfo>>()),
     threads(),
     networks(
       numaContext,
       NN::Networks(
-        NN::NetworkBig({EvalFileDefaultNameBig, "None", ""}, NN::EmbeddedNNUEType::BIG),
-        NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL))) {
+        NN::NetworkBig({std::string(Eval::EvalFileDefaultNameBig), "None", ""},
+                       NN::EmbeddedNNUEType::BIG),
+        NN::NetworkSmall({std::string(Eval::EvalFileDefaultNameSmall), "None", ""},
+                         NN::EmbeddedNNUEType::SMALL))) {
+    states->emplace_back();
     pos.set(StartFEN, false, &states->back());
 
 
@@ -116,6 +116,13 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("nodestime", Option(0, 0, 10000));
 
     options.add("Minimum Thinking Time", Option(20, 0, 5000));
+
+    options.add("Time Buffer", Option(50, 0, 5000));
+
+    // Enable conservative search features such as tighter time management
+    // and safer search heuristics. Default to true to preserve current
+    // playing style unless explicitly disabled by the user.
+    options.add("Revolution Conservative Search", Option(true));
 
     options.add("UCI_Chess960", Option(false));
 
@@ -169,151 +176,18 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Book2 Width", Option(1, 1, 10));
 
-    auto setOptionSilently = [this](const std::string& name, const std::string& value) {
-        if (!options.count(name))
-            return;
-        Option& opt = const_cast<Option&>(options[name]);
-        if (opt.currentValue != value)
-            opt.currentValue = value;
-    };
-
-    auto getExperienceFile = [this]() -> std::string {
-        if (options.count("ExperienceFile"))
-            return std::string(options["ExperienceFile"]);
-        if (options.count("Experience File"))
-            return std::string(options["Experience File"]);
-        return "experience.exp";
-    };
-
-    auto getExperienceBuckets = [this]() -> std::uint32_t {
-        if (options.count("Experience Buckets"))
-            return Experience_NormalizeBucketCount(
-              static_cast<std::uint32_t>(int(options["Experience Buckets"])));
-        return kDefaultExperienceBuckets;
-    };
-
-    auto lower_ext = [](const std::string& filePath) -> std::string {
-        const auto dot = filePath.find_last_of('.');
-        if (dot == std::string::npos)
-            return {};
-        std::string ext = filePath.substr(dot);
-        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
-            return char(std::tolower(c));
-        });
-        return ext;
-    };
-
-    auto ensureExperienceReady = [this,
-                                  &setOptionSilently,
-                                  &getExperienceFile,
-                                  &getExperienceBuckets,
-                                  &lower_ext](bool enable) -> std::optional<std::string> {
-        if (!enable)
-        {
-            experience.clear();
-            setOptionSilently("Experience", "false");
-            if (options.count("Experience Enabled"))
-                setOptionSilently("Experience Enabled", "false");
-            return std::nullopt;
-        }
-
-        const std::string file = getExperienceFile();
-        const std::string ext  = lower_ext(file);
-        std::string       loadPath = file;
-
-        bool        readOnly = options.count("Experience Readonly")
-                            && bool(options["Experience Readonly"]);
-        bool        openOk   = true;
-
-        if (ext == ".exp")
-        {
-            auto openResult = Experience_OpenForReadWrite(file, getExperienceBuckets());
-            openOk          = openResult.ok;
-            readOnly        = openResult.readOnly;
-            if (!openResult.normalizedPath.empty())
-                loadPath = openResult.normalizedPath;
-
-            if (openOk)
-            {
-                if (options.count("ExperienceFile"))
-                    setOptionSilently("ExperienceFile", loadPath);
-                if (options.count("Experience File"))
-                    setOptionSilently("Experience File", loadPath);
-
-                if (openResult.recreated)
-                    sync_cout << "info string Experience file recreated: " << loadPath << sync_endl;
-            }
-        }
-
-        if (!openOk)
-        {
-            const std::string& failedPath = loadPath.empty() ? file : loadPath;
-            sync_cout << "info string Experience disabled due to file error: " << failedPath << sync_endl;
-            experience.clear();
-            setOptionSilently("Experience", "false");
-            if (options.count("Experience Enabled"))
-                setOptionSilently("Experience Enabled", "false");
-            return std::nullopt;
-        }
-
-        if (options.count("Experience Readonly"))
-            setOptionSilently("Experience Readonly", readOnly ? "true" : "false");
-
-        experience.load_async(loadPath);
-        sync_cout << "info string Experience OK: " << loadPath << sync_endl;
-        setOptionSilently("Experience", "true");
-        if (options.count("Experience Enabled"))
-            setOptionSilently("Experience Enabled", "true");
-        return std::nullopt;
-    };
-
-    auto applyExperienceFile = [this, &setOptionSilently, &ensureExperienceReady](const std::string& value) -> std::optional<std::string> {
-        if (options.count("ExperienceFile"))
-            setOptionSilently("ExperienceFile", value);
-        if (options.count("Experience File"))
-            setOptionSilently("Experience File", value);
-        concurrentExperienceFile.clear();
-        if (options.count("Experience") && bool(options["Experience"]))
-            return ensureExperienceReady(true);
-        return std::nullopt;
-    };
-
-    options.add("Experience", Option(true, [&ensureExperienceReady](const Option& o) {
-                    return ensureExperienceReady(bool(o));
-                }));
-    options.add_alias("Experience Enabled", "Experience");
-
-    options.add("Experience Buckets",
-                Option(static_cast<double>(kDefaultExperienceBuckets),
-                       static_cast<int>(kMinExperienceBuckets),
-                       static_cast<int>(kMaxExperienceBuckets)));
-
-    options.add("ExperienceFile", Option("experience.exp", [applyExperienceFile](const Option& o) {
-                    return applyExperienceFile(std::string(o));
-                }));
-    options.add_alias("Experience File", "ExperienceFile");
-
-    options.add("ClearExperience", Option([this,
-                                            &getExperienceFile,
-                                            &getExperienceBuckets,
-                                            &lower_ext,
-                                            &ensureExperienceReady](const Option&) {
-                    const std::string target = getExperienceFile();
-                    const std::string ext    = lower_ext(target);
-                    bool              ok     = false;
-                    if (ext == ".exp")
-                        ok = Experience_InitNew(target, getExperienceBuckets());
-                    if (!ok)
-                    {
-                        sync_cout << "info string ClearExperience failed for: " << target << sync_endl;
-                    }
+    options.add("Experience Enabled", Option(true, [this](const Option& o) {
+                    if (bool(o))
+                        experience.load_async(options["Experience File"]);
                     else
-                    {
                         experience.clear();
-                        sync_cout << "info string Experience re-initialized at: " << target << sync_endl;
-                        if (options.count("Experience") && bool(options["Experience"]))
-                            ensureExperienceReady(true);
-                    }
+                    return std::nullopt;
+                }));
+
+    options.add("Experience File", Option("experience.exp", [this](const Option& o) {
+                    if ((bool) options["Experience Enabled"])
+                        experience.load_async(o);
+                    concurrentExperienceFile.clear();
                     return std::nullopt;
                 }));
 
@@ -331,14 +205,6 @@ Engine::Engine(std::optional<std::string> path) :
                     return std::nullopt;
                 }));
 
-    // MonteCarlo Tree Search section (experimental: thanks to original Stephan
-    // Nicolet work)
-    options.add("MCTS by Shashin", Option(false));
-    options.add("MCTSThreads", Option(0, 0, 512));
-    options.add("MCTS Multi Strategy", Option(20, 0, 100));
-    options.add("MCTS Multi MinVisits", Option(5, 0, 1000));
-    options.add("MCTS Explore", Option(false));
-
     // Optional experimental evaluation tweak that adapts weights based on
     // simple positional cues. Disabled by default so it does not alter
     // standard play unless explicitly requested by the user.
@@ -348,13 +214,13 @@ Engine::Engine(std::optional<std::string> path) :
                 }));
 
     options.add(  //
-      "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {
+      "EvalFile", Option(Eval::EvalFileDefaultNameBig.data(), [this](const Option& o) {
           load_big_network(o);
           return std::nullopt;
       }));
 
     options.add(  //
-      "EvalFileSmall", Option(EvalFileDefaultNameSmall, [this](const Option& o) {
+      "EvalFileSmall", Option(Eval::EvalFileDefaultNameSmall.data(), [this](const Option& o) {
           load_small_network(o);
           return std::nullopt;
       }));
@@ -382,44 +248,6 @@ void Engine::go(Search::LimitsType& limits) {
 }
 void Engine::stop() { threads.stop = true; }
 
-void Engine::maybe_save_experience() {
-    if (!options.count("Experience") || !(bool) options["Experience"])
-        return;
-
-    if (options.count("Experience Readonly") && bool(options["Experience Readonly"]))
-        return;
-
-    std::string file = options.count("ExperienceFile") ? std::string(options["ExperienceFile"])
-                                                        : std::string(options["Experience File"]);
-
-    if (file.empty())
-        return;
-
-    if ((bool) options["Experience Concurrent"])
-    {
-        if (concurrentExperienceFile.empty())
-        {
-            std::random_device rd;
-            uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
-            std::ostringstream oss;
-            oss << std::hex << std::setfill('0') << std::setw(16) << r;
-            std::string suffix = oss.str();
-            auto        p      = file.find_last_of('.');
-            if (p != std::string::npos)
-                concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
-            else
-                concurrentExperienceFile = file + "-" + suffix;
-        }
-        file = concurrentExperienceFile;
-    }
-    else
-    {
-        concurrentExperienceFile.clear();
-    }
-
-    experience.save(file);
-}
-
 void Engine::search_clear() {
     wait_for_search_finished();
 
@@ -430,7 +258,28 @@ void Engine::search_clear() {
     // keep their mappings alive until they also release.
     Tablebases::release();
 
-    maybe_save_experience();
+    if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+    {
+        std::string file = options["Experience File"];
+        if ((bool) options["Experience Concurrent"])
+        {
+            if (concurrentExperienceFile.empty())
+            {
+                std::random_device rd;
+                uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
+                std::ostringstream oss;
+                oss << std::hex << std::setfill('0') << std::setw(16) << r;
+                std::string suffix = oss.str();
+                auto        p      = file.find_last_of('.');
+                if (p != std::string::npos)
+                    concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
+                else
+                    concurrentExperienceFile = file + "-" + suffix;
+            }
+            file = concurrentExperienceFile;
+        }
+        experience.save(file);
+    }
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
@@ -446,12 +295,7 @@ void Engine::set_on_iter(std::function<void(const Engine::InfoIter&)>&& f) {
 }
 
 void Engine::set_on_bestmove(std::function<void(std::string_view, std::string_view)>&& f) {
-    onBestmoveHandler        = std::move(f);
-    updateContext.onBestmove = [this](std::string_view bestmove, std::string_view ponder) {
-        if (onBestmoveHandler)
-            onBestmoveHandler(bestmove, ponder);
-        maybe_save_experience();
-    };
+    updateContext.onBestmove = std::move(f);
 }
 
 void Engine::set_on_verify_networks(std::function<void(std::string_view)>&& f) {
@@ -462,7 +306,8 @@ void Engine::wait_for_search_finished() { threads.main_thread()->wait_for_search
 
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves) {
     // Drop the old state and create a new one
-    states = StateListPtr(new std::deque<StateInfo>(1));
+    states = std::make_unique<std::deque<StateInfo>>();
+    states->emplace_back();
     pos.set(fen, options["UCI_Chess960"], &states->back());
 
     for (const auto& move : moves)
@@ -559,8 +404,9 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
 // utility functions
 
 void Engine::trace_eval() const {
-    StateListPtr trace_states(new std::deque<StateInfo>(1));
-    Position     p;
+    StateListPtr trace_states = std::make_unique<std::deque<StateInfo>>();
+    trace_states->emplace_back();
+    Position p;
     p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
 
     verify_networks();

@@ -102,11 +102,7 @@ void Thread::run_custom_job(std::function<void()> f) {
     cv.notify_one();
 }
 
-void Thread::ensure_network_replicated() {
-    assert(worker != nullptr);
-    run_custom_job([this]() { worker->ensure_network_replicated(); });
-    wait_for_search_finished();
-}
+void Thread::ensure_network_replicated() { worker->ensure_network_replicated(); }
 
 // Thread gets parked here, blocked on the condition variable
 // when the thread has no work to do.
@@ -284,17 +280,15 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     // shared since they are read-only.
     for (auto&& th : threads)
     {
-        Thread* thread = th.get();
-        auto*   worker = thread->worker.get();
-
-        thread->run_custom_job([this, worker, &pos, &rootMoves, limits, tbConfig]() {
-            worker->limits = limits;
-            worker->nodes = worker->tbHits = worker->nmpMinPly = worker->bestMoveChanges = 0;
-            worker->rootDepth = worker->completedDepth = 0;
-            worker->rootMoves                         = rootMoves;
-            worker->rootPos.set(pos.fen(), pos.is_chess960(), &worker->rootState);
-            worker->rootState = setupStates->back();
-            worker->tbConfig  = tbConfig;
+        th->run_custom_job([&]() {
+            th->worker->limits = limits;
+            th->worker->nodes = th->worker->tbHits = th->worker->nmpMinPly =
+              th->worker->bestMoveChanges          = 0;
+            th->worker->rootDepth = th->worker->completedDepth = 0;
+            th->worker->rootMoves                              = rootMoves;
+            th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
+            th->worker->rootState = setupStates->back();
+            th->worker->tbConfig  = tbConfig;
         });
     }
 
@@ -394,15 +388,14 @@ std::vector<size_t> ThreadPool::get_bound_thread_count_by_numa_node() const {
 
     if (!boundThreadToNumaNode.empty())
     {
-        NumaIndex highestNumaNode = 0;
+        counts.reserve(boundThreadToNumaNode.size());
         for (NumaIndex n : boundThreadToNumaNode)
-            if (n > highestNumaNode)
-                highestNumaNode = n;
+        {
+            if (n >= counts.size())
+                counts.resize(n + 1, 0);
 
-        counts.resize(highestNumaNode + 1, 0);
-
-        for (NumaIndex n : boundThreadToNumaNode)
-            counts[n] += 1;
+            ++counts[n];
+        }
     }
 
     return counts;

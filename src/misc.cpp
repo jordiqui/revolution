@@ -55,11 +55,12 @@ struct Tie: public std::streambuf {  // MSVC requires split streambuf for cin an
         logBuf(l) {}
 
     int sync() override { return logBuf->pubsync(), buf->pubsync(); }
-    int overflow(int c) override { return log(buf->sputc(char(c)), "<< "); }
+    int overflow(int c) override { return log(buf->sputc(static_cast<char>(c)), "<< "); }
     int underflow() override { return buf->sgetc(); }
     int uflow() override { return log(buf->sbumpc(), ">> "); }
 
-    std::streambuf *buf, *logBuf;
+    std::streambuf* buf;
+    std::streambuf* logBuf;
 
     int log(int c, const char* prefix) {
 
@@ -68,7 +69,7 @@ struct Tie: public std::streambuf {  // MSVC requires split streambuf for cin an
         if (last == '\n')
             logBuf->sputn(prefix, 3);
 
-        return last = logBuf->sputc(char(c));
+        return last = logBuf->sputc(static_cast<char>(c));
     }
 };
 
@@ -113,7 +114,7 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current engine version.
+// Returns the full name of the current Revolution version.
 std::string engine_version_info() { return std::string(ENGINE_NAME); }
 
 // Update author information
@@ -411,14 +412,9 @@ void prefetch(const void* addr) {
 
 #ifdef _WIN32
     #include <direct.h>
-    #include <windows.h>
     #define GETCWD _getcwd
 #else
     #include <unistd.h>
-    #include <limits.h>
-#    if defined(__APPLE__)
-        #include <mach-o/dyld.h>
-#    endif
     #define GETCWD getcwd
 #endif
 
@@ -456,32 +452,8 @@ std::string CommandLine::get_binary_directory(std::string argv0) {
     if (!_get_pgmptr(&pgmptr) && pgmptr != nullptr && *pgmptr)
         argv0 = pgmptr;
     #endif
-    if (argv0.find('\\') == std::string::npos && argv0.find('/') == std::string::npos)
-    {
-        char buffer[MAX_PATH];
-        if (GetModuleFileName(nullptr, buffer, MAX_PATH))
-            argv0 = buffer;
-    }
 #else
     pathSeparator = "/";
-    if (argv0.find('/') == std::string::npos)
-    {
-#if defined(__APPLE__)
-        uint32_t size = 0;
-        _NSGetExecutablePath(nullptr, &size);
-        std::string path(size, '\0');
-        if (_NSGetExecutablePath(path.data(), &size) == 0)
-            argv0 = path.c_str();
-#else
-        std::array<char, 4096> buffer{};
-        ssize_t len = readlink("/proc/self/exe", buffer.data(), buffer.size() - 1);
-        if (len > 0)
-        {
-            buffer[len] = '\0';
-            argv0 = buffer.data();
-        }
-#endif
-    }
 #endif
 
     // Extract the working directory

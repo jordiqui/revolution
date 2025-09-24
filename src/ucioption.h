@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef UCIOPTION_H_INCLUDED
-#define UCIOPTION_H_INCLUDED
+#pragma once
 
 #include <cstddef>
 #include <functional>
@@ -86,7 +85,6 @@ class OptionsMap {
     const Option& operator[](const std::string&) const;
 
     void add(const std::string&, const Option& option);
-    void add_alias(const std::string& alias, const std::string& target);
 
     std::size_t count(const std::string&) const;
 
@@ -98,12 +96,9 @@ class OptionsMap {
 
     // The options container is defined as a std::map
     using OptionsStore = std::map<std::string, Option, CaseInsensitiveLess>;
-    using AliasStore   = std::map<std::string, std::string, CaseInsensitiveLess>;
 
     OptionsStore options_map;
-    AliasStore   alias_map;
     InfoListener info;
 };
 
 }
-#endif  // #ifndef UCIOPTION_H_INCLUDED

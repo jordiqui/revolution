@@ -106,12 +106,7 @@ void UCIEngine::loop() {
         token.clear();  // Avoid a stale if getline() returns nothing or a blank line
         is >> std::skipws >> token;
 
-        if (token == "quit")
-        {
-            engine.stop();
-            engine.search_clear();
-        }
-        else if (token == "stop")
+        if (token == "quit" || token == "stop")
             engine.stop();
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
@@ -123,7 +118,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "revolution v.2.74-dev240925-EXP"
+            // Force a stable, explicit UCI name so GUIs show "revolution-dev v.2.40 130925"
             sync_cout_start();
             std::cout
               << "id name " << ENGINE_NAME << "\n"
@@ -134,8 +129,8 @@ void UCIEngine::loop() {
 
             sync_cout << "uciok" << sync_endl;
 
-            if ((bool) engine.get_options()["Experience"])
-                experience.load_async(engine.get_options()["ExperienceFile"]);
+            if ((bool) engine.get_options()["Experience Enabled"])
+                experience.load_async(engine.get_options()["Experience File"]);
         }
 
         else if (token == "setoption")
@@ -211,13 +206,13 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
                 limits.searchmoves.push_back(to_lower(token));
 
         else if (token == "wtime")
-            is >> limits.time[WHITE];
+            is >> limits.time[static_cast<int>(Color::WHITE)];
         else if (token == "btime")
-            is >> limits.time[BLACK];
+            is >> limits.time[static_cast<int>(Color::BLACK)];
         else if (token == "winc")
-            is >> limits.inc[WHITE];
+            is >> limits.inc[static_cast<int>(Color::WHITE)];
         else if (token == "binc")
-            is >> limits.inc[BLACK];
+            is >> limits.inc[static_cast<int>(Color::BLACK)];
         else if (token == "movestogo")
             is >> limits.movestogo;
         else if (token == "depth")
@@ -241,13 +236,6 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
 void UCIEngine::go(std::istringstream& is) {
 
     Search::LimitsType limits = parse_limits(is);
-
-    // Ensure the experience file has finished loading before starting a search.
-    // Some GUIs like Fritz or CuteChess may issue a "go" command immediately
-    // after "uci", while the experience file is still being loaded in a
-    // background thread. Waiting here avoids potential races that could
-    // terminate the engine unexpectedly.
-    experience.wait_until_loaded();
 
     if (limits.perft)
         perft(limits);
@@ -462,7 +450,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   << ENGINE_NAME"
+              << "\nVersion                    :   " << ENGINE_NAME
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "
@@ -514,10 +502,11 @@ void UCIEngine::position(std::istringstream& is) {
         return;
 
     std::vector<std::string> moves;
+    moves.reserve(32);
 
     while (is >> token)
     {
-        moves.push_back(token);
+        moves.emplace_back(std::move(token));
     }
 
     engine.set_position(fen, moves);
@@ -615,12 +604,12 @@ std::string UCIEngine::move(Move m, bool chess960) {
     Square from = m.from_sq();
     Square to   = m.to_sq();
 
-    if (m.type_of() == CASTLING && !chess960)
+    if (m.type_of() == MoveType::CASTLING && !chess960)
         to = make_square(to > from ? FILE_G : FILE_C, rank_of(from));
 
     std::string move = square(from) + square(to);
 
-    if (m.type_of() == PROMOTION)
+    if (m.type_of() == MoveType::PROMOTION)
         move += " pnbrqk"[m.promotion_type()];
 
     return move;

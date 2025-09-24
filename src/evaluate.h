@@ -16,10 +16,10 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef EVALUATE_H_INCLUDED
-#define EVALUATE_H_INCLUDED
+#pragma once
 
 #include <string>
+#include <string_view>
 
 #include "types.h"
 
@@ -31,10 +31,10 @@ namespace Eval {
 
 // The default net name MUST follow the format nn-[SHA256 first 12 digits].nnue
 // for the build process (profile-build and fishtest) to work. Do not change the
-// name of the macro or the location where this macro is defined, as it is used
-// in the Makefile/Fishtest.
-#define EvalFileDefaultNameBig "nn-1c0000000000.nnue"
-#define EvalFileDefaultNameSmall "nn-baff1ede1f90.nnue"
+// names or the location where these constants are defined, as they are used in
+// the Makefile/Fishtest.
+inline constexpr std::string_view EvalFileDefaultNameBig   = "nn-1c0000000000.nnue";
+inline constexpr std::string_view EvalFileDefaultNameSmall = "nn-37f18f62d772.nnue";
 
 namespace NNUE {
 struct Networks;
@@ -52,12 +52,9 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
 
-int king_file_exposure(const Position& pos, Color side);
-
 // Toggle for optional style-based evaluation adjustments.
 void set_adaptive_style(bool enabled);
 }  // namespace Eval
 
 }  // namespace Stockfish
 
-#endif  // #ifndef EVALUATE_H_INCLUDED

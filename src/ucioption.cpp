@@ -19,7 +19,6 @@
 */
 
 #include "ucioption.h"
-
 #include "version.h"
 
 
@@ -30,7 +29,6 @@
 #include <iostream>
 #include <sstream>
 #include <utility>
-#include <charconv>
 
 #include "misc.h"
 
@@ -60,25 +58,19 @@ void OptionsMap::setoption(std::istringstream& is) {
 
     if (options_map.count(name))
         options_map[name] = value;
-    else if (auto aliasIt = alias_map.find(name); aliasIt != alias_map.end())
-        options_map[aliasIt->second] = value;
     else
         sync_cout << "No such option: " << name << sync_endl;
 }
 
 const Option& OptionsMap::operator[](const std::string& name) const {
     auto it = options_map.find(name);
-    if (it != options_map.end())
-        return it->second;
-
-    auto aliasIt = alias_map.find(name);
-    assert(aliasIt != alias_map.end());
-    return options_map.find(aliasIt->second)->second;
+    assert(it != options_map.end());
+    return it->second;
 }
 
 // Inits options and assigns idx in the correct printing order
 void OptionsMap::add(const std::string& name, const Option& option) {
-    if (!options_map.count(name) && !alias_map.count(name))
+    if (!options_map.count(name))
     {
         static size_t insert_order = 0;
 
@@ -95,28 +87,7 @@ void OptionsMap::add(const std::string& name, const Option& option) {
 }
 
 
-void OptionsMap::add_alias(const std::string& alias, const std::string& target) {
-    auto canonical = options_map.find(target);
-    if (canonical == options_map.end())
-    {
-        std::cerr << "Alias target \"" << target << "\" does not exist" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
-    if (options_map.count(alias) || alias_map.count(alias))
-    {
-        std::cerr << "Alias \"" << alias << "\" conflicts with an existing option" << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
-
-    alias_map[alias] = target;
-}
-
-std::size_t OptionsMap::count(const std::string& name) const {
-    if (options_map.count(name))
-        return 1;
-    return alias_map.count(name);
-}
+std::size_t OptionsMap::count(const std::string& name) const { return options_map.count(name); }
 
 Option::Option(const OptionsMap* map) :
     parent(map) {}
@@ -162,15 +133,7 @@ Option::Option(const char* v, const char* cur, OnChange f) :
 
 Option::operator int() const {
     assert(type == "check" || type == "spin");
-
-    if (type == "check")
-        return currentValue == "true";
-
-    int iv = 0;
-    const char* begin = currentValue.c_str();
-    const char* end   = begin + currentValue.size();
-    auto res          = std::from_chars(begin, end, iv);
-    return res.ec == std::errc() ? iv : 0;
+    return (type == "spin" ? std::stoi(currentValue) : currentValue == "true");
 }
 
 Option::operator std::string() const {
@@ -194,18 +157,9 @@ Option& Option::operator=(const std::string& v) {
     assert(!type.empty());
 
     if ((type != "button" && type != "string" && v.empty())
-        || (type == "check" && v != "true" && v != "false"))
+        || (type == "check" && v != "true" && v != "false")
+        || (type == "spin" && (std::stof(v) < min || std::stof(v) > max)))
         return *this;
-
-    if (type == "spin")
-    {
-        int         iv    = 0;
-        const char* begin = v.c_str();
-        const char* end   = begin + v.size();
-        auto        res   = std::from_chars(begin, end, iv);
-        if (res.ec != std::errc() || res.ptr != end || iv < min || iv > max)
-            return *this;
-    }
 
     if (type == "combo")
     {
@@ -252,12 +206,8 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
                 }
 
                 else if (o.type == "spin")
-                {
-                    int dv = 0;
-                    std::from_chars(o.defaultValue.c_str(),
-                                     o.defaultValue.c_str() + o.defaultValue.size(), dv);
-                    os << " default " << dv << " min " << o.min << " max " << o.max;
-                }
+                    os << " default " << int(stof(o.defaultValue)) << " min " << o.min << " max "
+                       << o.max;
 
                 break;
             }

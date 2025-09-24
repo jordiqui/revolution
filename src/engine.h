@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef ENGINE_H_INCLUDED
-#define ENGINE_H_INCLUDED
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -125,12 +124,8 @@ class Engine {
     std::function<void(std::string_view)> onVerifyNetworks;
 
     std::string concurrentExperienceFile;
-    std::function<void(std::string_view, std::string_view)> onBestmoveHandler;
-
-    void maybe_save_experience();
 };
 
 }  // namespace Stockfish
 
 
-#endif  // #ifndef ENGINE_H_INCLUDED

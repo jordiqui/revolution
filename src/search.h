@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef SEARCH_H_INCLUDED
-#define SEARCH_H_INCLUDED
+#pragma once
 
 #include <algorithm>
 #include <array>
@@ -114,17 +113,24 @@ using RootMoves = std::vector<RootMove>;
 struct LimitsType {
 
     // Init explicitly due to broken value-initialization of non POD in MSVC
-    LimitsType() {
-        time[WHITE] = time[BLACK] = inc[WHITE] = inc[BLACK] = npmsec = movetime = TimePoint(0);
+        LimitsType() {
+            time[static_cast<int>(Color::WHITE)] = time[static_cast<int>(Color::BLACK)] =
+                inc[static_cast<int>(Color::WHITE)] = inc[static_cast<int>(Color::BLACK)] = npmsec = movetime = TimePoint(0);
         movestogo = depth = mate = perft = infinite = 0;
         nodes                                       = 0;
         ponderMode                                  = false;
     }
 
-    bool use_time_management() const { return time[WHITE] || time[BLACK]; }
+        bool use_time_management() const {
+            return time[static_cast<int>(Color::WHITE)] || time[static_cast<int>(Color::BLACK)];
+        }
 
     std::vector<std::string> searchmoves;
-    TimePoint                time[COLOR_NB], inc[COLOR_NB], npmsec, movetime, startTime;
+        TimePoint                time[static_cast<int>(Color::COLOR_NB)],
+                                 inc[static_cast<int>(Color::COLOR_NB)],
+                                 npmsec,
+                                 movetime,
+                                 startTime;
     int                      movestogo, depth, mate, perft, infinite;
     uint64_t                 nodes;
     bool                     ponderMode;
@@ -278,7 +284,6 @@ class Worker {
     bool is_mainthread() const { return threadIdx == 0; }
 
     void ensure_network_replicated();
-    bool has_experience_data() const { return experienceAvailable; }
 
     // Public because they need to be updatable by the stats
     ButterflyHistory mainHistory;
@@ -332,7 +337,7 @@ class Worker {
     std::atomic<uint64_t> nodes, tbHits, bestMoveChanges;
     int                   selDepth, nmpMinPly;
 
-    Value optimism[COLOR_NB];
+    Value optimism[static_cast<int>(Color::COLOR_NB)];
 
     Position  rootPos;
     StateInfo rootState;
@@ -358,11 +363,7 @@ class Worker {
 
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
-    Eval::NNUE::AccumulatorCaches         refreshTable;
-    Eval::NNUE::NetworkBig::WeightsPtr    bigWeightsHandle;
-    Eval::NNUE::NetworkSmall::WeightsPtr  smallWeightsHandle;
-
-    bool experienceAvailable;
+    Eval::NNUE::AccumulatorCaches refreshTable;
 
     friend class Stockfish::ThreadPool;
     friend class SearchManager;
@@ -378,4 +379,3 @@ struct ConthistBonus {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef SEARCH_H_INCLUDED

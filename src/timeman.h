@@ -16,8 +16,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TIMEMAN_H_INCLUDED
-#define TIMEMAN_H_INCLUDED
+#pragma once
 
 #include <cstdint>
 
@@ -26,7 +25,7 @@
 namespace Stockfish {
 
 class OptionsMap;
-enum Color : int8_t;
+enum class Color : int8_t;
 
 namespace Search {
 struct LimitsType;
@@ -64,4 +63,3 @@ class TimeManagement {
 
 }  // namespace Stockfish
 
-#endif  // #ifndef TIMEMAN_H_INCLUDED
