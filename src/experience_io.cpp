@@ -9,12 +9,14 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include <iostream>
 
 #include "misc.h"
 
 #ifdef _WIN32
 #    include <io.h>
 #    include <windows.h>
+#    include <cwchar>
 #else
 #    include <fcntl.h>
 #    include <sys/stat.h>
@@ -114,12 +116,12 @@ std::uint32_t crc32(const void* data, std::size_t length) {
 
 std::filesystem::path normalize_path(const std::string& raw) {
     std::filesystem::path path(raw);
-    try {
-        path = path.lexically_normal();
-        if (path.is_relative())
-            path = std::filesystem::absolute(path);
-    } catch (const std::exception&) {
-        // Fall back to the original path representation.
+    path = path.lexically_normal();
+    if (path.is_relative()) {
+        std::error_code ec;
+        auto absolutePath = std::filesystem::absolute(path, ec);
+        if (!ec)
+            path = absolutePath;
     }
     return path;
 }
@@ -133,7 +135,9 @@ std::string to_display_string(const std::filesystem::path& path) {
 }
 
 void log_info(const std::string& message) {
-    sync_cout << "info string " << message << sync_endl;
+    Stockfish::sync_cout_start();
+    std::cout << "info string " << message << std::endl;
+    Stockfish::sync_cout_end();
 }
 
 void log_error(const std::string& message, const std::filesystem::path& path) {
@@ -159,6 +163,17 @@ void clear_readonly_attribute(const std::filesystem::path&) {}
 
 std::size_t expected_file_size(std::uint32_t buckets) {
     return sizeof(ExperienceHeader) + std::size_t(buckets) * sizeof(ExperienceRecord);
+}
+
+std::FILE* fopen_compat(const std::filesystem::path& path, const char* mode) {
+#ifdef _WIN32
+    std::wstring wideMode;
+    for (const char* p = mode; *p; ++p)
+        wideMode.push_back(static_cast<wchar_t>(*p));
+    return _wfopen(path.c_str(), wideMode.c_str());
+#else
+    return std::fopen(path.c_str(), mode);
+#endif
 }
 
 void ensure_parent_directory(const std::filesystem::path& path) {
@@ -243,7 +258,7 @@ bool write_zero_filled(const std::filesystem::path& target, std::uint32_t bucket
     clear_readonly_attribute(target);
 
     errno = 0;
-    std::FILE* f = std::fopen(tmp.c_str(), "wb");
+    std::FILE* f = fopen_compat(tmp, "wb");
     if (!f) {
         log_error("failed to open temp file for writing", tmp);
         return false;
@@ -300,7 +315,7 @@ bool write_zero_filled(const std::filesystem::path& target, std::uint32_t bucket
 
 bool ensure_readonly_status(const std::filesystem::path& path, bool& readOnly) {
     errno = 0;
-    std::FILE* f = std::fopen(path.c_str(), "rb+");
+    std::FILE* f = fopen_compat(path, "rb+");
     if (f) {
         std::fclose(f);
         readOnly = false;
@@ -308,7 +323,7 @@ bool ensure_readonly_status(const std::filesystem::path& path, bool& readOnly) {
     }
 
     errno = 0;
-    f = std::fopen(path.c_str(), "rb");
+    f = fopen_compat(path, "rb");
     if (!f)
         return false;
     std::fclose(f);
