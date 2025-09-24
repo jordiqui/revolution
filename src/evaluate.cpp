@@ -127,7 +127,8 @@ Value adaptive_style_bonus(const Position& pos, Value current) {
 
 // Simple tempo bonus favoring the side to move
 Value tempo_bonus(const Position& pos) {
-    return pos.side_to_move() == Color::WHITE ? Value(10) : Value(-10);
+    (void)pos;  // Tempo bonus is symmetric for both colors
+    return Value(10);
 }
 
 }  // namespace
