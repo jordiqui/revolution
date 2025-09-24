@@ -1,69 +1,156 @@
 # Revolution Chess Engine
 
-**Version 2.42**  
-This build identifies as `Revolution 2.42-190825`.
+**Version v1.2.0 dev-070925**
 
-## Project Overview
-Revolution is a free, open-source UCI chess engine derived from the world-class Stockfish project. Jorge Ruiz Centelles, working in tandem with ChatGPT Codex tooling, extends the Stockfish codebase to explore modern C++ refinements, improved maintainability, and experimental search ideas while preserving the GPLv3 heritage of the original engine. Revolution ships without a graphical interface and communicates through the UCI protocol, making it compatible with popular desktop chess GUIs that support external engines.
+<div align="center">
+  <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
+  <h3>Revolution</h3>
+  
+  A free and open-source UCI chess engine combining classical algorithms with neural network innovations.
+  <br>
+  <strong><a href="#">Explore Revolution Documentation »</a>
 
-## Latest Updates
-- Synchronized with the Stockfish mainline search and evaluation improvements up to August 2025.
-- Streamlined NNUE integration around the proven dual-network (big + small) configuration.
-- Added faster startup routines for Syzygy tablebases through optional pre-mapping.
-- Refined experience learning heuristics that bias move ordering based on past games.
+  <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.</em>
+  
+</div>
 
-## Key Features
-- **Hybrid Evaluation** – Combines classical heuristics with NNUE-style neural networks.
-- **Advanced Search** – Implements YBWC parallelism, late move reductions, reverse futility pruning, and selective extensions.
-- **Experience Book** – Maintains a lightweight opening and root-move biasing cache governed by UCI options.
-- **Experimental MCTS Mode** – Optional Monte Carlo search inspired by Shashin positional classifications.
-- **Extensive UCI Control** – Rich option set for tablebases, network selection, and tuning parameters.
+## Overview
 
-## Architecture Highlights
-- Modernized C++17 patterns for clarity, safety, and maintainability.
-- Clean separation between search, evaluation, and NNUE components in `src/`.
-- Optional experience files (`experience.exp`) and neural network weights (`nn-1c0000000000.nnue`, `nn-baff1ede1f90.nnue`).
+**Revolution** is a free, open-source UCI chess engine derived from **Stockfish**. Jorge Ruiz Centelles, with credit to ChatGPT, modifies and extends the code to explore new concepts. The engine implements cutting-edge search algorithms combined with neural network evaluation. Derived from fundamental chess programming principles, Revolution analyzes positions through parallelized alpha-beta search enhanced with null-move pruning and late move reductions.
 
-## Building from Source
-Revolution reuses the well-established Stockfish build system. Typical workflow:
+As a UCI-compliant engine, Revolution operates through **standard chess interfaces** without an integrated graphical interface. Users must employ compatible chess GUIs (Arena, Scid vs PC, etc.) for board visualization and move input. Consult your GUI documentation for implementation details.
 
+## Technical Architecture
+
+Revolution's architecture features:
+
+- Refactored position and related modules, migrating to `sts::vector` for memory-efficient data structures
+- Hybrid evaluation system combining classical heuristics with NNUE networks
+- SMP parallelization with YBWC (Young Brothers Wait Concept)
+- Advanced pruning techniques (Reverse Futility Pruning, Late Move Pruning)
+- Efficient move ordering with history heuristics and killer moves
+- Optional root experience book storing previously played moves
+
+## Files
+
+The distribution includes:
+
+- `README.md` (this documentation)
+- `COPYING.txt` ([GNU GPLv3 license][gpl-link])
+- `AUTHORS` (contributor acknowledgments)
+- `src/` (source code with platform-specific Makefiles)
+- Neural network weights (`revolution.nnue`)
+
+## Contributing
+
+### Development Guidelines
+Contributions must adhere to:
+- Clean, documented C++17 implementations
+- Benchmark validation through perft testing
+- Elo measurement via [OpenBench][openbench-link]
+- Compatibility with UCI protocol standard
+
+
+### Community
+Technical discussions occur primarily through:
+- [Revolution Discord Server][discord-link]
+- [GitHub Discussions][discussions-link]
+- [Chess Programming Wiki][chesswiki-link]
+
+## Compilation
+
+Compile from source using included Makefiles:
 ```bash
 cd src
 make -j ARCH=x86-64-modern
 ```
 
-Supported `ARCH` targets include `x86-64`, `x86-64-modern`, `armv8`, and `ppc64`. Consult `docs/` for platform-specific notes and advanced configuration tips.
+Supported architectures:
+- `x86-64`: Modern x86 processors
+- `armv8`: ARMv8+ architectures
+- `ppc64`: PowerPC systems
 
-## Testing & Quality Assurance
-Each change set is validated with rigorous testing methodologies:
+Full compilation guides available in [documentation][doc-link].
 
-- **Perft Benchmarks** – Verify bitboard move generation accuracy.
-- **SPRT Matches** – Measure Elo impact against reference builds using sequential probability ratio testing.
-- **Regression Suites** – Continuous matches on OpenBench-style infrastructure to ensure stability across time controls.
+## Syzygy Tablebases
 
-Testing evidence drives promotion, refinement, or rollback decisions to keep the engine competitive and reliable.
+Revolution can probe [Syzygy](https://github.com/syzygy1) endgame tablebases when a
+directory is supplied via the `SyzygyPath` UCI option. The engine also exposes a
+`SyzygyPremap` boolean option. When set to `true`, `Tablebases::init` pre-maps all
+available WDL and DTZ tables during initialization, reducing probe latency at the
+expense of additional startup time and memory usage.
 
-## Usage
-Load Revolution into any UCI-compatible GUI:
+## Experience Learning
 
-```text
-uci
-setoption name Minimum Thinking Time value 200
-setoption name SyzygyPath value /path/to/tablebases
-isready
-ucinewgame
-position startpos
-go movetime 5000
+Revolution includes a simple text-based cache that stores root moves and evaluations from
+previous games. Rather than forcing book moves, the cached information biases root move
+ordering during search. The following UCI options control this system:
+
+- `Experience Enabled`: enables or disables the experience feature (default `true`).
+- `Experience File`: name of the file where the experience data is stored (default `experience.exp`; legacy `.bin` files are converted automatically to this format).
+- `Experience Readonly`: if `true`, no changes are written to the file.
+- `Experience Prior`: uses stored experience to bias root move ordering.
+- `Experience Width`: number of principal moves to consider (1–20).
+- `Experience Eval Weight`: weighting of evaluation when ordering moves (0–10).
+- `Experience Min Depth`: minimum depth required to store a move (4–64).
+- `Experience Max Moves`: maximum number of moves saved per position (1–100).
+- `Experience Book`: if `true`, use the experience file as an opening book.
+- `Experience Book Max Moves`: limit of moves considered when using the experience book (1–100, default 100).
+- `Experience Book Min Depth`: minimum depth required for a move to be used from the experience book (1–255, default 4).
+
+The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
+
+## UCI Options
+
+### Minimum Thinking Time
+
+The `Minimum Thinking Time` option ensures the engine spends at least a
+specified number of milliseconds searching for a move, even if it finds
+a good one instantly. This avoids extremely fast, low-quality replies.
+Set it with:
+
+```
+setoption name Minimum Thinking Time value <milliseconds>
 ```
 
-Syzygy tablebases are automatically probed when `SyzygyPath` is set. Experience learning can be toggled via `Experience`, while `Experience Book` turns the cache into a soft opening book.
+### Time Buffer
 
-## License & Credits
-Revolution is distributed under the [GNU General Public License v3](https://www.gnu.org/licenses/gpl-3.0.en.html). Because the engine incorporates Stockfish code, any redistribution must ship complete corresponding source, retain GPL notices, and document modifications.
+The `Time Buffer` option reserves a small amount of time on each move to
+reduce the risk of losing on time. The engine will not intentionally use
+this reserved buffer.
 
-**Authors and Credits:**
-- Stockfish developers and contributors – creators of the original engine and ongoing upstream innovations.
-- Jorge Ruiz Centelles – maintainer of Revolution, curating experimental features and release packaging.
-- ChatGPT Codex tooling – assisted code generation, documentation, and experimentation support.
+```
+setoption name Time Buffer value <milliseconds>
+```
 
-Community discussions mirror Stockfish norms, spanning the Chess Programming Wiki forums, Discord groups, and GitHub discussions. Contributions are welcomed when accompanied by reproducible tests and adherence to clean C++17 practices.
+## License
+
+Revolution is distributed under the **[GNU General Public License v3][gpl-link]** (GPLv3).
+It integrates source code from:
+
+- [Stockfish](https://github.com/official-stockfish/Stockfish)
+
+Because Stockfish is GPLv3, any distribution of Revolution must also comply with GPLv3.
+For a summary of your obligations under GPLv3 see <https://www.gnu.org/licenses/quick-guide-gplv3.html>.
+When redistributing, you must:
+1. Include the original license text (`COPYING.txt`)
+2. Provide complete corresponding source code
+3. Disclose all modifications under GPLv3
+
+## Acknowledgements
+
+Revolution also benefits from:
+- Neural networks trained on [Lichess open database][lichess-db]
+- Search techniques from [CCC testing community][ccc-link]
+- Positional analysis concepts from [CPW research][cpw-link]
+
+[gpl-link]: https://www.gnu.org/licenses/gpl-3.0.html
+[doc-link]: [#](https://ijccrl.com/revolution-chess-engine/)
+
+[worker-link]: [(https://ijccrl.com/sprtrevolution_base-vs-revolution_dev/ ]
+[testsuite-link]: [https://github.com/Disservin/fastchess/?tab=readme-ov-file]
+[discussions-link]: #
+[chesswiki-link]: https://www.chessprogramming.org
+[lichess-db]: https://database.lichess.org
+[ccc-link]: https://www.chess.com/computer-chess-championship
+[cpw-link]: https://www.chessprogramming.org
