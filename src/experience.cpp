@@ -212,7 +212,8 @@ void Experience::load(const std::string& file) {
             if (Experience_IsCompatible(header))
             {
                 handledExpHeader = true;
-                const std::size_t payload = buffer.size() - sizeof(ExperienceHeader);
+                const std::size_t headerBytes = std::min<std::size_t>(static_cast<std::size_t>(header.headerSize), buffer.size());
+                const std::size_t payload     = buffer.size() - headerBytes;
 
                 if (payload == 0)
                 {
@@ -222,10 +223,46 @@ void Experience::load(const std::string& file) {
                 else if (payload % header.recordSize == 0)
                 {
                     const std::size_t records = payload / header.recordSize;
-                    sync_cout << "info string " << display
-                              << " -> Experience format with record size " << header.recordSize
-                              << " is not supported yet; ignoring " << records
-                              << (records == 1 ? " record." : " records.") << sync_endl;
+                    const auto*       begin   = reinterpret_cast<const std::uint8_t*>(buffer.data());
+                    const auto*       ptr     = begin + headerBytes;
+                    const auto*       end     = begin + buffer.size();
+
+                    std::size_t imported = 0;
+                    std::size_t skipped  = 0;
+
+                    auto clamp_depth = [](int value) {
+                        return std::max(value, 0);
+                    };
+
+                    while (ptr + header.recordSize <= end)
+                    {
+                        ExperienceRecord record{};
+                        const std::size_t copy = std::min<std::size_t>(sizeof(record), header.recordSize);
+                        std::memcpy(&record, ptr, copy);
+                        ptr += header.recordSize;
+
+                        const bool emptyMove = record.move == 0;
+                        const bool emptyKey  = record.key == 0ULL;
+                        if (emptyMove || emptyKey)
+                        {
+                            skipped++;
+                            continue;
+                        }
+
+                        const int storedCount = std::max<int>(1, record.count);
+                        const int storedDepth = clamp_depth(static_cast<int>(record.depth));
+
+                        insert_entry(record.key,
+                                     static_cast<unsigned>(record.move),
+                                     static_cast<int>(record.score),
+                                     storedDepth,
+                                     storedCount);
+                        imported++;
+                    }
+
+                    sync_cout << "info string " << display << " -> Experience format (" << records
+                              << (records == 1 ? " record" : " records") << ") loaded " << imported
+                              << ", skipped " << skipped << sync_endl;
                 }
                 else
                 {
@@ -679,12 +716,7 @@ void Experience::save(const std::string& file) const {
     }
     else
     {
-        std::ofstream out(path, std::ios::binary);
-        if (out)
-        {
-            out.write(buffer.data(), buffer.size());
-            ok = bool(out);
-        }
+        ok = Experience_WriteBufferAtomically(path, buffer);
     }
 
     if (!ok)

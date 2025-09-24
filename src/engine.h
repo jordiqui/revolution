@@ -125,6 +125,9 @@ class Engine {
     std::function<void(std::string_view)> onVerifyNetworks;
 
     std::string concurrentExperienceFile;
+    std::function<void(std::string_view, std::string_view)> onBestmoveHandler;
+
+    void maybe_save_experience();
 };
 
 }  // namespace Stockfish

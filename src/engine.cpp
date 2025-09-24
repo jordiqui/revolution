@@ -219,6 +219,7 @@ Engine::Engine(std::optional<std::string> path) :
 
         const std::string file = getExperienceFile();
         const std::string ext  = lower_ext(file);
+        std::string       loadPath = file;
 
         bool        readOnly = options.count("Experience Readonly")
                             && bool(options["Experience Readonly"]);
@@ -229,11 +230,25 @@ Engine::Engine(std::optional<std::string> path) :
             auto openResult = Experience_OpenForReadWrite(file, getExperienceBuckets());
             openOk          = openResult.ok;
             readOnly        = openResult.readOnly;
+            if (!openResult.normalizedPath.empty())
+                loadPath = openResult.normalizedPath;
+
+            if (openOk)
+            {
+                if (options.count("ExperienceFile"))
+                    setOptionSilently("ExperienceFile", loadPath);
+                if (options.count("Experience File"))
+                    setOptionSilently("Experience File", loadPath);
+
+                if (openResult.recreated)
+                    sync_cout << "info string Experience file recreated: " << loadPath << sync_endl;
+            }
         }
 
         if (!openOk)
         {
-            sync_cout << "info string Experience disabled due to file error: " << file << sync_endl;
+            const std::string& failedPath = loadPath.empty() ? file : loadPath;
+            sync_cout << "info string Experience disabled due to file error: " << failedPath << sync_endl;
             experience.clear();
             setOptionSilently("Experience", "false");
             if (options.count("Experience Enabled"))
@@ -244,8 +259,8 @@ Engine::Engine(std::optional<std::string> path) :
         if (options.count("Experience Readonly"))
             setOptionSilently("Experience Readonly", readOnly ? "true" : "false");
 
-        experience.load_async(file);
-        sync_cout << "info string Experience OK: " << file << sync_endl;
+        experience.load_async(loadPath);
+        sync_cout << "info string Experience OK: " << loadPath << sync_endl;
         setOptionSilently("Experience", "true");
         if (options.count("Experience Enabled"))
             setOptionSilently("Experience Enabled", "true");
@@ -373,6 +388,44 @@ void Engine::go(Search::LimitsType& limits) {
 }
 void Engine::stop() { threads.stop = true; }
 
+void Engine::maybe_save_experience() {
+    if (!options.count("Experience") || !(bool) options["Experience"])
+        return;
+
+    if (options.count("Experience Readonly") && bool(options["Experience Readonly"]))
+        return;
+
+    std::string file = options.count("ExperienceFile") ? std::string(options["ExperienceFile"])
+                                                        : std::string(options["Experience File"]);
+
+    if (file.empty())
+        return;
+
+    if ((bool) options["Experience Concurrent"])
+    {
+        if (concurrentExperienceFile.empty())
+        {
+            std::random_device rd;
+            uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
+            std::ostringstream oss;
+            oss << std::hex << std::setfill('0') << std::setw(16) << r;
+            std::string suffix = oss.str();
+            auto        p      = file.find_last_of('.');
+            if (p != std::string::npos)
+                concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
+            else
+                concurrentExperienceFile = file + "-" + suffix;
+        }
+        file = concurrentExperienceFile;
+    }
+    else
+    {
+        concurrentExperienceFile.clear();
+    }
+
+    experience.save(file);
+}
+
 void Engine::search_clear() {
     wait_for_search_finished();
 
@@ -383,28 +436,7 @@ void Engine::search_clear() {
     // keep their mappings alive until they also release.
     Tablebases::release();
 
-    if ((bool) options["Experience"] && !(bool) options["Experience Readonly"])
-    {
-        std::string file = options.count("ExperienceFile") ? std::string(options["ExperienceFile"]) : std::string(options["Experience File"]);
-        if ((bool) options["Experience Concurrent"])
-        {
-            if (concurrentExperienceFile.empty())
-            {
-                std::random_device rd;
-                uint64_t           r = (uint64_t(rd()) << 32) ^ rd();
-                std::ostringstream oss;
-                oss << std::hex << std::setfill('0') << std::setw(16) << r;
-                std::string suffix = oss.str();
-                auto        p      = file.find_last_of('.');
-                if (p != std::string::npos)
-                    concurrentExperienceFile = file.substr(0, p) + "-" + suffix + file.substr(p);
-                else
-                    concurrentExperienceFile = file + "-" + suffix;
-            }
-            file = concurrentExperienceFile;
-        }
-        experience.save(file);
-    }
+    maybe_save_experience();
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
@@ -420,7 +452,12 @@ void Engine::set_on_iter(std::function<void(const Engine::InfoIter&)>&& f) {
 }
 
 void Engine::set_on_bestmove(std::function<void(std::string_view, std::string_view)>&& f) {
-    updateContext.onBestmove = std::move(f);
+    onBestmoveHandler        = std::move(f);
+    updateContext.onBestmove = [this](std::string_view bestmove, std::string_view ponder) {
+        if (onBestmoveHandler)
+            onBestmoveHandler(bestmove, ponder);
+        maybe_save_experience();
+    };
 }
 
 void Engine::set_on_verify_networks(std::function<void(std::string_view)>&& f) {
