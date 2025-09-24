@@ -113,46 +113,6 @@ Value to_corrected_static_eval(const Value v, const int cv) {
     return std::clamp(v + cv / 131072, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 }
 
-int king_file_exposure(const Position& pos, Color us) {
-    if (pos.count<KING>(us) != 1)
-        return 0;
-
-    const Square kingSq   = pos.square<KING>(us);
-    const File   kingFile = file_of(kingSq);
-
-    const Bitboard friendlyPawns = pos.pieces(us, PAWN);
-    const Bitboard enemyPawns    = pos.pieces(~us, PAWN);
-    const Bitboard heavyPieces   = pos.pieces(~us, ROOK) | pos.pieces(~us, QUEEN);
-    const Bitboard occupancy     = pos.pieces();
-    const Bitboard rookLines     = attacks_bb<ROOK>(kingSq, occupancy) & heavyPieces;
-
-    auto evaluate_file = [&](File f) {
-        Bitboard mask        = file_bb(f);
-        const bool friendly  = friendlyPawns & mask;
-        const bool opposing  = enemyPawns & mask;
-        const bool semiOpen  = !friendly;
-        const bool open      = semiOpen && !opposing;
-        const bool heavyLine = rookLines & mask;
-
-        if (heavyLine)
-            return 3;
-        if (open)
-            return 2;
-        if (semiOpen)
-            return 1;
-        return 0;
-    };
-
-    int exposure = evaluate_file(kingFile);
-
-    if (kingFile > FILE_A)
-        exposure += evaluate_file(File(kingFile - 1));
-    if (kingFile < FILE_H)
-        exposure += evaluate_file(File(kingFile + 1));
-
-    return std::min(exposure, 6);
-}
-
 void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
@@ -166,7 +126,7 @@ void update_correction_history(const Position& pos,
     static constexpr int nonPawnWeight = 165;
 
     int scaledBonus = bonus;
-    if (int exposure = king_file_exposure(pos, us))
+    if (int exposure = Eval::king_file_exposure(pos, us))
     {
         if (scaledBonus > 0)
         {

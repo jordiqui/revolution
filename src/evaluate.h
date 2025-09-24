@@ -52,6 +52,8 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
 
+int king_file_exposure(const Position& pos, Color side);
+
 // Toggle for optional style-based evaluation adjustments.
 void set_adaptive_style(bool enabled);
 }  // namespace Eval
