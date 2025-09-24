@@ -227,7 +227,7 @@ Engine::Engine(std::optional<std::string> path) :
         return std::nullopt;
     };
 
-    auto applyExperienceFile = [&setOptionSilently, &ensureExperienceReady](const std::string& value) -> std::optional<std::string> {
+    auto applyExperienceFile = [this, &setOptionSilently, &ensureExperienceReady](const std::string& value) -> std::optional<std::string> {
         if (options.count("ExperienceFile"))
             setOptionSilently("ExperienceFile", value);
         if (options.count("Experience File"))
@@ -246,11 +246,11 @@ Engine::Engine(std::optional<std::string> path) :
                     return ensureExperienceReady(bool(o));
                 }));
 
-    options.add("ExperienceFile", Option("experience.exp", [&applyExperienceFile](const Option& o) {
+    options.add("ExperienceFile", Option("experience.exp", [applyExperienceFile](const Option& o) {
                     return applyExperienceFile(std::string(o));
                 }));
 
-    options.add("Experience File", Option("experience.exp", [&applyExperienceFile](const Option& o) {
+    options.add("Experience File", Option("experience.exp", [applyExperienceFile](const Option& o) {
                     return applyExperienceFile(std::string(o));
                 }));
 
