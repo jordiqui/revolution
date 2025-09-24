@@ -57,3 +57,5 @@ bool Experience_WriteHeader(const std::string& path, const ExperienceHeader& h);
 
 bool Experience_FileLooksLikeSugar(const ExperienceHeader& h);
 
+bool Experience_WriteBufferAtomically(const std::string& path, const std::string& buffer);
+

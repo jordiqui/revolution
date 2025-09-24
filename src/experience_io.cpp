@@ -324,6 +324,65 @@ bool write_zero_filled(const std::filesystem::path& target, std::uint32_t bucket
     return true;
 }
 
+bool Experience_WriteBufferAtomically(const std::string& path, const std::string& buffer) {
+    if (path.empty())
+        return false;
+
+    const std::filesystem::path target = normalize_path(path);
+    ExperienceWriteLock         guard(target);
+    if (!guard.owns_lock()) {
+        log_info("experience: failed to acquire write lock for '" + to_display_string(target) + "'");
+        return false;
+    }
+
+    std::filesystem::path tmp = target;
+    tmp += ".tmp";
+
+    ensure_parent_directory(target);
+    clear_readonly_attribute(target);
+
+    errno = 0;
+    std::FILE* f = fopen_compat(tmp, "wb");
+    if (!f) {
+        log_error("failed to open temp file for writing", tmp);
+        return false;
+    }
+
+    auto cleanup = [&]() {
+        std::fclose(f);
+        std::error_code removeEc;
+        std::filesystem::remove(tmp, removeEc);
+    };
+
+    if (!buffer.empty() && std::fwrite(buffer.data(), 1, buffer.size(), f) != buffer.size()) {
+        log_error("failed while writing buffer", tmp);
+        cleanup();
+        return false;
+    }
+
+    std::fflush(f);
+#ifdef _WIN32
+    _commit(_fileno(f));
+#else
+    ::fsync(fileno(f));
+#endif
+    std::fclose(f);
+
+    std::error_code ec;
+    std::filesystem::rename(tmp, target, ec);
+    if (ec) {
+        std::filesystem::remove(target, ec);
+        std::filesystem::rename(tmp, target, ec);
+    }
+    if (ec) {
+        std::filesystem::remove(tmp, ec);
+        log_error("atomic rename failed", target);
+        return false;
+    }
+
+    return true;
+}
+
 bool ensure_readonly_status(const std::filesystem::path& path, bool& readOnly) {
     errno = 0;
     std::FILE* f = fopen_compat(path, "rb+");
