@@ -1,6 +1,7 @@
 #include "experience_io.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cerrno>
 #include <cstdio>
 #include <cstdint>
@@ -13,6 +14,16 @@
 #include <iostream>
 
 #include "misc.h"
+
+#if defined(_MSC_VER)
+#    define PACKED_STRUCT_BEGIN __pragma(pack(push, 1))
+#    define PACKED_STRUCT_END __pragma(pack(pop))
+#    define PACKED_STRUCT struct
+#else
+#    define PACKED_STRUCT_BEGIN
+#    define PACKED_STRUCT_END
+#    define PACKED_STRUCT struct __attribute__((packed))
+#endif
 
 #ifdef _WIN32
 #    include <io.h>
@@ -189,6 +200,89 @@ void clear_readonly_attribute(const std::filesystem::path&) {}
 
 std::size_t expected_file_size(std::uint32_t buckets) {
     return sizeof(ExperienceHeader) + std::size_t(buckets) * sizeof(ExperienceRecord);
+}
+
+std::string lowercase_extension(const std::filesystem::path& path) {
+    std::string ext = path.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    return ext;
+}
+
+PACKED_STRUCT_BEGIN
+PACKED_STRUCT PACKED_SugaRHeader {
+    std::uint8_t  version;
+    std::uint64_t seed;
+    std::uint32_t bucketSize;
+    std::uint32_t entrySize;
+};
+
+PACKED_STRUCT PACKED_SugaRMetaBlock {
+    std::uint32_t hashBits;
+    std::uint32_t reserved;
+    std::uint16_t endianTag;
+    float         kFactor;
+    std::uint64_t counters;
+};
+
+PACKED_STRUCT PACKED_SugaRBinV2 {
+    std::uint64_t key;
+    std::uint16_t move;
+    std::int16_t  score;
+    std::int16_t  depth;
+    std::int16_t  count;
+    std::int32_t  wins;
+    std::int32_t  losses;
+    std::int32_t  draws;
+    std::int16_t  flags;
+    std::int16_t  age;
+    std::int16_t  pad;
+};
+PACKED_STRUCT_END
+
+static_assert(sizeof(PACKED_SugaRHeader) == 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t),
+              "Unexpected SugaR header packing");
+static_assert(sizeof(PACKED_SugaRMetaBlock)
+                == sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t) + sizeof(float)
+                     + sizeof(std::uint64_t),
+              "Unexpected SugaR meta block packing");
+static_assert(sizeof(PACKED_SugaRBinV2) == 34, "Unexpected SugaR entry size");
+
+bool write_empty_sugar_experience(const std::filesystem::path& target) {
+    ensure_parent_directory(target);
+    clear_readonly_attribute(target);
+
+    ExperienceWriteLock guard(target);
+    if (!guard.owns_lock()) {
+        log_info("experience: failed to acquire write lock for '" + to_display_string(target) + "'");
+        return false;
+    }
+
+    std::ofstream out(target, std::ios::binary | std::ios::trunc);
+    if (!out) {
+        log_error("failed to open for writing", target);
+        return false;
+    }
+
+    static constexpr char kSignature[] = "SugaR Experience version 2";
+    out.write(kSignature, sizeof(kSignature) - 1);
+
+    const PACKED_SugaRHeader header{2u, 0x103380A463E28000ULL, 6u,
+                                    static_cast<std::uint32_t>(sizeof(PACKED_SugaRBinV2))};
+    const PACKED_SugaRMetaBlock metaBlocks[2] = {{23u, 1u, 0x0002u, 11.978f, 0u},
+                                                 {23u, 1u, 0x0002u, 11.978f, 0u}};
+
+    out.write(reinterpret_cast<const char*>(&header), sizeof(header));
+    out.write(reinterpret_cast<const char*>(metaBlocks), sizeof(metaBlocks));
+
+    if (!out) {
+        log_error("failed to write header", target);
+        return false;
+    }
+
+    out.flush();
+    return true;
 }
 
 std::FILE* fopen_compat(const std::filesystem::path& path, const char* mode) {
@@ -483,6 +577,16 @@ bool Experience_WriteHeader(const std::string& path, const ExperienceHeader& hea
 bool Experience_InitNew(const std::string& path, std::uint32_t bucketCount) {
     const std::filesystem::path normalized = normalize_path(path);
 
+    const std::string ext = lowercase_extension(normalized);
+    if (ext == ".exp") {
+        if (!write_empty_sugar_experience(normalized))
+            return false;
+
+        log_info("experience: created '" + to_display_string(normalized)
+                 + "' in SugaR v2 format (empty header)");
+        return true;
+    }
+
     const std::uint32_t normalizedBuckets = Experience_NormalizeBucketCount(bucketCount);
     if (normalizedBuckets != bucketCount)
         log_info("experience: bucket count " + std::to_string(bucketCount)
@@ -511,6 +615,33 @@ ExperienceOpenResult Experience_OpenForReadWrite(const std::string& path, std::u
 
     ensure_parent_directory(normalized);
     std::error_code ec;
+
+    const std::string ext = lowercase_extension(normalized);
+    if (ext == ".exp") {
+        if (!std::filesystem::exists(normalized)) {
+            if (!Experience_InitNew(normalized.string(), requestedBuckets))
+                return result;
+            result.recreated = true;
+        }
+
+        std::ifstream in(normalized, std::ios::binary);
+        if (!in) {
+            log_error("failed to open for reading", normalized);
+            return result;
+        }
+
+        std::fstream probe(normalized, std::ios::binary | std::ios::in | std::ios::out);
+        if (!probe) {
+            result.readOnly = true;
+            log_info("experience: path not writable, continuing read-only");
+        }
+
+        result.ok          = true;
+        result.bucketCount = 0;
+        result.recordSize  = 0;
+        result.version     = 0;
+        return result;
+    }
 
     const std::uint32_t normalizedBuckets = Experience_NormalizeBucketCount(requestedBuckets);
     if (normalizedBuckets != requestedBuckets)
@@ -569,4 +700,8 @@ ExperienceOpenResult Experience_OpenForReadWrite(const std::string& path, std::u
     result.version     = header.version;
     return result;
 }
+
+#undef PACKED_STRUCT
+#undef PACKED_STRUCT_BEGIN
+#undef PACKED_STRUCT_END
 
