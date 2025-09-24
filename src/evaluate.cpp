@@ -39,8 +39,7 @@ namespace Stockfish {
 
 namespace {
 
-constexpr int SMALLNET_MARGIN      = 236;
-constexpr int COMPLEXITY_THRESHOLD = 500;
+constexpr int SMALLNET_MARGIN = 236;
 
 }  // namespace
 
@@ -69,17 +68,17 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     auto [psqt, positional] = smallNet ? networks.small.evaluate(pos, accumulators, &caches.small)
                                        : networks.big.evaluate(pos, accumulators, &caches.big);
 
-    Value nnue          = (125 * psqt + 131 * positional) / 128;
-    int   nnueComplexity = std::abs(psqt - positional);
+    Value nnue = (125 * psqt + 131 * positional) / 128;
 
     // Re-evaluate the position when higher eval accuracy is worth the time spent
-    if (smallNet && (std::abs(nnue) < SMALLNET_MARGIN) && (nnueComplexity > COMPLEXITY_THRESHOLD))
+    if (smallNet && (std::abs(nnue) < SMALLNET_MARGIN))
     {
         std::tie(psqt, positional) = networks.big.evaluate(pos, accumulators, &caches.big);
         nnue                       = (125 * psqt + 131 * positional) / 128;
         smallNet                   = false;
-        nnueComplexity             = std::abs(psqt - positional);
     }
+
+    int nnueComplexity = std::abs(psqt - positional);
 
     // Blend optimism and eval with nnue complexity
     optimism += optimism * nnueComplexity / 468;
