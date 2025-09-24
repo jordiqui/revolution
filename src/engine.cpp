@@ -18,11 +18,14 @@
 
 #include "engine.h"
 
+#include "experience_io.h"
+
 #include <algorithm>
 #include <cassert>
 #include <deque>
 #include <iosfwd>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <sstream>
 #include <string_view>
@@ -166,18 +169,108 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("Book2 Width", Option(1, 1, 10));
 
-    options.add("Experience Enabled", Option(true, [this](const Option& o) {
-                    if (bool(o))
-                        experience.load_async(options["Experience File"]);
-                    else
-                        experience.clear();
-                    return std::nullopt;
+    auto setOptionSilently = [this](const std::string& name, const std::string& value) {
+        if (!options.count(name))
+            return;
+        Option& opt = const_cast<Option&>(options[name]);
+        if (opt.currentValue != value)
+            opt.currentValue = value;
+    };
+
+    auto getExperienceFile = [this]() -> std::string {
+        if (options.count("ExperienceFile"))
+            return std::string(options["ExperienceFile"]);
+        if (options.count("Experience File"))
+            return std::string(options["Experience File"]);
+        return "experience.exp";
+    };
+
+    auto lower_ext = [](const std::string& filePath) -> std::string {
+        const auto dot = filePath.find_last_of('.');
+        if (dot == std::string::npos)
+            return {};
+        std::string ext = filePath.substr(dot);
+        std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
+            return char(std::tolower(c));
+        });
+        return ext;
+    };
+
+    auto ensureExperienceReady = [this, &setOptionSilently, &getExperienceFile, &lower_ext](bool enable) -> std::optional<std::string> {
+        if (!enable)
+        {
+            experience.clear();
+            setOptionSilently("Experience", "false");
+            if (options.count("Experience Enabled"))
+                setOptionSilently("Experience Enabled", "false");
+            return std::nullopt;
+        }
+
+        const std::string file = getExperienceFile();
+        const std::string ext  = lower_ext(file);
+
+        if (ext == ".exp" && !Experience_OpenForReadWrite(file))
+        {
+            sync_cout << "info string Experience disabled due to file error: " << file << sync_endl;
+            experience.clear();
+            setOptionSilently("Experience", "false");
+            if (options.count("Experience Enabled"))
+                setOptionSilently("Experience Enabled", "false");
+            return std::nullopt;
+        }
+
+        experience.load_async(file);
+        sync_cout << "info string Experience OK: " << file << sync_endl;
+        setOptionSilently("Experience", "true");
+        if (options.count("Experience Enabled"))
+            setOptionSilently("Experience Enabled", "true");
+        return std::nullopt;
+    };
+
+    auto applyExperienceFile = [this, &setOptionSilently, &ensureExperienceReady](const std::string& value) -> std::optional<std::string> {
+        if (options.count("ExperienceFile"))
+            setOptionSilently("ExperienceFile", value);
+        if (options.count("Experience File"))
+            setOptionSilently("Experience File", value);
+        concurrentExperienceFile.clear();
+        if (options.count("Experience") && bool(options["Experience"]))
+            return ensureExperienceReady(true);
+        return std::nullopt;
+    };
+
+    options.add("Experience", Option(true, [this, &ensureExperienceReady](const Option& o) {
+                    return ensureExperienceReady(bool(o));
                 }));
 
-    options.add("Experience File", Option("experience.exp", [this](const Option& o) {
-                    if ((bool) options["Experience Enabled"])
-                        experience.load_async(o);
-                    concurrentExperienceFile.clear();
+    options.add("Experience Enabled", Option(true, [this, &ensureExperienceReady](const Option& o) {
+                    return ensureExperienceReady(bool(o));
+                }));
+
+    options.add("ExperienceFile", Option("experience.exp", [this, &applyExperienceFile](const Option& o) {
+                    return applyExperienceFile(std::string(o));
+                }));
+
+    options.add("Experience File", Option("experience.exp", [this, &applyExperienceFile](const Option& o) {
+                    return applyExperienceFile(std::string(o));
+                }));
+
+    options.add("ClearExperience", Option([this, &getExperienceFile, &lower_ext, &ensureExperienceReady](const Option&) {
+                    const std::string target = getExperienceFile();
+                    const std::string ext    = lower_ext(target);
+                    bool              ok     = false;
+                    if (ext == ".exp")
+                        ok = Experience_InitNew(target);
+                    if (!ok)
+                    {
+                        sync_cout << "info string ClearExperience failed for: " << target << sync_endl;
+                    }
+                    else
+                    {
+                        experience.clear();
+                        sync_cout << "info string Experience re-initialized at: " << target << sync_endl;
+                        if (options.count("Experience") && bool(options["Experience"]))
+                            ensureExperienceReady(true);
+                    }
                     return std::nullopt;
                 }));
 
@@ -256,9 +349,9 @@ void Engine::search_clear() {
     // keep their mappings alive until they also release.
     Tablebases::release();
 
-    if ((bool) options["Experience Enabled"] && !(bool) options["Experience Readonly"])
+    if ((bool) options["Experience"] && !(bool) options["Experience Readonly"])
     {
-        std::string file = options["Experience File"];
+        std::string file = options.count("ExperienceFile") ? std::string(options["ExperienceFile"]) : std::string(options["Experience File"]);
         if ((bool) options["Experience Concurrent"])
         {
             if (concurrentExperienceFile.empty())

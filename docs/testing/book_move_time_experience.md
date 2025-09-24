@@ -24,9 +24,9 @@ the previous search.
    `setoption name Debug Log File value book-regression.log`.
 3. Point the engine to the temporary experience file and make it writable:
    ```
-   setoption name Experience Enabled value true
+   setoption name Experience value true
    setoption name Experience Readonly value false
-   setoption name Experience File value /tmp/book-regression.exp
+   setoption name ExperienceFile value /tmp/book-regression.exp
    ```
 4. Disable both books for a single baseline search and start a new game:
    ```

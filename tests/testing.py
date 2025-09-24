@@ -473,7 +473,7 @@ class TestNNUEThreadSafety(unittest.TestCase):
         self.engine.expect("uciok")
         self.engine.clear_output()
 
-        self.engine.setoption("Experience Enabled", "false")
+        self.engine.setoption("Experience", "false")
         self.engine.send_command("isready")
         self.engine.expect("readyok")
         self.engine.clear_output()
@@ -572,7 +572,7 @@ class TestNNUEThreadSafety(unittest.TestCase):
         engine.expect("uciok")
         engine.clear_output()
 
-        engine.setoption("Experience Enabled", "false")
+        engine.setoption("Experience", "false")
         engine.setoption("Threads", "1")
         engine.setoption("Hash", "16")
         engine.send_command("isready")

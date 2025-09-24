@@ -282,7 +282,7 @@ void Search::Worker::start_searching() {
     {
         if (!limits.infinite && !limits.mate)
         {
-            if ((bool) options["Experience Enabled"])
+            if ((bool) options["Experience"])
             {
                 if ((bool) options["Experience Prior"])
                     preferredMove =
@@ -424,7 +424,7 @@ void Search::Worker::start_searching() {
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
     main_manager()->updates.onBestmove(bestmove, ponder);
 
-    if (!usedBook && (bool) options["Experience Enabled"]
+    if (!usedBook && (bool) options["Experience"]
         && !(bool) options["Experience Readonly"])
     {
         if (Worker* experienceThread = thread_for_updates(bestThread))
