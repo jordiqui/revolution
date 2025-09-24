@@ -127,19 +127,7 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     nnue -= nnue * nnueComplexity / 18000;
 
     int material = 535 * pos.count<PAWN>() + pos.non_pawn_material();
-
-    int ourExposure = king_file_exposure(pos, pos.side_to_move());
-    int oppExposure = king_file_exposure(pos, ~pos.side_to_move());
-
-    if (ourExposure != oppExposure)
-    {
-        int heavyPieces = pos.count<ROOK>() + pos.count<QUEEN>();
-        int stage       = std::min(material, 32000);
-        int weight      = 6 + heavyPieces * 3 + stage / 8192;
-        nnue += Value((oppExposure - ourExposure) * weight);
-    }
-
-    int v = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
+    int v        = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
 
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 212;
