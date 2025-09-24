@@ -251,6 +251,8 @@ bool read_header_from_stream(std::istream& in, ExperienceHeader& header) {
 }
 
 bool write_zero_filled(const std::filesystem::path& target, std::uint32_t buckets, ExperienceHeader& outHeader) {
+    ensure_parent_directory(target);
+
     ExperienceWriteLock guard(target);
     if (!guard.owns_lock()) {
         log_info("experience: failed to acquire write lock for '" + to_display_string(target)
@@ -263,8 +265,6 @@ bool write_zero_filled(const std::filesystem::path& target, std::uint32_t bucket
 
     std::filesystem::path tmp = target;
     tmp += ".tmp";
-
-    ensure_parent_directory(target);
 
     clear_readonly_attribute(target);
 
@@ -350,6 +350,7 @@ bool Experience_WriteBufferAtomically(const std::string& path, const std::string
         return false;
 
     const std::filesystem::path target = normalize_path(path);
+    ensure_parent_directory(target);
     ExperienceWriteLock         guard(target);
     if (!guard.owns_lock()) {
         log_info("experience: failed to acquire write lock for '" + to_display_string(target) + "'");
@@ -359,7 +360,6 @@ bool Experience_WriteBufferAtomically(const std::string& path, const std::string
     std::filesystem::path tmp = target;
     tmp += ".tmp";
 
-    ensure_parent_directory(target);
     clear_readonly_attribute(target);
 
     errno = 0;
