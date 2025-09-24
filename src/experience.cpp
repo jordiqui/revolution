@@ -374,16 +374,16 @@ void Experience::load(const std::string& file) {
                     return true;
                 };
 
-                V2HeaderInfo header{};
-                bool         hasHeader = parse_v2_header(header);
+                V2HeaderInfo headerInfo{};
+                bool         hasHeader = parse_v2_header(headerInfo);
 
                 std::size_t entryOffset = sigV2.size();
                 std::size_t entrySize   = sizeof(SugaRBinV2Minimal);
 
                 if (hasHeader)
                 {
-                    entryOffset += header.headerBytes;
-                    entrySize = header.entrySize;
+                    entryOffset += headerInfo.headerBytes;
+                    entrySize = headerInfo.entrySize;
                 }
 
                 in.seekg(static_cast<std::streamoff>(entryOffset), std::ios::beg);
