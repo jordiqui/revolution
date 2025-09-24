@@ -397,25 +397,25 @@ TBTable<WDL>::TBTable(const std::string& codeStr) :
     StateInfo st;
     Position  pos;
 
-    key        = pos.set(codeStr, WHITE, &st).material_key();
+    key        = pos.set(codeStr, Color::WHITE, &st).material_key();
     pieceCount = pos.count<ALL_PIECES>();
     hasPawns   = pos.pieces(PAWN);
 
     hasUniquePieces = false;
-    for (Color c : {WHITE, BLACK})
+    for (Color c : {Color::WHITE, Color::BLACK})
         for (PieceType pt = PAWN; pt < KING; ++pt)
             if (popcount(pos.pieces(c, pt)) == 1)
                 hasUniquePieces = true;
 
     // Set the leading color. In case both sides have pawns the leading color
     // is the side with fewer pawns because this leads to better compression.
-    bool c = !pos.count<PAWN>(BLACK)
-          || (pos.count<PAWN>(WHITE) && pos.count<PAWN>(BLACK) >= pos.count<PAWN>(WHITE));
+    bool c = !pos.count<PAWN>(Color::BLACK)
+          || (pos.count<PAWN>(Color::WHITE) && pos.count<PAWN>(Color::BLACK) >= pos.count<PAWN>(Color::WHITE));
 
-    pawnCount[0] = pos.count<PAWN>(c ? WHITE : BLACK);
-    pawnCount[1] = pos.count<PAWN>(c ? BLACK : WHITE);
+    pawnCount[0] = pos.count<PAWN>(c ? Color::WHITE : Color::BLACK);
+    pawnCount[1] = pos.count<PAWN>(c ? Color::BLACK : Color::WHITE);
 
-    key2 = pos.set(codeStr, BLACK, &st).material_key();
+    key2 = pos.set(codeStr, Color::BLACK, &st).material_key();
 }
 
 template<>
@@ -765,7 +765,8 @@ do_probe_table(const Position& pos, T* entry, WDLScore wdl, ProbeState* result) 
     // If both sides have the same pieces keys are equal. In this case TB tables
     // only stores the 'white to move' case, so if the position to lookup has black
     // to move, we need to switch the color and flip the squares before to lookup.
-    bool symmetricBlackToMove = (entry->key == entry->key2 && pos.side_to_move());
+    bool symmetricBlackToMove =
+      (entry->key == entry->key2 && pos.side_to_move() == Color::BLACK);
 
     // TB files are calculated for white as the stronger side. For instance, we
     // have KRvK, not KvKR. A position where the stronger side is white will have
@@ -775,7 +776,8 @@ do_probe_table(const Position& pos, T* entry, WDLScore wdl, ProbeState* result) 
 
     int flipColor   = (symmetricBlackToMove || blackStronger) * 8;
     int flipSquares = (symmetricBlackToMove || blackStronger) * 56;
-    int stm         = (symmetricBlackToMove || blackStronger) ^ pos.side_to_move();
+    int stm         =
+      (symmetricBlackToMove || blackStronger) ^ static_cast<int>(pos.side_to_move());
 
     // For pawns, TB files store 4 separate tables according if leading pawn is on
     // file a, b, c or d after reordering. The leading pawn is the one with maximum
@@ -1250,8 +1252,8 @@ void* mapped(TBTable<Type>& e, const Position& pos) {
     std::string fname, w, b;
     for (PieceType pt = KING; pt >= PAWN; --pt)
     {
-        w += std::string(popcount(pos.pieces(WHITE, pt)), PieceToChar[pt]);
-        b += std::string(popcount(pos.pieces(BLACK, pt)), PieceToChar[pt]);
+        w += std::string(popcount(pos.pieces(Color::WHITE, pt)), PieceToChar[pt]);
+        b += std::string(popcount(pos.pieces(Color::BLACK, pt)), PieceToChar[pt]);
     }
 
     fname =
@@ -1271,7 +1273,7 @@ void TBTables::premap() {
     {
         StateInfo st;
         Position  pos;
-        pos.set(tb.code, WHITE, &st);
+        pos.set(tb.code, Color::WHITE, &st);
         mapped<WDL>(tb, pos);
     }
 
@@ -1279,7 +1281,7 @@ void TBTables::premap() {
     {
         StateInfo st;
         Position  pos;
-        pos.set(tb.code, WHITE, &st);
+        pos.set(tb.code, Color::WHITE, &st);
         mapped<DTZ>(tb, pos);
     }
 }
