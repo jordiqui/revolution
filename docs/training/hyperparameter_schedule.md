@@ -1,7 +1,7 @@
 # NNUE Training Hyperparameter Schedule (UHO 2024 8mv +0.85/+0.94)
 
 This plan refines the final phase of the NNUE training run used for the UHO 2024 8-move suite (+0.85/+0.94). The focus is to
-extract sharper tactical play from revolution 2.73-dev-230925-wk while limiting overfitting to the white side of the starting book.
+extract sharper tactical play from revolution v.2.74-dev240925-EXP while limiting overfitting to the white side of the starting book.
 
 ## Learning-rate schedule
 
