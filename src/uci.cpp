@@ -106,7 +106,12 @@ void UCIEngine::loop() {
         token.clear();  // Avoid a stale if getline() returns nothing or a blank line
         is >> std::skipws >> token;
 
-        if (token == "quit" || token == "stop")
+        if (token == "quit")
+        {
+            engine.stop();
+            engine.search_clear();
+        }
+        else if (token == "stop")
             engine.stop();
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
