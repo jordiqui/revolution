@@ -34,6 +34,7 @@
 #include "types.h"
 #include "uci.h"
 #include "nnue/nnue_accumulator.h"
+#include "bitboard.h"
 
 namespace Stockfish {
 
@@ -42,6 +43,46 @@ namespace {
 constexpr int SMALLNET_MARGIN = 236;
 
 }  // namespace
+
+int Eval::king_file_exposure(const Position& pos, Color us) {
+    if (pos.count<KING>(us) != 1)
+        return 0;
+
+    const Square kingSq   = pos.square<KING>(us);
+    const File   kingFile = file_of(kingSq);
+
+    const Bitboard friendlyPawns = pos.pieces(us, PAWN);
+    const Bitboard enemyPawns    = pos.pieces(~us, PAWN);
+    const Bitboard heavyPieces   = pos.pieces(~us, ROOK) | pos.pieces(~us, QUEEN);
+    const Bitboard occupancy     = pos.pieces();
+    const Bitboard rookLines     = attacks_bb<ROOK>(kingSq, occupancy) & heavyPieces;
+
+    auto evaluate_file = [&](File f) {
+        Bitboard mask        = file_bb(f);
+        const bool friendly  = friendlyPawns & mask;
+        const bool opposing  = enemyPawns & mask;
+        const bool semiOpen  = !friendly;
+        const bool open      = semiOpen && !opposing;
+        const bool heavyLine = rookLines & mask;
+
+        if (heavyLine)
+            return 3;
+        if (open)
+            return 2;
+        if (semiOpen)
+            return 1;
+        return 0;
+    };
+
+    int exposure = evaluate_file(kingFile);
+
+    if (kingFile > FILE_A)
+        exposure += evaluate_file(File(kingFile - 1));
+    if (kingFile < FILE_H)
+        exposure += evaluate_file(File(kingFile + 1));
+
+    return std::min(exposure, 6);
+}
 
 // Returns a static, purely materialistic evaluation of the position from
 // the point of view of the side to move. It can be divided by PawnValue to get
@@ -86,7 +127,19 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     nnue -= nnue * nnueComplexity / 18000;
 
     int material = 535 * pos.count<PAWN>() + pos.non_pawn_material();
-    int v        = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
+
+    int ourExposure = king_file_exposure(pos, pos.side_to_move());
+    int oppExposure = king_file_exposure(pos, ~pos.side_to_move());
+
+    if (ourExposure != oppExposure)
+    {
+        int heavyPieces = pos.count<ROOK>() + pos.count<QUEEN>();
+        int stage       = std::min(material, 32000);
+        int weight      = 6 + heavyPieces * 3 + stage / 8192;
+        nnue += Value((oppExposure - ourExposure) * weight);
+    }
+
+    int v = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
 
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 212;
