@@ -1,10 +1,10 @@
 #!/bin/bash
-# Run perft validation on the revolution engine.
+# Run perft validation on the Revolution engine.
 # Builds the engine if needed and executes the existing test suite.
 
 set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENGINE="$ROOT_DIR/src/revolution-v.2.74-dev240925-EXP"
+ENGINE="$ROOT_DIR/src/revolution"
 TEST_DIR="$ROOT_DIR/tests"
 
 if [ ! -x "$ENGINE" ]; then

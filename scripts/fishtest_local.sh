@@ -1,10 +1,10 @@
 #!/bin/bash
-# Launch a local fishtest worker for tuning revolution.
+# Launch a local fishtest worker for tuning Revolution.
 # Requires a fishtest repository cloned locally.
 
 set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENGINE="$ROOT_DIR/src/revolution-v.2.74-dev240925-EXP"
+ENGINE="$ROOT_DIR/src/revolution"
 FISHTEST_DIR="${FISHTEST_DIR:-$HOME/fishtest}"
 
 if [ ! -x "$ENGINE" ]; then
