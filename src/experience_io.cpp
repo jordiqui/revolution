@@ -41,8 +41,23 @@ class ExperienceWriteLock {
         wchar_t hashBuffer[32];
         std::swprintf(hashBuffer, sizeof(hashBuffer) / sizeof(hashBuffer[0]), L"%016llX",
                       static_cast<unsigned long long>(hash));
-        std::wstring name = L"Global\\RevolutionExperience-" + std::wstring(hashBuffer);
-        handle        = CreateMutexW(nullptr, FALSE, name.c_str());
+
+        auto try_mutex = [](const std::wstring& name) -> HANDLE {
+            if (name.empty())
+                return nullptr;
+            return CreateMutexW(nullptr, FALSE, name.c_str());
+        };
+
+        const std::wstring suffix = L"RevolutionExperience-" + std::wstring(hashBuffer);
+
+        std::wstring candidates[] = {L"Global\\" + suffix, L"Local\\" + suffix, suffix};
+
+        for (const auto& candidate : candidates) {
+            handle = try_mutex(candidate);
+            if (handle)
+                break;
+        }
+
         if (handle)
             locked = WaitForSingleObject(handle, INFINITE) == WAIT_OBJECT_0;
 #else
