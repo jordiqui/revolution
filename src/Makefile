@@ -37,12 +37,16 @@ else ifeq ($(COMP),mingw)
 	endif
 endif
 
+empty :=
+space := $(empty) $(empty)
+
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution-dev_v2.40_130925.exe
+        EXE_UNESCAPED = $(ENGINE_NAME).exe
 else
-        EXE = revolution-dev_v2.40_130925
+        EXE_UNESCAPED = $(ENGINE_NAME)
 endif
+EXE = $(subst $(space),\ ,$(EXE_UNESCAPED))
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -862,11 +866,11 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 #UCI "id name" string shown in GUIs.
 #Defaults:
-#- ENGINE_NAME : "revolution-dev v.2.40 130925"
+#- ENGINE_NAME : "revolution v2.74-dev-250925-tsd1"
 #- ENGINE_BUILD_DATE : optional build identifier
 #You can override on the command line:
-#make ENGINE_NAME = "revolution-dev v.2.40 130925" ENGINE_BUILD_DATE = 20250913
-ENGINE_NAME        ?= revolution-dev v.2.40 130925
+#make ENGINE_NAME = "revolution v2.74-dev-250925-tsd1" ENGINE_BUILD_DATE = 20250925
+ENGINE_NAME        ?= revolution v2.74-dev-250925-tsd1
 ENGINE_BUILD_DATE  ?=
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
@@ -1025,12 +1029,12 @@ profile-build: net config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profileclean
 
 strip:
-	$(STRIP) $(EXE)
+	$(STRIP) "$(EXE_UNESCAPED)"
 
 install:
 	-mkdir -p -m 755 $(BINDIR)
-	-cp $(EXE) $(BINDIR)
-	$(STRIP) $(BINDIR)/$(EXE)
+	-cp "$(EXE_UNESCAPED)" "$(BINDIR)/$(EXE_UNESCAPED)"
+	$(STRIP) "$(BINDIR)/$(EXE_UNESCAPED)"
 
 #clean all
 clean: objclean profileclean
@@ -1136,7 +1140,7 @@ config-sanity: net
 	 test "$(comp)" = "aarch64-linux-android21-clang")
 
 $(EXE): $(OBJS)
-	+$(CXX) -o $@ $(OBJS) $(LDFLAGS)
+	+$(CXX) -o "$@" $(OBJS) $(LDFLAGS)
 
 # Force recompilation to ensure version info is up-to-date
 misc.o: FORCE

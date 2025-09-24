@@ -4,7 +4,8 @@
 
 set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENGINE="$ROOT_DIR/src/revolution"
+ENGINE_DEFAULT="$ROOT_DIR/src/revolution v2.74-dev-250925-tsd1"
+ENGINE="${ENGINE:-$ENGINE_DEFAULT}"
 TEST_DIR="$ROOT_DIR/tests"
 
 if [ ! -x "$ENGINE" ]; then
