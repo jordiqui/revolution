@@ -281,10 +281,7 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience", Option(true, [&ensureExperienceReady](const Option& o) {
                     return ensureExperienceReady(bool(o));
                 }));
-
-    options.add("Experience Enabled", Option(true, [&ensureExperienceReady](const Option& o) {
-                    return ensureExperienceReady(bool(o));
-                }));
+    options.add_alias("Experience Enabled", "Experience");
 
     options.add("Experience Buckets",
                 Option(static_cast<double>(kDefaultExperienceBuckets),
@@ -294,10 +291,7 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("ExperienceFile", Option("experience.exp", [applyExperienceFile](const Option& o) {
                     return applyExperienceFile(std::string(o));
                 }));
-
-    options.add("Experience File", Option("experience.exp", [applyExperienceFile](const Option& o) {
-                    return applyExperienceFile(std::string(o));
-                }));
+    options.add_alias("Experience File", "ExperienceFile");
 
     options.add("ClearExperience", Option([this,
                                             &getExperienceFile,
