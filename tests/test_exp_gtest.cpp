@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "experience.h"
+#include "experience_io.h"
 
 namespace {
 
@@ -188,6 +189,14 @@ TEST(ExperienceFileFormat, ValidWithOneEntry) {
     const std::string path = "gtest_one_entry.exp";
     ASSERT_FALSE(WriteExpFile(path, 1).empty());
     EXPECT_TRUE(ValidateExpFile(path));
+}
+
+TEST(ExperienceFileFormat, ClearCreatesSugarHeader) {
+    const std::string path = "gtest_clear_header.exp";
+    std::remove(path.c_str());
+    ASSERT_TRUE(Experience_InitNew(path));
+    EXPECT_TRUE(ValidateExpFile(path));
+    std::remove(path.c_str());
 }
 
 TEST(ExperienceFileFormat, SaveProducesValidStream) {
