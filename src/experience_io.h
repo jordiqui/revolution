@@ -11,7 +11,7 @@ struct ExperienceHeader {
     std::uint32_t bucketCount;
     std::uint32_t headerSize;
     std::uint32_t headerCrc32;
-    std::uint8_t  reserved[32];
+    std::uint8_t  reserved[36];
 };
 #pragma pack(pop)
 
