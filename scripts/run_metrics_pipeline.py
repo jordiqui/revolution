@@ -15,7 +15,7 @@ from typing import Callable, Dict, Iterable, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PLAN = ROOT / "docs" / "pipelines" / "xp_plan.json"
-DEFAULT_ENGINE = ROOT / "src" / "revolution v2.74-dev-250925-tsd1"
+DEFAULT_ENGINE = ROOT / "src" / "revolution v.2.80-dev-270925"
 
 
 class UCIProcess:
