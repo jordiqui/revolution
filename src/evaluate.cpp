@@ -180,9 +180,10 @@ Value adaptive_style_bonus(const Position& pos, Value current) {
     return Value(bonus);
 }
 
-// Simple tempo bonus favoring the side to move
+// Simple tempo bonus applied symmetrically to either side
 Value tempo_bonus(const Position& pos) {
-    return pos.side_to_move() == Color::WHITE ? Value(10) : Value(-10);
+    (void)pos.side_to_move();  // Document intent without affecting symmetry
+    return Value(10);
 }
 
 }  // namespace
