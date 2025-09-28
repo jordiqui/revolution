@@ -25,7 +25,9 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <sstream>
+#include <string>
 #include <tuple>
 
 #include "nnue/network.h"
@@ -100,18 +102,71 @@ struct StyleIndicators {
     int center;    // friendly pieces controlling the central squares
 };
 
+// Forward declaration of the internal implementation so tests can reuse it without
+// triggering recursion through gather_indicators().
+StyleIndicators compute_indicators(const Position& pos);
+
+#ifndef NDEBUG
+void assert_indicator_counts();
+#endif
+
 // Collect the above indicators from the current position.
 StyleIndicators gather_indicators(const Position& pos) {
-    StyleIndicators ind{};
-    Square          enemyKing = pos.square<KING>(~pos.side_to_move());
-    Square          ownKing   = pos.square<KING>(pos.side_to_move());
+#ifndef NDEBUG
+    static std::once_flag selfTestFlag;
+    std::call_once(selfTestFlag, []() { assert_indicator_counts(); });
+#endif
+    return compute_indicators(pos);
+}
 
-    ind.pressure      = popcount(pos.attackers_to(enemyKing));
-    ind.shield        = popcount(pos.attackers_to(ownKing));
-    Bitboard centerBB = square_bb(SQ_D4) | square_bb(SQ_E4) | square_bb(SQ_D5) | square_bb(SQ_E5);
-    ind.center        = popcount(pos.pieces(pos.side_to_move()) & centerBB);
+StyleIndicators compute_indicators(const Position& pos) {
+    StyleIndicators ind{};
+    const Square    enemyKing      = pos.square<KING>(~pos.side_to_move());
+    const Square    ownKing        = pos.square<KING>(pos.side_to_move());
+    const Bitboard  friendlyPieces = pos.pieces(pos.side_to_move());
+    [[maybe_unused]] const Bitboard enemyPieces = pos.pieces(~pos.side_to_move());
+
+    ind.pressure = popcount(pos.attackers_to(enemyKing) & friendlyPieces);
+    ind.shield   = popcount(pos.attackers_to(ownKing) & friendlyPieces);
+
+    const Bitboard centerBB = square_bb(SQ_D4) | square_bb(SQ_E4) | square_bb(SQ_D5) | square_bb(SQ_E5);
+    ind.center               = popcount(friendlyPieces & centerBB);
     return ind;
 }
+
+#ifndef NDEBUG
+void assert_indicator_counts() {
+    auto indicators_for = [](const std::string& fen) {
+        StateInfo st;
+        Position  pos;
+        pos.set(fen, false, &st);
+        return compute_indicators(pos);
+    };
+
+    {
+        // White to move with both sides influencing the black king. Only white attackers
+        // should contribute to pressure.
+        const StyleIndicators ind = indicators_for("4k3/6n1/6B1/8/8/8/8/4K3 w - - 0 1");
+        assert(ind.pressure == 1);
+        assert(ind.shield == 0);
+    }
+
+    {
+        // White king defended by a friendly knight while under attack from an enemy one.
+        const StyleIndicators ind = indicators_for("4k3/8/8/8/8/5N2/6n1/4K3 w - - 0 1");
+        assert(ind.shield == 1);
+        assert(ind.pressure == 0);
+    }
+
+    {
+        // Black to move: ensure we count black attackers on the white king and black
+        // defenders around their own king while ignoring white contributions.
+        const StyleIndicators ind = indicators_for("4k3/6n1/6B1/8/8/8/4r1N1/4K3 b - - 0 1");
+        assert(ind.pressure == 1);
+        assert(ind.shield == 1);
+    }
+}
+#endif
 
 // Compute an adjustment based on the indicators and the current evaluation.
 Value adaptive_style_bonus(const Position& pos, Value current) {
