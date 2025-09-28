@@ -180,10 +180,17 @@ Value adaptive_style_bonus(const Position& pos, Value current) {
     return Value(bonus);
 }
 
-// Simple tempo bonus applied symmetrically to either side
+// Simple tempo bonus favoring the side to move.
+//
+// The evaluation pipeline assumes this term is anti-symmetric under a
+// color flip (see tests/eval_symmetry_test.cpp). Returning a constant value
+// regardless of the side to move breaks that expectation and lets the eval
+// drift by 20cp between mirrored positions, which in turn regresses search
+// decisions. Keep the classical side-to-move orientation until the rest of
+// the search is updated to consume a symmetric tempo term.
 Value tempo_bonus(const Position& pos) {
-    (void)pos.side_to_move();  // Document intent without affecting symmetry
-    return Value(10);
+    constexpr Value Tempo = Value(10);
+    return pos.side_to_move() == Color::WHITE ? Tempo : -Tempo;
 }
 
 }  // namespace
