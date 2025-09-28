@@ -162,6 +162,8 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     const uint64_t  idx    = posKey & EVAL_CACHE_MASK;  // index by position key only
     EvalCacheEntry& e      = eval_cache[idx];
 
+    const int requestedOptimism = optimism;
+
     // If the stored entry refers to a different position, invalidate its NNUE flags.
     if (e.key != posKey)
     {
@@ -174,7 +176,7 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     else
     {
         // If exact same optimism already computed for this position, return final cached v.
-        if (e.last_optimism == optimism)
+        if (e.last_optimism == requestedOptimism)
             return e.v;
     }
 
@@ -236,14 +238,15 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     // Blend optimism and eval with nnue complexity
     const int nnueComplexity = std::abs(psqt - positional);
-    if (optimism != 0)
-        optimism += optimism * nnueComplexity / 468;
+    int       scaledOptimism = requestedOptimism;
+    if (scaledOptimism != 0)
+        scaledOptimism += scaledOptimism * nnueComplexity / 468;
     if (nnue != 0)
         nnue -= nnue * nnueComplexity / 18000;
 
     const int material       = 535 * pos.count<PAWN>() + pos.non_pawn_material();
     const int numerator_nnue = nnue * (77777 + material);
-    const int numerator_opt  = optimism * (7777 + material);
+    const int numerator_opt  = scaledOptimism * (7777 + material);
     int       v              = (numerator_nnue + numerator_opt) / 77777;
 
     // Damp down the evaluation linearly when shuffling
@@ -264,7 +267,7 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     }
 
     // Store result and the optimism used for the final `v`.
-    e.last_optimism = optimism;
+    e.last_optimism = requestedOptimism;
     e.v             = v;
 
     return v;
