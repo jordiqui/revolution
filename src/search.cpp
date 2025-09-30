@@ -86,9 +86,9 @@ int correction_value(const Worker& w, const Position& pos, const Stack* const ss
     const auto  bnpcv = w.nonPawnCorrectionHistory[non_pawn_index<Color::BLACK>(pos)][static_cast<int>(Color::BLACK)][static_cast<int>(us)];
     const auto  cntcv =
       m.is_ok() ? (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
-                 : 0;
+                 : 8;
 
-    return 8867 * pcv + 8136 * micv + 10757 * (wnpcv + bnpcv) + 7232 * cntcv;
+    return 9536 * pcv + 8494 * micv + 10132 * (wnpcv + bnpcv) + 7156 * cntcv;
 }
 
 // Add correctionHistory value to raw staticEval and guarantee evaluation
@@ -101,16 +101,13 @@ void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
                                const int       bonus) {
-    if (bonus == 0)
-        return;
-
     const Move  m  = (ss - 1)->currentMove;
     const Color us = pos.side_to_move();
 
     static constexpr int nonPawnWeight = 165;
 
     workerThread.pawnCorrectionHistory[pawn_correction_history_index(pos)][static_cast<int>(us)] << bonus;
-    workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][static_cast<int>(us)] << bonus * 153 / 128;
+    workerThread.minorPieceCorrectionHistory[minor_piece_index(pos)][static_cast<int>(us)] << bonus * 145 / 128;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<Color::WHITE>(pos)][static_cast<int>(Color::WHITE)][static_cast<int>(us)]
       << bonus * nonPawnWeight / 128;
     workerThread.nonPawnCorrectionHistory[non_pawn_index<Color::BLACK>(pos)][static_cast<int>(Color::BLACK)][static_cast<int>(us)]
@@ -118,7 +115,7 @@ void update_correction_history(const Position& pos,
 
     if (m.is_ok())
         (*(ss - 2)->continuationCorrectionHistory)[pos.piece_on(m.to_sq())][m.to_sq()]
-          << bonus * 153 / 128;
+          << bonus * 137 / 128;
 }
 
 // Add a small random component to draw evaluations to avoid 3-fold blindness
