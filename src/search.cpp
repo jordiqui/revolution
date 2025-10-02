@@ -31,6 +31,7 @@
 #include <deque>
 #include <ratio>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include "bitboard.h"
@@ -243,7 +244,8 @@ void Search::Worker::start_searching() {
     // GUI sends a "stop" or "ponderhit" command. We therefore simply wait here
     // until the GUI sends one of those commands.
     while (!threads.stop && (main_manager()->ponder || limits.infinite))
-    {}  // Busy wait for a stop or a ponder reset
+        std::this_thread::sleep_for(
+          std::chrono::milliseconds(1));  // Sleep briefly to avoid wasting CPU while awaiting GUI commands
 
     // Stop the threads if not already stopped (also raise the stop if
     // "ponderhit" just reset threads.ponder)
