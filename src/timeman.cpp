@@ -25,6 +25,7 @@
 
 #include "search.h"
 #include "ucioption.h"
+#include "misc.h"
 
 namespace Stockfish {
 
@@ -59,8 +60,12 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[static_cast<int>(us)] == 0)
         return;
 
-    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
-    double    slowMover    = options["Slow Mover"] / 100.0;
+    TimePoint moveOverhead         = TimePoint(options["Move Overhead"]);
+    TimePoint safetyBuffer         = TimePoint(options["Time Buffer"]);
+    TimePoint minimumThinkingTime  = TimePoint(options["Minimum Thinking Time"]);
+    TimePoint bufferScaled         = safetyBuffer;
+    TimePoint minThinkingScaled    = minimumThinkingTime;
+    double    slowMover            = options["Slow Mover"] / 100.0;
 
     // Adjust time usage heuristics for common time controls
     double baseSeconds = double(limits.time[static_cast<int>(us)]) / 1000.0;
@@ -90,6 +95,8 @@ void TimeManagement::init(Search::LimitsType& limits,
         limits.inc[static_cast<int>(us)] *= npmsec;
         limits.npmsec = npmsec;
         moveOverhead *= npmsec;
+        bufferScaled      = safetyBuffer * npmsec;
+        minThinkingScaled = minimumThinkingTime * npmsec;
     }
 
     // These numbers are used where multiplications, divisions or comparisons
@@ -155,7 +162,7 @@ void TimeManagement::init(Search::LimitsType& limits,
         // slightly larger buffer in long time controls while still being
         // conservative for quick controls.
         TimePoint adaptiveOverhead =
-          moveOverhead + TimePoint(options["Time Buffer"]) + limits.time[static_cast<int>(us)] / 30;
+          moveOverhead + bufferScaled + limits.time[static_cast<int>(us)] / 30;
         TimePoint maxBudget =
           std::max(TimePoint(1), limits.time[static_cast<int>(us)] - adaptiveOverhead);
         optimumTime = std::min(optimumTime, maxBudget);
@@ -165,10 +172,17 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
 
-    TimePoint minimumThinkingTime = TimePoint(options["Minimum Thinking Time"]);
-    TimePoint safetyBuffer        = TimePoint(options["Time Buffer"]);
-    optimumTime                   = std::max(optimumTime, minimumThinkingTime);
-    maximumTime                   = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
+    optimumTime = std::max(optimumTime, minThinkingScaled);
+    maximumTime = std::max(maximumTime - bufferScaled, minThinkingScaled);
+
+    if (useNodesTime)
+    {
+        sync_cout << "info string nodestime buffer=" << bufferScaled
+                  << " minThinking=" << minThinkingScaled
+                  << " available=" << availableNodes
+                  << " optimum=" << optimumTime
+                  << " maximum=" << maximumTime << sync_endl;
+    }
 }
 
 }  // namespace Stockfish
