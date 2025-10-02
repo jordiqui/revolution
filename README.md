@@ -3,15 +3,15 @@
 **Version v1.2.0 dev-070925**
 
 <div align="center">
-  <img src="[https://ijccrl.com/wp-content/uploads/2025/08/revolution.png]" 
+  <img src="docs/revolution-logo.svg" alt="Revolution chess engine minimalistic logo" width="160" />
   <h3>Revolution</h3>
-  
+
   A free and open-source UCI chess engine combining classical algorithms with neural network innovations.
   <br>
-  <strong><a href="#">Explore Revolution Documentation »</a>
+  <strong><a href="#">Explore Revolution Documentation »</a></strong>
 
   <em>Author: This distribution includes modifications and new code by Jorge Ruiz Centelles, with credit to ChatGPT, exploring new ideas.</em>
-  
+
 </div>
 
 ## Overview
@@ -40,6 +40,16 @@ The distribution includes:
 - `AUTHORS` (contributor acknowledgments)
 - `src/` (source code with platform-specific Makefiles)
 - Neural network weights (`revolution.nnue`)
+
+## Version History
+
+| Version | Date       | Highlights |
+|---------|------------|------------|
+| v1.2.0-dev | 2025-09-07 | Added the `Time Buffer` UCI option, tempo-based evaluation bonuses, and extra late move pruning for quiet moves. |
+| v1.20 | 2025-09-06 | Updated the official release identifier to `revolution 1.20 060925 avx`. |
+| v1.0.1 | 2025-09-01 | Introduced the `Minimum Thinking Time` and `Slow Mover` options and migrated internal containers to `sts::vector`. |
+| v1.0.0-dev | 2025-08-27 | Streamlined late move reductions and refreshed the default engine branding. |
+| v1.0 | 2025-08-27 | Initial public release with iterative deepening improvements and updated author metadata. |
 
 ## Contributing
 
@@ -99,6 +109,10 @@ ordering during search. The following UCI options control this system:
 - `Experience Book Min Depth`: minimum depth required for a move to be used from the experience book (1–255, default 4).
 
 The file is loaded at engine startup and updated after each game if `Experience Readonly` is disabled.
+
+## Testing Infrastructure
+
+All SPRT tuning and regression testing for Revolution is executed with the [fastchess](https://github.com/Disservin/fastchess) framework on an HP ProLiant DL360p Gen8 server equipped with dual Intel Xeon E5-2697 v2 processors (24 cores / 48 threads), 256 GB DDR3 ECC memory, an NVIDIA 700-series GPU for headless video output, and a 4 TB SSD array configured as 2x2 RAID 3.
 
 ## UCI Options
 
