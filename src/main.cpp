@@ -18,6 +18,8 @@
   Modifications Copyright (C) 2024 Jorge Ruiz Centelles
 */
 
+#include <iostream>
+
 #include "misc.h"
 #include "uci.h"
 #include "tune.h"
