@@ -7,7 +7,7 @@ rem =============================================
 
 rem -------- User configurable paths --------
 set "CUTECHESS=C:\\cutechess\\cutechess-cli.exe"
-set "ENGINE_NEW=C:\\engines\\revolution-dev\\revolution 2.80 300925.exe"
+set "ENGINE_NEW=C:\\engines\\revolution-dev\\revolution 2.81 021025.exe"
 set "ENGINE_BASE=C:\\engines\\revolution-stable\\revolution-stable.exe"
 set "DIR_NEW=C:\\engines\\revolution-dev"
 set "DIR_BASE=C:\\engines\\revolution-stable"
@@ -76,7 +76,7 @@ if not "%NNUE_BASE%"=="" for %%F in ("%NNUE_BASE%") do set "ENGINE_BASE_EVAL= op
 echo Starting gauntlet (%GAMES% games, %ROUNDS% rounds) ...
 "%CUTECHESS%" ^
  -tournament gauntlet ^
- -engine cmd="%ENGINE_NEW%" name="revolution 2.80 300925" dir="%DIR_NEW%" ^
+ -engine cmd="%ENGINE_NEW%" name="revolution 2.81 021025" dir="%DIR_NEW%" ^
     %ENGINE_NEW_CORE%%ENGINE_NEW_EVAL%%EXP_BLOCK_CHAIN% ^
  -engine cmd="%ENGINE_BASE%" name="revolution-stable" dir="%DIR_BASE%" ^
     %ENGINE_BASE_CORE%%ENGINE_BASE_EVAL%%EXP_BLOCK_CHAIN% ^
