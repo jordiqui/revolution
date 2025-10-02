@@ -338,26 +338,33 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (it == table.end())
         return Move::none();
 
-    auto vec = it->second;
-    if (vec.empty())
+    auto& entries = it->second;
+    if (entries.empty())
         return Move::none();
 
     // Order moves by their historical evaluation and depth so that the most
     // promising moves come first.  This allows the engine to "learn" from
     // previous games by preferring moves with the best average score at the
     // deepest search.
-    std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
+    const auto limit = std::min<std::size_t>(
+        {static_cast<std::size_t>(std::max(0, width)), static_cast<std::size_t>(std::max(0, maxMoves)), entries.size()});
+
+    if (!limit)
+        return Move::none();
+
+    // Partially sort only the most promising entries to avoid copying or shrinking
+    // the bucket, keeping the remaining history untouched in the vector.
+    std::partial_sort(entries.begin(), entries.begin() + limit, entries.end(),
+                      [&](const ExperienceEntry& a, const ExperienceEntry& b) {
         return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
     });
 
-    vec.resize(std::min<int>({maxMoves, width, static_cast<int>(vec.size())}));
-
-    if (vec.empty() || vec.front().depth < minDepth)
+    if (entries.front().depth < minDepth)
         return Move::none();
 
     // Pick the best move deterministically instead of randomly.  The highest
     // ranked move represents the one with the best historical evaluation.
-    return vec.front().move;
+    return entries.front().move;
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
