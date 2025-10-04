@@ -7,6 +7,9 @@
 
 #include "experience.h"
 #include "experience_io.h"
+#include "search.h"
+#include "timeman.h"
+#include "ucioption.h"
 
 namespace {
 
@@ -227,4 +230,72 @@ TEST(ExperienceFileFormat, RealFileIfProvided) {
     } else {
         EXPECT_TRUE(ValidateExpFile(env)) << "El archivo real no pasó la validación.";
     }
+}
+
+TEST(TimeManagement, ConservativeBufferAppliedOnce) {
+    using namespace Stockfish;
+
+    OptionsMap options;
+    options.add("Move Overhead", Option(0, 0, 5000));
+    options.add("Time Buffer", Option(50, 0, 5000));
+    options.add("Minimum Thinking Time", Option(20, 0, 5000));
+    options.add("Slow Mover", Option(1000, 10, 1000));
+    options.add("nodestime", Option(0, 0, 10000));
+    options.add("Ponder", Option(false));
+    options.add("Revolution Conservative Search", Option(true));
+
+    Search::LimitsType limits;
+    const TimePoint    totalTime = TimePoint(500);
+    limits.time[static_cast<int>(Color::WHITE)] = totalTime;
+    limits.inc[static_cast<int>(Color::WHITE)]  = TimePoint(0);
+    limits.movestogo                             = 0;
+    limits.startTime                             = TimePoint(0);
+
+    TimeManagement tm;
+    double          originalAdjust = 10.0;
+    tm.init(limits, Color::WHITE, 0, options, originalAdjust);
+
+    const TimePoint minThinking = TimePoint(options["Minimum Thinking Time"]);
+    const TimePoint buffer      = TimePoint(options["Time Buffer"]);
+    const TimePoint expectedReserve = buffer + totalTime / 30;
+
+    EXPECT_GE(tm.optimum(), minThinking);
+    EXPECT_GE(tm.maximum(), minThinking);
+    EXPECT_LE(tm.optimum(), tm.maximum());
+    EXPECT_EQ(tm.maximum(), totalTime - expectedReserve);
+}
+
+TEST(TimeManagement, ConservativeBufferAppliedOnceWithNodesTime) {
+    using namespace Stockfish;
+
+    OptionsMap options;
+    options.add("Move Overhead", Option(0, 0, 5000));
+    options.add("Time Buffer", Option(50, 0, 5000));
+    options.add("Minimum Thinking Time", Option(20, 0, 5000));
+    options.add("Slow Mover", Option(1000, 10, 1000));
+    options.add("nodestime", Option(2, 0, 10000));
+    options.add("Ponder", Option(false));
+    options.add("Revolution Conservative Search", Option(true));
+
+    Search::LimitsType limits;
+    const TimePoint    totalTimeMs = TimePoint(500);
+    limits.time[static_cast<int>(Color::WHITE)] = totalTimeMs;
+    limits.inc[static_cast<int>(Color::WHITE)]  = TimePoint(0);
+    limits.movestogo                             = 0;
+    limits.startTime                             = TimePoint(0);
+
+    TimeManagement tm;
+    double          originalAdjust = 10.0;
+    tm.init(limits, Color::WHITE, 0, options, originalAdjust);
+
+    const TimePoint npmsec          = TimePoint(options["nodestime"]);
+    const TimePoint bufferNodes     = TimePoint(options["Time Buffer"]) * npmsec;
+    const TimePoint minThinkingNode = TimePoint(options["Minimum Thinking Time"]) * npmsec;
+    const TimePoint totalNodes      = npmsec * totalTimeMs;
+    const TimePoint expectedReserve = bufferNodes + totalNodes / 30;
+
+    EXPECT_GE(tm.optimum(), minThinkingNode);
+    EXPECT_GE(tm.maximum(), minThinkingNode);
+    EXPECT_LE(tm.optimum(), tm.maximum());
+    EXPECT_EQ(tm.maximum(), totalNodes - expectedReserve);
 }
