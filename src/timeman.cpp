@@ -66,6 +66,7 @@ void TimeManagement::init(Search::LimitsType& limits,
     TimePoint bufferScaled         = safetyBuffer;
     TimePoint minThinkingScaled    = minimumThinkingTime;
     double    slowMover            = options["Slow Mover"] / 100.0;
+    const bool conservativeMode    = bool(options["Revolution Conservative Search"]);
 
     // Adjust time usage heuristics for common time controls
     double baseSeconds = double(limits.time[static_cast<int>(us)]) / 1000.0;
@@ -155,7 +156,7 @@ void TimeManagement::init(Search::LimitsType& limits,
       TimePoint(std::min(0.90 * limits.time[static_cast<int>(us)] - moveOverhead,
                           maxScale * optimumTime)) - 10;
 
-    if ((bool) options["Revolution Conservative Search"])
+    if (conservativeMode)
     {
         // Clamp the time budget to keep some safety margin. Use an adaptive
         // overhead that increases with the remaining time, providing a
@@ -173,7 +174,8 @@ void TimeManagement::init(Search::LimitsType& limits,
         optimumTime += optimumTime / 4;
 
     optimumTime = std::max(optimumTime, minThinkingScaled);
-    maximumTime = std::max(maximumTime - bufferScaled, minThinkingScaled);
+    maximumTime =
+      std::max(conservativeMode ? maximumTime : maximumTime - bufferScaled, minThinkingScaled);
 
     if (useNodesTime)
     {
