@@ -18,6 +18,8 @@
   Modifications Copyright (C) 2024 Jorge Ruiz Centelles
 */
 
+#include <cstdlib>
+#include <exception>
 #include <iostream>
 
 #include "misc.h"
@@ -31,21 +33,34 @@ using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
 
-    // Clear, consistent banner (many GUIs echo this to their logs).
-    // Send banner to stderr so it doesn't interfere with UCI handshake on stdout.
-    std::cerr << ENGINE_NAME
-              << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
-              << std::endl;
+    try
+    {
+        // Clear, consistent banner (many GUIs echo this to their logs).
+        // Send banner to stderr so it doesn't interfere with UCI handshake on stdout.
+        std::cerr << ENGINE_NAME
+                  << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
+                  << std::endl;
 
-    std::cerr << compiler_info() << std::endl;
+        std::cerr << compiler_info() << std::endl;
 
-    Bitboards::init();
-    Position::init();
+        Bitboards::init();
+        Position::init();
 
-    UCIEngine uci(argc, argv);
+        UCIEngine uci(argc, argv);
 
-    Tune::init(uci.engine_options());
+        Tune::init(uci.engine_options());
 
-    uci.loop();
-    return 0;
+        uci.loop();
+        return EXIT_SUCCESS;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+    }
+    catch (...)
+    {
+        std::cerr << "Fatal error: unknown exception" << std::endl;
+    }
+
+    return EXIT_FAILURE;
 }
