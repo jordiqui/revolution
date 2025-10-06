@@ -29,6 +29,20 @@ class Position;
 
 namespace Eval {
 
+struct ManualEvalTerms {
+    int kingSafety     = 0;
+    int passedPawns    = 0;
+    int minorMobility  = 0;
+    int pawnEndgames   = 0;
+};
+
+struct ManualEvalWeights {
+    int kingSafety    = 100;
+    int passedPawns   = 100;
+    int minorMobility = 100;
+    int pawnEndgames  = 100;
+};
+
 // The default net name MUST follow the format nn-[SHA256 first 12 digits].nnue
 // for the build process (profile-build and fishtest) to work. Do not change the
 // names or the location where these constants are defined, as they are used in
@@ -51,6 +65,10 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorStack&  accumulators,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
+
+ManualEvalTerms   compute_manual_terms(const Position& pos);
+ManualEvalWeights manual_eval_weights();
+void              set_manual_eval_weights(const ManualEvalWeights& weights);
 
 // Toggle for optional style-based evaluation adjustments.
 void set_adaptive_style(bool enabled);
