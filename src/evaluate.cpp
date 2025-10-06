@@ -19,6 +19,7 @@
 #include "evaluate.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -26,9 +27,11 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <utility>
 
 #include "nnue/network.h"
 #include "nnue/nnue_misc.h"
@@ -193,6 +196,280 @@ Value tempo_bonus(const Position& pos) {
     return pos.side_to_move() == Color::WHITE ? Tempo : -Tempo;
 }
 
+constexpr std::array<Square, 4> CentralSquares = {SQ_D4, SQ_E4, SQ_D5, SQ_E5};
+
+Eval::ManualEvalWeights manualWeights;
+
+Bitboard forward_rays(Color c, Square sq) {
+    Bitboard   mask = 0;
+    Direction  dir  = pawn_push(c);
+    Square     s    = sq;
+    const auto step = [&]() {
+        s += dir;
+        return is_ok(s);
+    };
+
+    while (step())
+        mask |= square_bb(s);
+
+    return mask;
+}
+
+Bitboard passed_span(Color c, Square sq) {
+    Bitboard front = forward_rays(c, sq);
+    Bitboard span  = front;
+
+    if (file_of(sq) > FILE_A)
+        span |= shift<WEST>(front);
+    if (file_of(sq) < FILE_H)
+        span |= shift<EAST>(front);
+
+    return span;
+}
+
+bool is_passed_pawn(const Position& pos, Color c, Square sq) {
+    return !(passed_span(c, sq) & pos.pieces(~c, PAWN));
+}
+
+Bitboard king_shield_mask(Color c, Square king) {
+    Bitboard firstRing = shift<pawn_push(c)>(square_bb(king));
+    Bitboard mask      = firstRing;
+    mask |= shift<EAST>(firstRing);
+    mask |= shift<WEST>(firstRing);
+    Bitboard secondRing = shift<pawn_push(c)>(firstRing);
+    mask |= secondRing;
+    return mask;
+}
+
+int king_safety_contrib(const Position& pos, Color c) {
+    const Square    king         = pos.square<KING>(c);
+    const Bitboard  pawns        = pos.pieces(c, PAWN);
+    const Bitboard  enemyPieces  = pos.pieces(~c);
+    const Bitboard  enemySliders = pos.pieces(~c, ROOK) | pos.pieces(~c, QUEEN);
+    int             penalty      = 0;
+
+    Bitboard shieldMask = king_shield_mask(c, king);
+    int      shieldCnt  = popcount(pawns & shieldMask);
+    if (shieldCnt < 2)
+        penalty += (2 - shieldCnt) * 10;
+
+    Bitboard fileMask = file_bb(king);
+    File     kFile    = file_of(king);
+    if (kFile > FILE_A)
+        fileMask |= file_bb(File(int(kFile) - 1));
+    if (kFile < FILE_H)
+        fileMask |= file_bb(File(int(kFile) + 1));
+
+    Bitboard pawnsAround = pawns & fileMask;
+    Bitboard advanced    = pawnsAround;
+    while (advanced)
+    {
+        Square sq     = pop_lsb(advanced);
+        int    rel    = static_cast<int>(relative_rank(c, sq));
+        int    excess = std::max(0, rel - static_cast<int>(RANK_3));
+        if (excess)
+            penalty += 6 * excess;
+    }
+
+    Bitboard forward = forward_rays(c, king) & file_bb(king);
+    if (!(forward & pawns))
+        penalty += 18;
+
+    Bitboard slidersOnFile = enemySliders & file_bb(king);
+    while (slidersOnFile)
+    {
+        Square slider = pop_lsb(slidersOnFile);
+        Bitboard between = between_bb(slider, king);
+        if (!(between & pos.pieces()) || !(between & pos.pieces(c)))
+        {
+            penalty += 12;
+            break;
+        }
+    }
+
+    const std::array<std::pair<Square, Square>, 2> flankPatterns = {
+      std::make_pair(SQ_G4, SQ_H4), std::make_pair(SQ_G5, SQ_H6)};
+    for (const auto& [s1, s2] : flankPatterns)
+    {
+        Square rel1 = relative_square(c, s1);
+        Square rel2 = relative_square(c, s2);
+        if ((pawns & rel1) && (pawns & rel2))
+        {
+            penalty += 14;
+            break;
+        }
+    }
+
+    // Slight bonus if enemy pieces are far from the king area
+    Bitboard kingRing = attacks_bb<KING>(king);
+    if (!(kingRing & enemyPieces))
+        penalty = std::max(0, penalty - 6);
+
+    return c == Color::WHITE ? -penalty : penalty;
+}
+
+int passed_pawn_contrib(const Position& pos, Color c) {
+    static constexpr std::array<int, 8> RankBonus = {0, 0, 12, 28, 44, 68, 110, 0};
+
+    Bitboard pawns = pos.pieces(c, PAWN);
+    int      score = 0;
+
+    while (pawns)
+    {
+        Square sq = pop_lsb(pawns);
+        if (!is_passed_pawn(pos, c, sq))
+            continue;
+
+        int relRank = static_cast<int>(relative_rank(c, sq));
+        int bonus   = RankBonus[relRank];
+
+        Square blockSq = sq + pawn_push(c);
+        if (is_ok(blockSq))
+        {
+            Bitboard ourCtrl   = pos.attackers_to(blockSq) & pos.pieces(c);
+            Bitboard enemyCtrl = pos.attackers_to(blockSq) & pos.pieces(~c);
+            int      diff      = popcount(ourCtrl) - popcount(enemyCtrl);
+
+            if (pos.empty(blockSq))
+                bonus += 6 + 2 * relRank + std::max(diff, 0) * 4;
+            else if (color_of(pos.piece_on(blockSq)) == c)
+                bonus += 4;
+            else
+            {
+                bonus -= 6;
+                if (diff > 0)
+                    bonus += diff * 5;
+                else if (diff < 0)
+                    bonus += diff * 6;
+            }
+
+            // Penalize the opponent additionally when the block square is under our control
+            if (diff > 1)
+                bonus += diff * 3;
+        }
+
+        // Encourage unstoppable passer when king is far
+        Square enemyKing = pos.square<KING>(~c);
+        int    kingDist  = distance(enemyKing, sq);
+        if (relRank >= static_cast<int>(RANK_6) && kingDist > 3)
+            bonus += 18;
+
+        score += (c == Color::WHITE ? bonus : -bonus);
+    }
+
+    return score;
+}
+
+int minor_mobility_contrib(const Position& pos, Color c) {
+    Bitboard knights = pos.pieces(c, KNIGHT);
+    int      score   = 0;
+
+    while (knights)
+    {
+        Square sq       = pop_lsb(knights);
+        Bitboard moves  = attacks_bb<KNIGHT>(sq) & ~pos.pieces(c);
+        int      mobile = popcount(moves);
+
+        int trappedPenalty = std::max(0, 3 - mobile) * 6;
+        if (mobile <= 1)
+            trappedPenalty += 10;
+
+        if (!edge_distance(file_of(sq)) || relative_rank(c, sq) <= RANK_2
+            || relative_rank(c, sq) >= RANK_7)
+            trappedPenalty += 6;
+
+        Bitboard sqBB = square_bb(sq);
+        if (sqBB & (CentralSquares[0] | CentralSquares[1] | CentralSquares[2] | CentralSquares[3]))
+        {
+            int bonus = 14;
+            if (pos.attackers_to(sq) & pos.pieces(c, PAWN))
+                bonus += 6;
+            if (!(pos.attackers_to(sq) & pos.pieces(~c)))
+                bonus += 4;
+            trappedPenalty -= bonus;
+        }
+
+        score += (c == Color::WHITE ? -trappedPenalty : trappedPenalty);
+    }
+
+    return score;
+}
+
+int passed_pawn_distance_penalty(const Position& pos, Color c, Square king) {
+    Bitboard pawns = pos.pieces(c, PAWN);
+    int      score = 0;
+
+    while (pawns)
+    {
+        Square sq = pop_lsb(pawns);
+        if (!is_passed_pawn(pos, c, sq))
+            continue;
+
+        int dist = distance(king, sq);
+        score -= dist * 6;
+    }
+
+    return score;
+}
+
+int pawn_endgame_contrib(const Position& pos) {
+    if (pos.non_pawn_material())
+        return 0;
+
+    const Square kingW = pos.square<KING>(Color::WHITE);
+    const Square kingB = pos.square<KING>(Color::BLACK);
+
+    auto center_bonus = [](Square king) {
+        int df = std::min(std::abs(int(file_of(king)) - int(FILE_D)),
+                          std::abs(int(file_of(king)) - int(FILE_E)));
+        int dr = std::min(std::abs(int(rank_of(king)) - int(RANK_4)),
+                          std::abs(int(rank_of(king)) - int(RANK_5)));
+        return 18 - 6 * (df + dr);
+    };
+
+    int score = center_bonus(kingW) - center_bonus(kingB);
+
+    score += passed_pawn_distance_penalty(pos, Color::BLACK, kingW);
+    score -= passed_pawn_distance_penalty(pos, Color::WHITE, kingB);
+
+    // Reward supporting distance to own passers
+    Bitboard whitePassers = pos.pieces(Color::WHITE, PAWN);
+    while (whitePassers)
+    {
+        Square sq = pop_lsb(whitePassers);
+        if (!is_passed_pawn(pos, Color::WHITE, sq))
+            continue;
+        int dist = distance(kingW, sq);
+        score += std::max(0, 6 - dist) * 4;
+    }
+
+    Bitboard blackPassers = pos.pieces(Color::BLACK, PAWN);
+    while (blackPassers)
+    {
+        Square sq = pop_lsb(blackPassers);
+        if (!is_passed_pawn(pos, Color::BLACK, sq))
+            continue;
+        int dist = distance(kingB, sq);
+        score -= std::max(0, 6 - dist) * 4;
+    }
+
+    if ((file_of(kingW) == file_of(kingB) || rank_of(kingW) == rank_of(kingB))
+        && distance(kingW, kingB) == 2)
+        score += pos.side_to_move() == Color::WHITE ? -12 : 12;
+
+    return score;
+}
+
+Eval::ManualEvalTerms compute_manual_terms_impl(const Position& pos) {
+    Eval::ManualEvalTerms terms;
+    terms.kingSafety = king_safety_contrib(pos, Color::WHITE) + king_safety_contrib(pos, Color::BLACK);
+    terms.passedPawns = passed_pawn_contrib(pos, Color::WHITE) + passed_pawn_contrib(pos, Color::BLACK);
+    terms.minorMobility =
+      minor_mobility_contrib(pos, Color::WHITE) + minor_mobility_contrib(pos, Color::BLACK);
+    terms.pawnEndgames = pawn_endgame_contrib(pos);
+    return terms;
+}
+
 }  // namespace
 
 namespace Eval {
@@ -315,6 +592,14 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 212;
 
+    Eval::ManualEvalTerms manualTerms = compute_manual_terms_impl(pos);
+    int                   manualScore = manualTerms.kingSafety * manualWeights.kingSafety
+                      + manualTerms.passedPawns * manualWeights.passedPawns
+                      + manualTerms.minorMobility * manualWeights.minorMobility
+                      + manualTerms.pawnEndgames * manualWeights.pawnEndgames;
+    int roundedManual = manualScore >= 0 ? manualScore + 50 : manualScore - 50;
+    v += Value(roundedManual / 100);
+
     v += tempo_bonus(pos);
 
     // Guarantee evaluation does not hit the tablebase range
@@ -335,6 +620,14 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     return v;
 }
+
+Eval::ManualEvalTerms Eval::compute_manual_terms(const Position& pos) {
+    return compute_manual_terms_impl(pos);
+}
+
+Eval::ManualEvalWeights Eval::manual_eval_weights() { return manualWeights; }
+
+void Eval::set_manual_eval_weights(const ManualEvalWeights& weights) { manualWeights = weights; }
 
 // Like evaluate(), but instead of returning a value, it returns
 // a string (suitable for outputting to stdout) that contains the detailed
