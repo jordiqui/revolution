@@ -1,6 +1,6 @@
 # Revolution Chess Engine
 
-**Version v1.2.0 dev-070925**
+**Version v2.81-071025**
 
 <div align="center">
   <img src="docs/revolution-logo.svg" alt="Revolution chess engine minimalistic logo" width="160" />
