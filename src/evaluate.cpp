@@ -232,11 +232,11 @@ bool is_passed_pawn(const Position& pos, Color c, Square sq) {
 }
 
 Bitboard king_shield_mask(Color c, Square king) {
-    Bitboard firstRing = shift<pawn_push(c)>(square_bb(king));
+    Bitboard firstRing = shift(pawn_push(c), square_bb(king));
     Bitboard mask      = firstRing;
     mask |= shift<EAST>(firstRing);
     mask |= shift<WEST>(firstRing);
-    Bitboard secondRing = shift<pawn_push(c)>(firstRing);
+    Bitboard secondRing = shift(pawn_push(c), firstRing);
     mask |= secondRing;
     return mask;
 }

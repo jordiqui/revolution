@@ -33,8 +33,7 @@ using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
 
-    try
-    {
+    auto run = [&]() {
         // Clear, consistent banner (many GUIs echo this to their logs).
         // Send banner to stderr so it doesn't interfere with UCI handshake on stdout.
         std::cerr << ENGINE_NAME
@@ -52,6 +51,12 @@ int main(int argc, char* argv[]) {
 
         uci.loop();
         return EXIT_SUCCESS;
+    };
+
+#if defined(__cpp_exceptions)
+    try
+    {
+        return run();
     }
     catch (const std::exception& e)
     {
@@ -63,4 +68,7 @@ int main(int argc, char* argv[]) {
     }
 
     return EXIT_FAILURE;
+#else
+    return run();
+#endif
 }

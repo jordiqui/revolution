@@ -144,6 +144,35 @@ constexpr Bitboard shift(Bitboard b) {
                               : 0;
 }
 
+// Runtime helper that dispatches to the compile-time shift
+constexpr Bitboard shift(Direction d, Bitboard b) {
+    switch (d)
+    {
+    case NORTH:
+        return shift<NORTH>(b);
+    case SOUTH:
+        return shift<SOUTH>(b);
+    case NORTH + NORTH:
+        return shift<NORTH + NORTH>(b);
+    case SOUTH + SOUTH:
+        return shift<SOUTH + SOUTH>(b);
+    case EAST:
+        return shift<EAST>(b);
+    case WEST:
+        return shift<WEST>(b);
+    case NORTH_EAST:
+        return shift<NORTH_EAST>(b);
+    case NORTH_WEST:
+        return shift<NORTH_WEST>(b);
+    case SOUTH_EAST:
+        return shift<SOUTH_EAST>(b);
+    case SOUTH_WEST:
+        return shift<SOUTH_WEST>(b);
+    default:
+        return 0;
+    }
+}
+
 
 // Returns the squares attacked by pawns of the given color
 // from the squares in the given bitboard.
