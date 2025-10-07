@@ -26,6 +26,7 @@ namespace Stockfish {
 
 class OptionsMap;
 enum class Color : int8_t;
+class Position;
 
 namespace Search {
 struct LimitsType;
@@ -39,6 +40,7 @@ class TimeManagement {
               Color               us,
               int                 ply,
               const OptionsMap&   options,
+              const Position&     pos,
               double&             originalTimeAdjust);
 
     TimePoint optimum() const;

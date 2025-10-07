@@ -26,6 +26,9 @@
 #include "search.h"
 #include "ucioption.h"
 
+#include "bitboard.h"
+#include "position.h"
+
 namespace Stockfish {
 
 TimePoint TimeManagement::optimum() const { return optimumTime; }
@@ -44,10 +47,63 @@ void TimeManagement::advance_nodes_time(std::int64_t nodes) {
 // the bounds of time allowed for the current game ply. We currently support:
 //      1) x basetime (+ z increment)
 //      2) x moves in y seconds (+ z increment)
+namespace {
+
+Bitboard forward_passed_mask(Color side, Square sq) {
+    Bitboard mask    = 0;
+    const int step   = side == Color::WHITE ? 1 : -1;
+    const int baseR  = static_cast<int>(rank_of(sq));
+    const int baseF  = static_cast<int>(file_of(sq));
+
+    for (int df = -1; df <= 1; ++df)
+    {
+        const int nf = baseF + df;
+        if (nf < static_cast<int>(FILE_A) || nf > static_cast<int>(FILE_H))
+            continue;
+
+        for (int r = baseR + step; r >= static_cast<int>(RANK_1)
+                                 && r <= static_cast<int>(RANK_8); r += step)
+            mask |= square_bb(make_square(static_cast<File>(nf), static_cast<Rank>(r)));
+    }
+
+    return mask;
+}
+
+double passed_pawn_urgency(const Position& pos, Color side) {
+    Bitboard pawns      = pos.pieces(side, PAWN);
+    Bitboard enemyPawns = pos.pieces(~side, PAWN);
+    double   urgency    = 0.0;
+
+    while (pawns)
+    {
+        const Square sq = pop_lsb(pawns);
+
+        if (enemyPawns & forward_passed_mask(side, sq))
+            continue;
+
+        const int relRank         = static_cast<int>(relative_rank(side, sq));
+        const int stepsToPromote  = std::max(0, 7 - relRank);
+        const double advancement  = 1.0 - std::min(5, stepsToPromote) / 6.0;
+        const double baseUrgency  = 0.12 + advancement * 0.36;
+        const double moverFactor  = pos.side_to_move() == side ? 1.15 : 0.95;
+
+        urgency = std::max(urgency, baseUrgency * moverFactor);
+    }
+
+    const double materialFactor = 1.0
+                                - std::min(1.0, double(pos.non_pawn_material())
+                                                    / double(4 * QueenValue));
+
+    return urgency * (0.8 + 0.4 * materialFactor);
+}
+
+}  // namespace
+
 void TimeManagement::init(Search::LimitsType& limits,
                           Color               us,
                           int                 ply,
                           const OptionsMap&   options,
+                          const Position&     pos,
                           double&             originalTimeAdjust) {
     TimePoint npmsec = TimePoint(options["nodestime"]);
 
@@ -71,6 +127,18 @@ void TimeManagement::init(Search::LimitsType& limits,
         slowMover *= 1.05;  // 180s + 10s
     else if (baseSeconds >= 960 && incSeconds == 0)
         slowMover *= 1.15;  // 960s + 0ms
+
+    const double movesToGoEstimate = limits.movestogo ? limits.movestogo : 40.0;
+    const double avgMoveBudget =
+      (baseSeconds + incSeconds * movesToGoEstimate) / std::max(1.0, movesToGoEstimate);
+    const double matchBias = std::clamp(avgMoveBudget / 3.0, 0.6, 1.6);
+
+    slowMover *= 0.94 + 0.08 * matchBias;
+
+    const double overheadBias = avgMoveBudget < 1.25 ? 1.18
+                                  : avgMoveBudget > 5.5 ? 0.93
+                                                        : 1.02 + 0.04 * (matchBias - 1.0);
+    moveOverhead = TimePoint(std::lround(std::max(0.0, double(moveOverhead) * overheadBias)));
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
@@ -142,6 +210,20 @@ void TimeManagement::init(Search::LimitsType& limits,
 
     optScale *= slowMover;
 
+    double passerTimeScale = 1.0;
+
+    if (pos.count<PAWN>() <= 8)
+    {
+        const double ourUrgency   = passed_pawn_urgency(pos, us);
+        const double theirUrgency = passed_pawn_urgency(pos, ~us);
+        const double combined     = std::clamp(ourUrgency + 0.6 * theirUrgency, 0.0, 0.24);
+
+        passerTimeScale += combined;
+    }
+
+    optScale *= passerTimeScale;
+    maxScale *= 1.0 + 0.75 * std::max(0.0, passerTimeScale - 1.0);
+
     // Limit the maximum possible time for this move
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
@@ -167,8 +249,16 @@ void TimeManagement::init(Search::LimitsType& limits,
 
     TimePoint minimumThinkingTime = TimePoint(options["Minimum Thinking Time"]);
     TimePoint safetyBuffer        = TimePoint(options["Time Buffer"]);
-    optimumTime                   = std::max(optimumTime, minimumThinkingTime);
-    maximumTime                   = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
+
+    if (scaledTime > 1500)
+    {
+        const TimePoint desiredMinimum = TimePoint(std::min<int64_t>(
+          static_cast<int64_t>(timeLeft), 90 * scaleFactor));
+        minimumThinkingTime = std::max(minimumThinkingTime, desiredMinimum);
+    }
+
+    optimumTime = std::max(optimumTime, minimumThinkingTime);
+    maximumTime = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
 }
 
 }  // namespace Stockfish
