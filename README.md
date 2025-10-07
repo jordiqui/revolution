@@ -51,6 +51,12 @@ The distribution includes:
 | v1.0.0-dev | 2025-08-27 | Streamlined late move reductions and refreshed the default engine branding. |
 | v1.0 | 2025-08-27 | Initial public release with iterative deepening improvements and updated author metadata. |
 
+### Revolution 2.81 Release Results
+
+Revolution 2.81 vs 2.80 (10+0.1, 1 thread, 64 MB, UHO_Lichess_4852_v1.epd).
+
+Over 4,000 games, Revolution 2.81 scores 50.65%, corresponding to +4.5 Elo (±5.4) with LOS 95%. Pairing quality is high (PairsRatio 1.10). This indicates a small, reproducible strength increase on this test matrix, suitable for CI/gauntlet use. As usual, improvements are book- and TC-dependent; results may vary on other suites or time controls.
+
 ## Contributing
 
 ### Development Guidelines
