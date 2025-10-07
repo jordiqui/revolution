@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <exception>
 #include <iostream>
+#include <string>
 
 #include "misc.h"
 #include "uci.h"
@@ -28,10 +29,15 @@
 #include "bitboard.h"
 #include "position.h"
 #include "version.h"
+#include "experience.h"
 
 using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
+
+    const bool benchMode = argc >= 2 && std::string(argv[1]) == "bench";
+    if (benchMode)
+        experience.set_enabled(false);
 
     auto run = [&]() {
         // Clear, consistent banner (many GUIs echo this to their logs).
