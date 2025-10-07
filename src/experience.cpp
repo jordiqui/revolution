@@ -51,7 +51,8 @@ void append_little_endian_value(std::string& out, T value)
     for (std::size_t i = 0; i < sizeof(T); ++i)
     {
         out.push_back(static_cast<char>(v & 0xFF));
-        v >>= 8;
+        if constexpr (sizeof(T) > 1)
+            v >>= 8;
     }
 }
 
