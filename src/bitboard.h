@@ -133,8 +133,8 @@ template<Direction D>
 constexpr Bitboard shift(Bitboard b) {
     return D == NORTH         ? b << 8
          : D == SOUTH         ? b >> 8
-         : D == NORTH + NORTH ? b << 16
-         : D == SOUTH + SOUTH ? b >> 16
+         : D == NORTH_NORTH   ? b << 16
+         : D == SOUTH_SOUTH   ? b >> 16
          : D == EAST          ? (b & ~FileHBB) << 1
          : D == WEST          ? (b & ~FileABB) >> 1
          : D == NORTH_EAST    ? (b & ~FileHBB) << 9
@@ -152,10 +152,10 @@ constexpr Bitboard shift(Direction d, Bitboard b) {
         return shift<NORTH>(b);
     case SOUTH:
         return shift<SOUTH>(b);
-    case NORTH + NORTH:
-        return shift<NORTH + NORTH>(b);
-    case SOUTH + SOUTH:
-        return shift<SOUTH + SOUTH>(b);
+    case NORTH_NORTH:
+        return shift<NORTH_NORTH>(b);
+    case SOUTH_SOUTH:
+        return shift<SOUTH_SOUTH>(b);
     case EAST:
         return shift<EAST>(b);
     case WEST:
