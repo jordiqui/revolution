@@ -1,22 +1,69 @@
 #include "experience.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
-#include <future>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <sstream>
+#include <type_traits>
 #include <zlib.h>
 
 #include "misc.h"
 #include "uci.h"
 
 namespace Stockfish {
+
+namespace {
+
+constexpr std::size_t HeaderSizeV2    = 1 + sizeof(std::uint64_t) + 2 * sizeof(std::uint32_t);
+constexpr std::size_t MetaBlockSizeV2 = 2 * sizeof(std::uint32_t) + sizeof(std::uint16_t)
+                                        + sizeof(float) + sizeof(std::uint64_t);
+constexpr std::size_t EntrySizeV2     = 34;
+constexpr std::uint8_t  ExperienceVersionV2      = 2;
+constexpr std::uint16_t ExperienceLittleEndianTag = 0x0002;
+
+template<typename T>
+T read_little_endian_value(const unsigned char* data)
+{
+    static_assert(std::is_integral_v<T>, "T must be an integral type");
+    using Unsigned = std::make_unsigned_t<T>;
+    Unsigned value = 0;
+    for (std::size_t i = 0; i < sizeof(T); ++i)
+        value |= static_cast<Unsigned>(data[i]) << (8 * i);
+    return static_cast<T>(value);
+}
+
+template<typename T>
+void append_little_endian_value(std::string& out, T value)
+{
+    static_assert(std::is_integral_v<T>, "T must be an integral type");
+    using Unsigned = std::make_unsigned_t<T>;
+    Unsigned v = static_cast<Unsigned>(value);
+    for (std::size_t i = 0; i < sizeof(T); ++i)
+    {
+        out.push_back(static_cast<char>(v & 0xFF));
+        v >>= 8;
+    }
+}
+
+void append_little_endian_value(std::string& out, float value)
+{
+    static_assert(sizeof(float) == sizeof(std::uint32_t), "Unexpected float size");
+    std::uint32_t bits;
+    std::memcpy(&bits, &value, sizeof(bits));
+    append_little_endian_value(out, bits);
+}
+
+}  // namespace
 
 Experience experience;
 
@@ -144,9 +191,112 @@ void Experience::load(const std::string& file) {
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
                 insert_entry(e.key, e.move, e.value, e.depth, 1);
         }
+        else if (isV2)
+        {
+            const std::size_t sigSize = sigV2.size();
+
+            if (buffer.size() < sigSize + HeaderSizeV2)
+            {
+                sync_cout << "info string Corrupted experience header in " << display << sync_endl;
+                return;
+            }
+
+            in.seekg(static_cast<std::streamoff>(sigSize), std::ios::beg);
+
+            std::array<unsigned char, HeaderSizeV2> headerBuf{};
+            in.read(reinterpret_cast<char*>(headerBuf.data()), headerBuf.size());
+            if (!in)
+            {
+                sync_cout << "info string Failed reading experience header in " << display
+                          << sync_endl;
+                return;
+            }
+
+            if (headerBuf[0] != ExperienceVersionV2)
+            {
+                sync_cout << "info string Unexpected experience version in " << display
+                          << sync_endl;
+                return;
+            }
+
+            const std::uint32_t entrySize = read_little_endian_value<std::uint32_t>(
+                headerBuf.data() + 1 + sizeof(std::uint64_t) + sizeof(std::uint32_t));
+
+            if (entrySize < 16)
+            {
+                sync_cout << "info string Unsupported entry size in " << display << sync_endl;
+                return;
+            }
+
+            const std::size_t headerBase      = sigSize + HeaderSizeV2;
+            const std::size_t headerRemaining = buffer.size() - headerBase;
+
+            std::size_t metaBlocks = 0;
+            if (headerRemaining >= MetaBlockSizeV2)
+            {
+                for (std::size_t blocks = 1; blocks <= headerRemaining / MetaBlockSizeV2; ++blocks)
+                {
+                    const std::size_t afterHeader = headerRemaining - blocks * MetaBlockSizeV2;
+                    if (afterHeader % entrySize == 0)
+                    {
+                        metaBlocks = blocks;
+                        break;
+                    }
+                }
+            }
+
+            const std::size_t entriesOffset = headerBase + metaBlocks * MetaBlockSizeV2;
+            if (entriesOffset > buffer.size())
+            {
+                sync_cout << "info string Experience metadata exceeds file size in " << display
+                          << sync_endl;
+                return;
+            }
+
+            in.seekg(static_cast<std::streamoff>(headerBase), std::ios::beg);
+            for (std::size_t i = 0; i < metaBlocks; ++i)
+            {
+                std::array<unsigned char, MetaBlockSizeV2> metaBuf{};
+                in.read(reinterpret_cast<char*>(metaBuf.data()), metaBuf.size());
+                if (!in)
+                {
+                    sync_cout << "info string Truncated experience metadata in " << display
+                              << sync_endl;
+                    return;
+                }
+
+                const std::uint16_t endianTag =
+                    read_little_endian_value<std::uint16_t>(metaBuf.data() + 2 * sizeof(std::uint32_t));
+                if (endianTag != ExperienceLittleEndianTag)
+                {
+                    sync_cout << "info string Unsupported experience endianness in " << display
+                              << sync_endl;
+                    return;
+                }
+            }
+
+            in.seekg(static_cast<std::streamoff>(entriesOffset), std::ios::beg);
+
+            std::string entry(entrySize, '\0');
+            while (in.read(entry.data(), entry.size()))
+            {
+                const auto* raw = reinterpret_cast<const unsigned char*>(entry.data());
+                const std::uint64_t key  = read_little_endian_value<std::uint64_t>(raw);
+                const std::uint16_t move = read_little_endian_value<std::uint16_t>(raw + sizeof(std::uint64_t));
+                const std::int16_t  score =
+                    read_little_endian_value<std::int16_t>(raw + sizeof(std::uint64_t) + sizeof(std::uint16_t));
+                const std::int16_t depth = read_little_endian_value<std::int16_t>(
+                    raw + sizeof(std::uint64_t) + sizeof(std::uint16_t) + sizeof(std::int16_t));
+                const std::int16_t count = read_little_endian_value<std::int16_t>(
+                    raw + sizeof(std::uint64_t) + sizeof(std::uint16_t) + 2 * sizeof(std::int16_t));
+
+                insert_entry(key, static_cast<unsigned>(move), score, depth,
+                             std::max(1, static_cast<int>(count)));
+            }
+        }
         else
         {
-            in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
+            in.seekg(sigV1.size(), std::ios::beg);
 
             struct BinV1 {
                 uint64_t key;
@@ -155,27 +305,10 @@ void Experience::load(const std::string& file) {
                 int32_t  depth;
                 uint8_t  pad[4];
             };
-            struct BinV2 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
-            };
 
-            if (isV2)
-            {
-                BinV2 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, e.count);
-            }
-            else
-            {
-                BinV1 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, 1);
-            }
+            BinV1 e;
+            while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                insert_entry(e.key, e.move, e.value, e.depth, 1);
         }
     }
     else
@@ -275,27 +408,60 @@ void Experience::save(const std::string& file) const {
     }
     else
     {
-        const std::string sig = "SugaR Experience version 2";
+        const std::string sig            = "SugaR Experience version 2";
+        const std::size_t metaBlockCount = 2;
+
+        std::size_t entriesCount = 0;
+        for (const auto& kv : table)
+            entriesCount += kv.second.size();
+
+        totalMoves = entriesCount;
+
+        const auto bucketCount = static_cast<std::uint32_t>(std::min<std::size_t>(
+            std::max<std::size_t>(table.bucket_count(), std::size_t(1)),
+            std::numeric_limits<std::uint32_t>::max()));
+        const std::uint64_t counters = static_cast<std::uint64_t>(entriesCount);
+
+        buffer.reserve(sig.size() + HeaderSizeV2 + metaBlockCount * MetaBlockSizeV2
+                       + entriesCount * EntrySizeV2);
         buffer.append(sig);
-        struct BinV2 {
-            uint64_t key;
-            uint32_t move;
-            int32_t  value;
-            int32_t  depth;
-            uint16_t count;
-            uint8_t  pad[2];
-        };
+
+        append_little_endian_value(buffer, ExperienceVersionV2);
+        append_little_endian_value(buffer, static_cast<std::uint64_t>(0));
+        append_little_endian_value(buffer, bucketCount);
+        append_little_endian_value(buffer, static_cast<std::uint32_t>(EntrySizeV2));
+
+        for (std::size_t i = 0; i < metaBlockCount; ++i)
+        {
+            append_little_endian_value(buffer, static_cast<std::uint32_t>(0));
+            append_little_endian_value(buffer, static_cast<std::uint32_t>(0));
+            append_little_endian_value(buffer, ExperienceLittleEndianTag);
+            append_little_endian_value(buffer, 12.0f);
+            append_little_endian_value(buffer, counters);
+        }
+
         for (const auto& [key, vec] : table)
             for (const auto& e : vec)
             {
-                BinV2 be{key,
-                         static_cast<uint32_t>(e.move.raw()),
-                         e.score,
-                         e.depth,
-                         static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
-                         {0, 0}};
-                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
-                totalMoves++;
+                const int clampedScore = std::clamp(e.score,
+                    static_cast<int>(std::numeric_limits<std::int16_t>::min()),
+                    static_cast<int>(std::numeric_limits<std::int16_t>::max()));
+                const int clampedDepth = std::clamp(e.depth,
+                    static_cast<int>(std::numeric_limits<std::int16_t>::min()),
+                    static_cast<int>(std::numeric_limits<std::int16_t>::max()));
+                const int clampedCount = std::clamp(e.count, 1, 0x7FFF);
+
+                append_little_endian_value(buffer, static_cast<std::uint64_t>(key));
+                append_little_endian_value(buffer, static_cast<std::uint16_t>(e.move.raw()));
+                append_little_endian_value(buffer, static_cast<std::int16_t>(clampedScore));
+                append_little_endian_value(buffer, static_cast<std::int16_t>(clampedDepth));
+                append_little_endian_value(buffer, static_cast<std::int16_t>(clampedCount));
+                append_little_endian_value(buffer, static_cast<std::int32_t>(0));
+                append_little_endian_value(buffer, static_cast<std::int32_t>(0));
+                append_little_endian_value(buffer, static_cast<std::int32_t>(0));
+                append_little_endian_value(buffer, static_cast<std::int16_t>(0));
+                append_little_endian_value(buffer, static_cast<std::int16_t>(0));
+                append_little_endian_value(buffer, static_cast<std::int16_t>(0));
             }
     }
 
