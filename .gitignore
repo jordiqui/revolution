@@ -5,6 +5,7 @@ src/.depend
 
 # Built binary
 src/stockfish*
+src/revolution*
 src/-lstdc++.res
 
 # Neural network for the NNUE evaluation
