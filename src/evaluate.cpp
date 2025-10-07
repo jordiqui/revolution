@@ -241,17 +241,29 @@ Bitboard king_shield_mask(Color c, Square king) {
     return mask;
 }
 
+Square frontmost_pawn(Color c, Bitboard pawns) {
+    if (!pawns)
+        return SQ_NONE;
+
+    return c == Color::WHITE ? msb(pawns) : lsb(pawns);
+}
+
 int king_safety_contrib(const Position& pos, Color c) {
     const Square    king         = pos.square<KING>(c);
     const Bitboard  pawns        = pos.pieces(c, PAWN);
     const Bitboard  enemyPieces  = pos.pieces(~c);
     const Bitboard  enemySliders = pos.pieces(~c, ROOK) | pos.pieces(~c, QUEEN);
+    const Bitboard  enemyPawns   = pos.pieces(~c, PAWN);
     int             penalty      = 0;
 
     Bitboard shieldMask = king_shield_mask(c, king);
     int      shieldCnt  = popcount(pawns & shieldMask);
     if (shieldCnt < 2)
-        penalty += (2 - shieldCnt) * 10;
+    {
+        penalty += (2 - shieldCnt) * 14;
+        if (!shieldCnt)
+            penalty += 6;
+    }
 
     Bitboard fileMask = file_bb(king);
     File     kFile    = file_of(king);
@@ -260,50 +272,145 @@ int king_safety_contrib(const Position& pos, Color c) {
     if (kFile < FILE_H)
         fileMask |= file_bb(File(int(kFile) + 1));
 
-    Bitboard pawnsAround = pawns & fileMask;
-    Bitboard advanced    = pawnsAround;
+    bool     kingSide    = file_of(king) >= FILE_E;
+    Bitboard wingHomeMask = kingSide ? square_bb(relative_square(c, SQ_G2))
+                                     | square_bb(relative_square(c, SQ_H2))
+                                     : square_bb(relative_square(c, SQ_B2))
+                                     | square_bb(relative_square(c, SQ_C2));
+    int missingWing = popcount(wingHomeMask & ~pawns);
+    if (missingWing)
+    {
+        int attackers = 0;
+        Bitboard wing = wingHomeMask;
+        while (wing)
+        {
+            Square sq = pop_lsb(wing);
+            attackers += popcount(pos.attackers_to(sq) & enemyPieces);
+        }
+        penalty += missingWing * 9 + attackers * 3;
+    }
+
+    Bitboard pawnsAround     = pawns & fileMask;
+    Bitboard pawnsAroundCopy = pawnsAround;
+    Bitboard advanced        = pawnsAround;
     while (advanced)
     {
         Square sq     = pop_lsb(advanced);
         int    rel    = static_cast<int>(relative_rank(c, sq));
         int    excess = std::max(0, rel - static_cast<int>(RANK_3));
         if (excess)
-            penalty += 6 * excess;
+            penalty += 7 * excess;
+
+        if (rel >= static_cast<int>(RANK_4))
+        {
+            Bitboard behind = forward_rays(~c, sq) & file_bb(file_of(sq));
+            if (!(behind & pawns))
+            {
+                int attackers = popcount(pos.attackers_to(sq) & enemyPieces);
+                penalty += 8 + (rel - static_cast<int>(RANK_3)) * 6 + attackers * 2;
+            }
+        }
     }
 
-    Bitboard forward = forward_rays(c, king) & file_bb(king);
-    if (!(forward & pawns))
-        penalty += 18;
+    Bitboard allPawns = pos.pieces(Color::WHITE, PAWN) | pos.pieces(Color::BLACK, PAWN);
+    Bitboard kingFile = file_bb(king);
+    if (!(kingFile & allPawns))
+        penalty += 14;
+    else if (!(kingFile & pawns))
+        penalty += 8;
 
-    Bitboard slidersOnFile = enemySliders & file_bb(king);
+    Bitboard forward = forward_rays(c, king) & kingFile;
+    if (!(forward & pawns))
+        penalty += 22;
+
+    Bitboard slidersOnFile = enemySliders & kingFile;
     while (slidersOnFile)
     {
         Square slider = pop_lsb(slidersOnFile);
         Bitboard between = between_bb(slider, king);
         if (!(between & pos.pieces()) || !(between & pos.pieces(c)))
         {
-            penalty += 12;
+            penalty += 16;
             break;
         }
     }
 
-    const std::array<std::pair<Square, Square>, 2> flankPatterns = {
-      std::make_pair(SQ_G4, SQ_H4), std::make_pair(SQ_G5, SQ_H6)};
-    for (const auto& [s1, s2] : flankPatterns)
+    Bitboard enemyStorm = enemyPawns & fileMask;
+    while (enemyStorm)
     {
-        Square rel1 = relative_square(c, s1);
-        Square rel2 = relative_square(c, s2);
-        if ((pawns & rel1) && (pawns & rel2))
+        Square sq    = pop_lsb(enemyStorm);
+        int    rel   = static_cast<int>(relative_rank(~c, sq));
+        int    fDiff = std::abs(int(file_of(sq)) - int(kFile));
+
+        if (rel >= static_cast<int>(RANK_4))
         {
-            penalty += 14;
-            break;
+            int base = 10 + rel * 3 + std::max(0, 2 - fDiff) * 4;
+            Bitboard defenders = pawnsAroundCopy & file_bb(file_of(sq));
+            if (!defenders)
+                base += 8;
+            else
+            {
+                Square front = frontmost_pawn(c, defenders);
+                if (front != SQ_NONE)
+                {
+                    if (relative_rank(c, front) <= static_cast<int>(RANK_3))
+                        base += 4;
+                    else
+                        base = std::max(0, base - 4);
+                }
+            }
+
+            if ((file_of(sq) == FILE_A || file_of(sq) == FILE_H) && rel >= static_cast<int>(RANK_5))
+                base += 6;
+
+            penalty += base;
         }
     }
 
-    // Slight bonus if enemy pieces are far from the king area
-    Bitboard kingRing = attacks_bb<KING>(king);
-    if (!(kingRing & enemyPieces))
-        penalty = std::max(0, penalty - 6);
+    Bitboard kingRing   = attacks_bb<KING>(king);
+    int      attackers  = popcount(pos.attackers_to(king) & enemyPieces);
+    penalty += attackers * 16;
+
+    Bitboard ringSquares = kingRing;
+    while (ringSquares)
+    {
+        Square sq         = pop_lsb(ringSquares);
+        int    ringAttack = popcount(pos.attackers_to(sq) & enemyPieces);
+        if (ringAttack)
+            penalty += ringAttack * 5;
+    }
+
+    int friendlyMaterial = pos.non_pawn_material(c);
+    int enemyMaterial    = pos.non_pawn_material(~c);
+    bool lateEndgame     = friendlyMaterial + enemyMaterial <= 2 * RookValue;
+    if (lateEndgame)
+    {
+        Bitboard enemyPassers = pos.pieces(~c, PAWN);
+        while (enemyPassers)
+        {
+            Square sq = pop_lsb(enemyPassers);
+            if (!is_passed_pawn(pos, ~c, sq))
+                continue;
+
+            int rel = static_cast<int>(relative_rank(~c, sq));
+            if (rel >= static_cast<int>(RANK_5))
+            {
+                int dist = distance(king, sq);
+                penalty += std::max(0, 5 - dist) * 6;
+            }
+        }
+
+        bool kingOnEdge = file_of(king) == FILE_A || file_of(king) == FILE_H || rank_of(king) == RANK_1
+                           || rank_of(king) == RANK_8;
+        if (kingOnEdge && (pos.pieces(~c, ROOK) || pos.pieces(~c, QUEEN)))
+            penalty += 10;
+    }
+
+    Bitboard extendedRing = kingRing;
+    extendedRing |= shift<NORTH>(kingRing) | shift<SOUTH>(kingRing);
+    extendedRing |= shift<EAST>(kingRing) | shift<WEST>(kingRing);
+    if (!(extendedRing & enemyPieces))
+        penalty = std::max(0, penalty - 8);
 
     return c == Color::WHITE ? -penalty : penalty;
 }

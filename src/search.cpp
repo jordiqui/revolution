@@ -136,7 +136,7 @@ bool king_structure_vulnerable(const Position& pos, Color c) {
     return false;
 }
 
-Depth additional_extensions(const Position& pos, bool givesCheck) {
+Depth additional_extensions(const Position& pos, Move move, Piece movedPiece, bool givesCheck) {
     Depth ext = 0;
 
     if (has_dangerous_passed_pawn(pos, pos.side_to_move(), RANK_6))
@@ -147,6 +147,42 @@ Depth additional_extensions(const Position& pos, bool givesCheck) {
         MoveList<LEGAL> replies(pos);
         if (replies.size() <= 2)
             ext = std::max(ext, Depth(1));
+    }
+
+    // Extend search when a pawn storm advances close to the defending king.
+    if (type_of(movedPiece) == PAWN && move.type_of() == MoveType::NORMAL)
+    {
+        const Color defender     = pos.side_to_move();
+        const Color attacker     = ~defender;
+        const Square defenderKing = pos.square<KING>(defender);
+
+        const int relRank = static_cast<int>(relative_rank(attacker, move.to_sq()));
+        const int kingDist = distance(defenderKing, move.to_sq());
+        const int fileDelta = std::abs(int(file_of(defenderKing)) - int(file_of(move.to_sq())));
+
+        if (relRank >= static_cast<int>(RANK_5) && kingDist <= 2)
+        {
+            Bitboard defenderPawns = pos.pieces(defender, PAWN) & file_bb(file_of(move.to_sq()));
+            // Encourage a deeper search when the pawn storm is not contested.
+            if (!defenderPawns)
+                ext = std::max(ext, Depth(1));
+            else
+            {
+                Square front = attacker == Color::WHITE ? msb(defenderPawns) : lsb(defenderPawns);
+                if (relative_rank(defender, front) <= RANK_3)
+                    ext = std::max(ext, Depth(1));
+            }
+        }
+        else if (relRank >= static_cast<int>(RANK_4) && kingDist <= 3 && fileDelta <= 1)
+            ext = std::max(ext, Depth(1));
+
+        if ((file_of(move.to_sq()) == FILE_A || file_of(move.to_sq()) == FILE_H)
+            && relRank >= static_cast<int>(RANK_5))
+        {
+            Bitboard defenderPawns = pos.pieces(defender, PAWN) & file_bb(file_of(move.to_sq()));
+            if (!defenderPawns)
+                ext = std::max(ext, Depth(1));
+        }
     }
 
     return ext;
@@ -1232,6 +1268,15 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
+                bool exchangeSacrifice = capture
+                                       && ((type_of(movedPiece) == ROOK && type_of(capturedPiece) <= BISHOP)
+                                           || (type_of(movedPiece) == QUEEN
+                                               && type_of(capturedPiece) == ROOK));
+
+                if (exchangeSacrifice && !givesCheck && !king_structure_vulnerable(pos, ~us)
+                    && !pos.see_ge(move, 24))
+                    continue;
+
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
@@ -1373,7 +1418,7 @@ moves_loop:  // When in check, search starts here
         newDepth += extension;
         if (!rootNode)
         {
-            Depth selective = additional_extensions(pos, givesCheck);
+            Depth selective = additional_extensions(pos, move, movedPiece, givesCheck);
             if (selective)
                 newDepth += selective;
         }
@@ -1703,6 +1748,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     bestMove    = Move::none();
     ss->inCheck = pos.checkers();
     moveCount   = 0;
+    Color us    = pos.side_to_move();
 
     // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
     if (PvNode && selDepth < ss->ply + 1)
@@ -1843,6 +1889,19 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             // Do not search moves with bad enough SEE values
             if (!pos.see_ge(move, -74))
                 continue;
+
+            if (capture)
+            {
+                Piece capturedPiece = pos.piece_on(move.to_sq());
+                Piece attackerPiece = pos.moved_piece(move);
+                bool  exchangeSacrifice =
+                  (type_of(attackerPiece) == ROOK && type_of(capturedPiece) <= BISHOP)
+                  || (type_of(attackerPiece) == QUEEN && type_of(capturedPiece) == ROOK);
+
+                if (exchangeSacrifice && !givesCheck && !king_structure_vulnerable(pos, ~us)
+                    && !pos.see_ge(move, 12))
+                    continue;
+            }
         }
 
         // Step 7. Make and search the move
@@ -1886,7 +1945,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         bestValue = (bestValue + beta) / 2;
 
 
-    Color us = pos.side_to_move();
     if (!ss->inCheck && !moveCount && !pos.non_pawn_material(us)
         && type_of(pos.captured_piece()) >= ROOK)
     {
