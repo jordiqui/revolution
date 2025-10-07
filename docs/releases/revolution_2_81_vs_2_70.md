@@ -1,7 +1,7 @@
-# Revolution 2.81 (021025) vs Revolution 2.70 — Release Summary
+# Revolution 2.81 (071025) vs Revolution 2.70 — Release Summary
 
 **Executive Summary.**
-Across **6,980 games** of head-to-head testing under identical conditions (TC **10+0.1**, **1** thread, **32 MB** hash, opening suite **UHO_2024_8mvs_+085_+094**), **Revolution 2.81 (build 021025)** delivers an aggregate gain of **+15.3 Elo ± 4.4** over version **2.70**, corresponding to an overall score of roughly **52.0%**. This is a small-to-moderate, reproducible improvement that is suitable for production deployments and continuous-integration gauntlets.
+Across **6,980 games** of head-to-head testing under identical conditions (TC **10+0.1**, **1** thread, **32 MB** hash, opening suite **UHO_2024_8mvs_+085_+094**), **Revolution 2.81 (build 071025)** delivers an aggregate gain of **+15.3 Elo ± 4.4** over version **2.70**, corresponding to an overall score of roughly **52.0%**. This is a small-to-moderate, reproducible improvement that is suitable for production deployments and continuous-integration gauntlets.
 
 > Methodology note (friendly but rigorous): the overall Elo is computed by **inverse-variance weighting** of per-run Elo estimates (the reported "±" terms), which is standard when combining multiple independent gauntlets. It naturally down-weights smaller or noisier runs and up-weights larger, tighter ones.
 
@@ -24,7 +24,7 @@ Across **6,980 games** of head-to-head testing under identical conditions (TC **
 
 ```bat
 "C:\fastchess\fastchess.exe" ^
-  -engine cmd="C:\fastchess\revolution-2_81\revolution 2.81 021025.exe" name=DEV dir="C:\fastchess\revolution-2_81" option.Threads=1 option.Hash=32 option.Ponder=false option.MultiPV=1 ^
+  -engine cmd="C:\fastchess\revolution-2_81\revolution-2.81-071025.exe" name=DEV dir="C:\fastchess\revolution-2_81" option.Threads=1 option.Hash=32 option.Ponder=false option.MultiPV=1 ^
   -engine cmd="C:\fastchess\revolution-2_70\revolution 2.70.exe" name=BASE dir="C:\fastchess\revolution-2_70" option.Threads=1 option.Hash=32 option.Ponder=false option.MultiPV=1 ^
   -each tc=10+0.1 proto=uci ^
   -openings file="C:\fastchess\Books\UHO_2024_8mvs_+085_+094.pgn" format=pgn order=random ^
@@ -54,4 +54,4 @@ Across **6,980 games** of head-to-head testing under identical conditions (TC **
 
 ### TL;DR
 
-**Revolution 2.81 (021025)** delivers a **~+15 Elo** gain over **Revolution 2.70** across **6,980 games** at **10+0.1**, **1 thread**, **32 MB**, using the **UHO_2024_8mvs_+085_+094** suite. Results are consistent across large gauntlets, confirming a steady, production-ready improvement.
+**Revolution 2.81 (071025)** delivers a **~+15 Elo** gain over **Revolution 2.70** across **6,980 games** at **10+0.1**, **1 thread**, **32 MB**, using the **UHO_2024_8mvs_+085_+094** suite. Results are consistent across large gauntlets, confirming a steady, production-ready improvement.
