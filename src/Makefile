@@ -53,9 +53,7 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-PGOBENCH = LLVM_PROFILE_FILE=./default.profraw $(WINE_PATH) ./$(EXE) bench 128 1 16 default 12
-
-PROFILE_DYNAMIC ?= no
+PGOBENCH = $(WINE_PATH) ./$(EXE) bench
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -496,9 +494,7 @@ ifeq ($(COMP),gcc)
 endif
 
 ifeq ($(target_windows),yes)
-ifneq ($(PROFILE_DYNAMIC),yes)
 	LDFLAGS += -static
-endif
 endif
 
 ifeq ($(COMP),mingw)
@@ -1162,9 +1158,8 @@ FORCE:
 
 clang-profile-make:
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	PROFILE_DYNAMIC=yes \
 	EXTRACXXFLAGS='-fprofile-generate ' \
-	EXTRALDFLAGS=' -fprofile-generate -Wl,-Bdynamic' \
+	EXTRALDFLAGS=' -fprofile-generate' \
 	all
 
 clang-profile-use:
