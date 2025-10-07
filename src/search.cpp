@@ -114,7 +114,7 @@ bool has_dangerous_passed_pawn(const Position& pos, Color c, Rank minRank) {
 bool king_structure_vulnerable(const Position& pos, Color c) {
     Square   king   = pos.square<KING>(c);
     Bitboard pawns  = pos.pieces(c, PAWN);
-    Bitboard shield = shift<pawn_push(c)>(square_bb(king));
+    Bitboard shield = shift(pawn_push(c), square_bb(king));
     shield |= shift<EAST>(shield);
     shield |= shift<WEST>(shield);
 
@@ -319,20 +319,6 @@ void Search::Worker::start_searching() {
             threads.start_searching();  // start non-main threads
             iterative_deepening();      // main thread start searching
         }
-    }
-
-    if (mainThread)
-    {
-        bool quietPhase = false;
-        if (!rootMoves.empty())
-        {
-            bool  stableMove      = !lastBestPV.empty() && rootMoves[0].pv[0] == lastBestPV[0];
-            Value referenceScore = lastBestScore == -VALUE_INFINITE ? rootMoves[0].score : lastBestScore;
-            quietPhase = stableMove && std::abs(rootMoves[0].score - referenceScore) < 30
-                         && totBestMoveChanges < 1.5;
-        }
-
-        mainThread->tm.record_time_usage(mainThread->tm.elapsed_time(), quietPhase);
     }
 
     // When we reach the maximum depth, we can arrive here without a raise of
@@ -672,6 +658,22 @@ void Search::Worker::iterative_deepening() {
         iterIdx                        = (iterIdx + 1) & 3;
     }
 
+    if (mainThread)
+    {
+        bool quietPhase = false;
+
+        if (!rootMoves.empty())
+        {
+            bool  stableMove      = !lastBestPV.empty() && rootMoves[0].pv[0] == lastBestPV[0];
+            Value referenceScore = lastBestScore == -VALUE_INFINITE ? rootMoves[0].score : lastBestScore;
+
+            quietPhase = stableMove && std::abs(rootMoves[0].score - referenceScore) < 30
+                         && totBestMoveChanges < 1.5;
+        }
+
+        mainThread->tm.record_time_usage(mainThread->tm.elapsed_time(), quietPhase);
+    }
+
     if (!mainThread)
         return;
 
@@ -948,6 +950,9 @@ Value Search::Worker::search(
     // Step 6. Static evaluation of the position
     Value      unadjustedStaticEval = VALUE_NONE;
     const auto correctionValue      = correction_value(*this, pos, ss);
+    bool       kingFragile          = false;
+    bool       enemyDangerousPass   = false;
+    bool       skipNullMove         = false;
     if (ss->inCheck)
     {
         // Skip early pruning when in check
@@ -1031,9 +1036,9 @@ Value Search::Worker::search(
             return beta + (eval - beta) / 3;
     }
 
-    bool kingFragile         = king_structure_vulnerable(pos, us);
-    bool enemyDangerousPass  = has_dangerous_passed_pawn(pos, ~us, RANK_6);
-    bool skipNullMove        = (enemyDangerousPass && depth <= 6) || (kingFragile && depth <= 4);
+    kingFragile        = king_structure_vulnerable(pos, us);
+    enemyDangerousPass = has_dangerous_passed_pawn(pos, ~us, RANK_6);
+    skipNullMove       = (enemyDangerousPass && depth <= 6) || (kingFragile && depth <= 4);
 
     // Step 9. Null move search with verification search
     if (!skipNullMove && cutNode && ss->staticEval >= beta - 18 * depth + 390 && !excludedMove
