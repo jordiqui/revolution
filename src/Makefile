@@ -525,19 +525,9 @@ endif
 
 ifeq ($(COMP),clang)
 	comp=clang
+	CXX=clang++
 	ifeq ($(target_windows),yes)
 		CXX=x86_64-w64-mingw32-clang++
-	else
-		ifneq ($(shell which clang++ 2> /dev/null),)
-			CXX=clang++
-		else
-			CLANGXX := $(firstword $(foreach ver,20 19 18 17 16,$(shell which clang++-$(ver) 2> /dev/null)))
-			ifneq ($(CLANGXX),)
-				CXX=$(CLANGXX)
-			else
-				CXX=clang++
-			endif
-		endif
 	endif
 
 	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-prototypes \
@@ -879,7 +869,7 @@ endif
 #- ENGINE_NAME : "revolution-2.81-071025"
 #- ENGINE_BUILD_DATE : optional build identifier
 #You can override on the command line:
-#make ENGINE_NAME = "revolution-2.81-071025" ENGINE_BUILD_DATE = 20251007
+#make ENGINE_NAME = "revolution-2.81-071025" ENGINE_BUILD_DATE = 20251025
 ENGINE_NAME        ?= revolution-2.81-071025
 ENGINE_BUILD_DATE  ?=
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'

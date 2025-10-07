@@ -22,18 +22,11 @@
 #include <cassert>
 #include <cmath>
 #include <cstdint>
-#include <numeric>
-#include <vector>
 
 #include "search.h"
 #include "ucioption.h"
-#include "misc.h"
 
 namespace Stockfish {
-
-namespace {
-constexpr TimePoint MinTimePerMoveMs = 60;
-}
 
 TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
@@ -66,15 +59,8 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[static_cast<int>(us)] == 0)
         return;
 
-    TimePoint moveOverhead         = TimePoint(options["Move Overhead"]);
-    TimePoint safetyBuffer         = TimePoint(options["Time Buffer"]);
-    TimePoint minimumThinkingTime  = TimePoint(options["Minimum Thinking Time"]);
-    TimePoint bufferScaled         = safetyBuffer;
-    TimePoint minThinkingScaled    = minimumThinkingTime;
-    double    slowMover            = options["Slow Mover"] / 100.0;
-    const bool conservativeMode    = bool(options["Revolution Conservative Search"]);
-
-    TimePoint effectiveMoveOverhead = moveOverhead;
+    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
+    double    slowMover    = options["Slow Mover"] / 100.0;
 
     // Adjust time usage heuristics for common time controls
     double baseSeconds = double(limits.time[static_cast<int>(us)]) / 1000.0;
@@ -104,23 +90,12 @@ void TimeManagement::init(Search::LimitsType& limits,
         limits.inc[static_cast<int>(us)] *= npmsec;
         limits.npmsec = npmsec;
         moveOverhead *= npmsec;
-        bufferScaled      = safetyBuffer * npmsec;
-        minThinkingScaled = minimumThinkingTime * npmsec;
     }
 
     // These numbers are used where multiplications, divisions or comparisons
     // with constants are involved.
     const int64_t   scaleFactor = useNodesTime ? npmsec : 1;
     const TimePoint scaledTime  = limits.time[static_cast<int>(us)] / scaleFactor;
-
-    TimePoint maxOverhead = std::max(TimePoint(5 * scaleFactor), limits.time[static_cast<int>(us)] / 8);
-    effectiveMoveOverhead = std::min(moveOverhead, maxOverhead);
-
-    TimePoint scaledMinimum = useNodesTime
-                                ? TimePoint(std::max<int64_t>(1, static_cast<int64_t>(npmsec))
-                                             * MinTimePerMoveMs)
-                                : MinTimePerMoveMs;
-    TimePoint absoluteFloor = std::max(minThinkingScaled, scaledMinimum);
 
     // Maximum move horizon
     int centiMTG = limits.movestogo ? std::min(limits.movestogo * 100, 5000) : 5051;
@@ -133,9 +108,7 @@ void TimeManagement::init(Search::LimitsType& limits,
     TimePoint timeLeft =
       std::max(TimePoint(1),
                limits.time[static_cast<int>(us)]
-                 + (limits.inc[static_cast<int>(us)] * (centiMTG - 100)
-                    - effectiveMoveOverhead * (200 + centiMTG))
-                       / 100);
+                 + (limits.inc[static_cast<int>(us)] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
 
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
@@ -169,34 +142,20 @@ void TimeManagement::init(Search::LimitsType& limits,
 
     optScale *= slowMover;
 
-    double usageAdjust = usage_ratio();
-    double usageFactor = 1.0;
-    if (usageAdjust > 1.05)
-        usageFactor /= std::min(1.35, 1.0 + (usageAdjust - 1.05) * 0.6);
-    else if (usageAdjust < 0.95)
-        usageFactor *= 1.0 + (0.95 - usageAdjust) * 0.5;
-
-    double quietAdjust    = quiet_phase_bias();
-    double combinedFactor = std::clamp(usageFactor * quietAdjust, 0.6, 1.8);
-    optScale *= combinedFactor;
-    maxScale *= std::clamp(quietAdjust + (usageFactor - 1.0) * 0.5, 0.75, 1.25);
-    optScale = std::max(0.02, optScale);
-
     // Limit the maximum possible time for this move
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
-      TimePoint(std::min(0.90 * limits.time[static_cast<int>(us)] - effectiveMoveOverhead,
-                          maxScale * optimumTime))
-      - 10;
+      TimePoint(std::min(0.90 * limits.time[static_cast<int>(us)] - moveOverhead,
+                          maxScale * optimumTime)) - 10;
 
-    if (conservativeMode)
+    if ((bool) options["Revolution Conservative Search"])
     {
         // Clamp the time budget to keep some safety margin. Use an adaptive
         // overhead that increases with the remaining time, providing a
         // slightly larger buffer in long time controls while still being
         // conservative for quick controls.
         TimePoint adaptiveOverhead =
-          effectiveMoveOverhead + bufferScaled + limits.time[static_cast<int>(us)] / 30;
+          moveOverhead + TimePoint(options["Time Buffer"]) + limits.time[static_cast<int>(us)] / 30;
         TimePoint maxBudget =
           std::max(TimePoint(1), limits.time[static_cast<int>(us)] - adaptiveOverhead);
         optimumTime = std::min(optimumTime, maxBudget);
@@ -206,95 +165,10 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
 
-    optimumTime = std::max(optimumTime, absoluteFloor);
-    TimePoint maxCandidate = conservativeMode ? maximumTime
-                                              : std::max(TimePoint(1), maximumTime - bufferScaled);
-    maximumTime            = std::max(maxCandidate, absoluteFloor);
-    maximumTime            = std::max(maximumTime, optimumTime);
-
-    pendingOptimum = optimumTime;
-    pendingSample  = true;
-
-    if (useNodesTime)
-    {
-        sync_cout << "info string nodestime buffer=" << bufferScaled
-                  << " minThinking=" << minThinkingScaled
-                  << " available=" << availableNodes
-                  << " optimum=" << optimumTime
-                  << " maximum=" << maximumTime << sync_endl;
-    }
-}
-
-void TimeManagement::record_time_usage(TimePoint spent, bool quietPhase) {
-    if (!pendingSample)
-        return;
-
-    spentHistory[historyIndex]   = std::max<TimePoint>(TimePoint(1), spent);
-    optimumHistory[historyIndex] = std::max<TimePoint>(TimePoint(1), pendingOptimum);
-    quietHistory[historyIndex]   = quietPhase;
-
-    historyIndex = (historyIndex + 1) % HistorySize;
-    if (historyCount < HistorySize)
-        ++historyCount;
-
-    pendingSample = false;
-}
-
-std::vector<TimePoint> TimeManagement::recent_time_samples() const {
-    std::vector<TimePoint> result;
-    result.reserve(historyCount);
-
-    for (size_t i = 0; i < historyCount; ++i)
-    {
-        size_t idx = (historyIndex + HistorySize - historyCount + i) % HistorySize;
-        result.push_back(spentHistory[idx]);
-    }
-
-    return result;
-}
-
-std::vector<TimePoint> TimeManagement::recent_optimum_samples() const {
-    std::vector<TimePoint> result;
-    result.reserve(historyCount);
-
-    for (size_t i = 0; i < historyCount; ++i)
-    {
-        size_t idx = (historyIndex + HistorySize - historyCount + i) % HistorySize;
-        result.push_back(optimumHistory[idx]);
-    }
-
-    return result;
-}
-
-double TimeManagement::usage_ratio() const {
-    if (!historyCount)
-        return 1.0;
-
-    long double spentSum = 0;
-    long double optSum   = 0;
-
-    for (size_t i = 0; i < historyCount; ++i)
-    {
-        spentSum += std::max<long double>(1.0L, static_cast<long double>(spentHistory[i]));
-        optSum += std::max<long double>(1.0L, static_cast<long double>(optimumHistory[i]));
-    }
-
-    if (optSum <= 0.0L)
-        return 1.0;
-
-    return static_cast<double>(spentSum / optSum);
-}
-
-double TimeManagement::quiet_phase_bias() const {
-    if (!historyCount)
-        return 1.0;
-
-    int quietCount = 0;
-    for (size_t i = 0; i < historyCount; ++i)
-        quietCount += quietHistory[i] ? 1 : 0;
-
-    double ratio = static_cast<double>(quietCount) / static_cast<double>(historyCount);
-    return 1.0 + ratio * 0.15;
+    TimePoint minimumThinkingTime = TimePoint(options["Minimum Thinking Time"]);
+    TimePoint safetyBuffer        = TimePoint(options["Time Buffer"]);
+    optimumTime                   = std::max(optimumTime, minimumThinkingTime);
+    maximumTime                   = std::max(maximumTime - safetyBuffer, minimumThinkingTime);
 }
 
 }  // namespace Stockfish

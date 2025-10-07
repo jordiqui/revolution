@@ -18,10 +18,6 @@
   Modifications Copyright (C) 2024 Jorge Ruiz Centelles
 */
 
-#include <cstdlib>
-#include <exception>
-#include <iostream>
-
 #include "misc.h"
 #include "uci.h"
 #include "tune.h"
@@ -33,42 +29,21 @@ using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
 
-    auto run = [&]() {
-        // Clear, consistent banner (many GUIs echo this to their logs).
-        // Send banner to stderr so it doesn't interfere with UCI handshake on stdout.
-        std::cerr << ENGINE_NAME
-                  << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
-                  << std::endl;
+    // Clear, consistent banner (many GUIs echo this to their logs).
+    // Send banner to stderr so it doesn't interfere with UCI handshake on stdout.
+    std::cerr << ENGINE_NAME
+              << " by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
+              << std::endl;
 
-        std::cerr << compiler_info() << std::endl;
+    std::cerr << compiler_info() << std::endl;
 
-        Bitboards::init();
-        Position::init();
+    Bitboards::init();
+    Position::init();
 
-        UCIEngine uci(argc, argv);
+    UCIEngine uci(argc, argv);
 
-        Tune::init(uci.engine_options());
+    Tune::init(uci.engine_options());
 
-        uci.loop();
-        return EXIT_SUCCESS;
-    };
-
-#if defined(__cpp_exceptions)
-    try
-    {
-        return run();
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "Fatal error: " << e.what() << std::endl;
-    }
-    catch (...)
-    {
-        std::cerr << "Fatal error: unknown exception" << std::endl;
-    }
-
-    return EXIT_FAILURE;
-#else
-    return run();
-#endif
+    uci.loop();
+    return 0;
 }
