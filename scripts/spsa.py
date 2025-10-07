@@ -21,7 +21,7 @@ def run_bench(engine, name, value):
 def main():
     p = argparse.ArgumentParser(description="SPSA tuning for Revolution")
     p.add_argument("--param", nargs=4, metavar=("NAME", "START", "MIN", "MAX"), action='append', required=True)
-    p.add_argument("--engine", default="src/revolution 2.81 021025")
+    p.add_argument("--engine", default="src/revolution-2.81-071025")
     p.add_argument("--iterations", type=int, default=10)
     args = p.parse_args()
 

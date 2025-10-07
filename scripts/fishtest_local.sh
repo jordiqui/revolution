@@ -4,7 +4,7 @@
 
 set -e
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ENGINE_DEFAULT="$ROOT_DIR/src/revolution 2.81 021025"
+ENGINE_DEFAULT="$ROOT_DIR/src/revolution-2.81-071025"
 ENGINE="${ENGINE:-$ENGINE_DEFAULT}"
 FISHTEST_DIR="${FISHTEST_DIR:-$HOME/fishtest}"
 
