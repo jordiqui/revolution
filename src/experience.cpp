@@ -1,7 +1,6 @@
 #include "experience.h"
 
 #include <algorithm>
-#include <atomic>
 #include <cctype>
 #include <future>
 #include <chrono>
@@ -17,28 +16,9 @@
 #include "misc.h"
 #include "uci.h"
 
-namespace {
-
-std::atomic<bool> g_experience_enabled{true};
-
-}  // namespace
-
 namespace Stockfish {
 
 Experience experience;
-
-void Experience::set_enabled(bool on) {
-    g_experience_enabled.store(on, std::memory_order_relaxed);
-    if (!on)
-    {
-        wait_until_loaded();
-        table.clear();
-    }
-}
-
-bool Experience::is_enabled() const {
-    return g_experience_enabled.load(std::memory_order_relaxed);
-}
 
 void Experience::wait_until_loaded() const {
     if (loader.valid())
@@ -46,8 +26,6 @@ void Experience::wait_until_loaded() const {
 }
 
 bool Experience::is_ready() const {
-    if (!is_enabled())
-        return true;
     return !loader.valid() || loader.wait_for(std::chrono::seconds(0)) == std::future_status::ready;
 }
 
@@ -57,8 +35,6 @@ void Experience::clear() {
 }
 
 void Experience::load(const std::string& file) {
-    if (!is_enabled())
-        return;
     std::string path       = file;
     bool        convertBin = false;
     bool        compressed = false;
@@ -248,14 +224,10 @@ void Experience::load(const std::string& file) {
 }
 
 void Experience::load_async(const std::string& file) {
-    if (!is_enabled())
-        return;
     loader = std::async(std::launch::async, [this, file] { load(file); });
 }
 
 void Experience::save(const std::string& file) const {
-    if (!is_enabled())
-        return;
     wait_until_loaded();
     std::string path       = file;
     bool        compressed = false;
@@ -360,8 +332,6 @@ void Experience::save(const std::string& file) const {
               << ". Total positions: " << totalPositions << sync_endl;
 }
 Move Experience::probe(Position& pos, int width, int evalImportance, int minDepth, int maxMoves) {
-    if (!is_enabled())
-        return Move::none();
     if (!is_ready())
         return Move::none();
     auto it = table.find(pos.key());
@@ -398,8 +368,6 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
-    if (!is_enabled())
-        return;
     if (!is_ready())
         return;
     auto& vec = table[pos.key()];
@@ -419,8 +387,6 @@ void Experience::update(Position& pos, Move move, int score, int depth) {
 }
 
 void Experience::show(const Position& pos, int evalImportance, int maxMoves) const {
-    if (!is_enabled())
-        return;
     if (!is_ready())
         return;
     auto it = table.find(pos.key());
