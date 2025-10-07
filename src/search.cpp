@@ -31,7 +31,6 @@
 #include <deque>
 #include <ratio>
 #include <string>
-#include <thread>
 #include <utility>
 
 #include "bitboard.h"
@@ -68,125 +67,6 @@ namespace {
 
 constexpr int SEARCHEDLIST_CAPACITY = 32;
 using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
-
-Bitboard forward_rays(Color c, Square sq) {
-    Bitboard  mask = 0;
-    Direction dir  = pawn_push(c);
-    Square    s    = sq;
-
-    while (true)
-    {
-        s += dir;
-        if (!is_ok(s))
-            break;
-        mask |= square_bb(s);
-    }
-
-    return mask;
-}
-
-Bitboard passed_span(Color c, Square sq) {
-    Bitboard front = forward_rays(c, sq);
-    Bitboard span  = front;
-    if (file_of(sq) > FILE_A)
-        span |= shift<WEST>(front);
-    if (file_of(sq) < FILE_H)
-        span |= shift<EAST>(front);
-    return span;
-}
-
-bool is_passed_pawn(const Position& pos, Color c, Square sq) {
-    return !(passed_span(c, sq) & pos.pieces(~c, PAWN));
-}
-
-bool has_dangerous_passed_pawn(const Position& pos, Color c, Rank minRank) {
-    Bitboard pawns = pos.pieces(c, PAWN);
-    while (pawns)
-    {
-        Square sq = pop_lsb(pawns);
-        if (static_cast<int>(relative_rank(c, sq)) >= static_cast<int>(minRank)
-            && is_passed_pawn(pos, c, sq))
-            return true;
-    }
-    return false;
-}
-
-bool king_structure_vulnerable(const Position& pos, Color c) {
-    Square   king   = pos.square<KING>(c);
-    Bitboard pawns  = pos.pieces(c, PAWN);
-    Bitboard shield = shift(pawn_push(c), square_bb(king));
-    shield |= shift<EAST>(shield);
-    shield |= shift<WEST>(shield);
-
-    if (popcount(pawns & shield) <= 1)
-        return true;
-
-    Bitboard forward = forward_rays(c, king) & file_bb(king);
-    if (!(forward & pawns))
-        return true;
-
-    Bitboard sliders = (pos.pieces(~c, ROOK) | pos.pieces(~c, QUEEN)) & file_bb(king);
-    while (sliders)
-    {
-        Square slider = pop_lsb(sliders);
-        if (!(between_bb(slider, king) & pos.pieces(c)))
-            return true;
-    }
-
-    return false;
-}
-
-Depth additional_extensions(const Position& pos, Move move, Piece movedPiece, bool givesCheck) {
-    Depth ext = 0;
-
-    if (has_dangerous_passed_pawn(pos, pos.side_to_move(), RANK_6))
-        ext = std::max(ext, Depth(1));
-
-    if (givesCheck)
-    {
-        MoveList<LEGAL> replies(pos);
-        if (replies.size() <= 2)
-            ext = std::max(ext, Depth(1));
-    }
-
-    // Extend search when a pawn storm advances close to the defending king.
-    if (type_of(movedPiece) == PAWN && move.type_of() == MoveType::NORMAL)
-    {
-        const Color defender     = pos.side_to_move();
-        const Color attacker     = ~defender;
-        const Square defenderKing = pos.square<KING>(defender);
-
-        const int relRank = static_cast<int>(relative_rank(attacker, move.to_sq()));
-        const int kingDist = distance(defenderKing, move.to_sq());
-        const int fileDelta = std::abs(int(file_of(defenderKing)) - int(file_of(move.to_sq())));
-
-        if (relRank >= static_cast<int>(RANK_5) && kingDist <= 2)
-        {
-            Bitboard defenderPawns = pos.pieces(defender, PAWN) & file_bb(file_of(move.to_sq()));
-            // Encourage a deeper search when the pawn storm is not contested.
-            if (!defenderPawns)
-                ext = std::max(ext, Depth(1));
-            else
-            {
-                Square front = attacker == Color::WHITE ? msb(defenderPawns) : lsb(defenderPawns);
-                if (relative_rank(defender, front) <= RANK_3)
-                    ext = std::max(ext, Depth(1));
-            }
-        }
-        else if (relRank >= static_cast<int>(RANK_4) && kingDist <= 3 && fileDelta <= 1)
-            ext = std::max(ext, Depth(1));
-
-        if ((file_of(move.to_sq()) == FILE_A || file_of(move.to_sq()) == FILE_H)
-            && relRank >= static_cast<int>(RANK_5))
-        {
-            Bitboard defenderPawns = pos.pieces(defender, PAWN) & file_bb(file_of(move.to_sq()));
-            if (!defenderPawns)
-                ext = std::max(ext, Depth(1));
-        }
-    }
-
-    return ext;
-}
 
 // (*Scalers):
 // The values with Scaler asterisks have proven non-linear scaling.
@@ -363,8 +243,7 @@ void Search::Worker::start_searching() {
     // GUI sends a "stop" or "ponderhit" command. We therefore simply wait here
     // until the GUI sends one of those commands.
     while (!threads.stop && (main_manager()->ponder || limits.infinite))
-        std::this_thread::sleep_for(
-          std::chrono::milliseconds(1));  // Sleep briefly to avoid wasting CPU while awaiting GUI commands
+    {}  // Busy wait for a stop or a ponder reset
 
     // Stop the threads if not already stopped (also raise the stop if
     // "ponderhit" just reset threads.ponder)
@@ -694,22 +573,6 @@ void Search::Worker::iterative_deepening() {
         iterIdx                        = (iterIdx + 1) & 3;
     }
 
-    if (mainThread)
-    {
-        bool quietPhase = false;
-
-        if (!rootMoves.empty())
-        {
-            bool  stableMove      = !lastBestPV.empty() && rootMoves[0].pv[0] == lastBestPV[0];
-            Value referenceScore = lastBestScore == -VALUE_INFINITE ? rootMoves[0].score : lastBestScore;
-
-            quietPhase = stableMove && std::abs(rootMoves[0].score - referenceScore) < 30
-                         && totBestMoveChanges < 1.5;
-        }
-
-        mainThread->tm.record_time_usage(mainThread->tm.elapsed_time(), quietPhase);
-    }
-
     if (!mainThread)
         return;
 
@@ -986,9 +849,6 @@ Value Search::Worker::search(
     // Step 6. Static evaluation of the position
     Value      unadjustedStaticEval = VALUE_NONE;
     const auto correctionValue      = correction_value(*this, pos, ss);
-    bool       kingFragile          = false;
-    bool       enemyDangerousPass   = false;
-    bool       skipNullMove         = false;
     if (ss->inCheck)
     {
         // Skip early pruning when in check
@@ -1072,12 +932,8 @@ Value Search::Worker::search(
             return beta + (eval - beta) / 3;
     }
 
-    kingFragile        = king_structure_vulnerable(pos, us);
-    enemyDangerousPass = has_dangerous_passed_pawn(pos, ~us, RANK_6);
-    skipNullMove       = (enemyDangerousPass && depth <= 6) || (kingFragile && depth <= 4);
-
     // Step 9. Null move search with verification search
-    if (!skipNullMove && cutNode && ss->staticEval >= beta - 18 * depth + 390 && !excludedMove
+    if (cutNode && ss->staticEval >= beta - 18 * depth + 390 && !excludedMove
         && pos.non_pawn_material(us)
         && ss->ply >= nmpMinPly && !is_loss(beta))
     {
@@ -1085,10 +941,6 @@ Value Search::Worker::search(
 
         // Null move dynamic reduction based on depth
         Depth R = 6 + depth / 3;
-        if (kingFragile)
-            R = std::max<Depth>(3, R - 2);
-        if (enemyDangerousPass)
-            R = std::max<Depth>(2, R - 2);
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &continuationHistory[0][0][NO_PIECE][0];
@@ -1268,15 +1120,6 @@ moves_loop:  // When in check, search starts here
                 Piece capturedPiece = pos.piece_on(move.to_sq());
                 int   captHist = captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
-                bool exchangeSacrifice = capture
-                                       && ((type_of(movedPiece) == ROOK && type_of(capturedPiece) <= BISHOP)
-                                           || (type_of(movedPiece) == QUEEN
-                                               && type_of(capturedPiece) == ROOK));
-
-                if (exchangeSacrifice && !givesCheck && !king_structure_vulnerable(pos, ~us)
-                    && !pos.see_ge(move, 24))
-                    continue;
-
                 // Futility pruning for captures
                 if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
@@ -1416,12 +1259,6 @@ moves_loop:  // When in check, search starts here
 
         // Add extension to new depth
         newDepth += extension;
-        if (!rootNode)
-        {
-            Depth selective = additional_extensions(pos, move, movedPiece, givesCheck);
-            if (selective)
-                newDepth += selective;
-        }
         uint64_t nodeCount = rootNode ? uint64_t(nodes) : 0;
 
         // Decrease reduction for PvNodes (*Scaler)
@@ -1748,7 +1585,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     bestMove    = Move::none();
     ss->inCheck = pos.checkers();
     moveCount   = 0;
-    Color us    = pos.side_to_move();
 
     // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
     if (PvNode && selDepth < ss->ply + 1)
@@ -1889,19 +1725,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             // Do not search moves with bad enough SEE values
             if (!pos.see_ge(move, -74))
                 continue;
-
-            if (capture)
-            {
-                Piece capturedPiece = pos.piece_on(move.to_sq());
-                Piece attackerPiece = pos.moved_piece(move);
-                bool  exchangeSacrifice =
-                  (type_of(attackerPiece) == ROOK && type_of(capturedPiece) <= BISHOP)
-                  || (type_of(attackerPiece) == QUEEN && type_of(capturedPiece) == ROOK);
-
-                if (exchangeSacrifice && !givesCheck && !king_structure_vulnerable(pos, ~us)
-                    && !pos.see_ge(move, 12))
-                    continue;
-            }
         }
 
         // Step 7. Make and search the move
@@ -1945,6 +1768,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         bestValue = (bestValue + beta) / 2;
 
 
+    Color us = pos.side_to_move();
     if (!ss->inCheck && !moveCount && !pos.non_pawn_material(us)
         && type_of(pos.captured_piece()) >= ROOK)
     {

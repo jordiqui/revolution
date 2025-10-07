@@ -247,9 +247,6 @@ enum Direction : int8_t {
     SOUTH = -NORTH,
     WEST  = -EAST,
 
-    NORTH_NORTH = 2 * NORTH,
-    SOUTH_SOUTH = 2 * SOUTH,
-
     NORTH_EAST = NORTH + EAST,
     SOUTH_EAST = SOUTH + EAST,
     SOUTH_WEST = SOUTH + WEST,
