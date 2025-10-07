@@ -525,9 +525,19 @@ endif
 
 ifeq ($(COMP),clang)
 	comp=clang
-	CXX=clang++
 	ifeq ($(target_windows),yes)
 		CXX=x86_64-w64-mingw32-clang++
+	else
+		ifneq ($(shell which clang++ 2> /dev/null),)
+			CXX=clang++
+		else
+			CLANGXX := $(firstword $(foreach ver,20 19 18 17 16,$(shell which clang++-$(ver) 2> /dev/null)))
+			ifneq ($(CLANGXX),)
+				CXX=$(CLANGXX)
+			else
+				CXX=clang++
+			endif
+		endif
 	endif
 
 	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-prototypes \
