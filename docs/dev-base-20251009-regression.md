@@ -6,6 +6,27 @@
 - **SPRT outcome:** Elo -22.4 ±23.9 (normalized -38.2 ±40.7), LOS 3.29 %, draw ratio 42.9 %, pairs ratio 0.63.
 - **Conclusion:** Current DEV build underperforms BASE; the negative log-likelihood ratio (-0.22) is consistent with a failing regression at this confidence window.
 
+codex/analyze-test-results-for-revolution-2.81-6u9a23
+## Ajustes sugeridos para el control 10+0.1 en gauntlets locales
+
+El control de 10 segundos iniciales + 0.1 segundos de incremento deja un presupuesto medio de ~0.35 s por jugada (suponiendo 40 jugadas restantes). Con los valores por defecto la gestión de tiempo acaba usando solo ~0.32 s porque:
+
+* `Slow Mover = 100` se convierte internamente en un factor de ~0.91 tras las correcciones automáticas para controles rápidos.【F:src/engine.cpp†L112-L118】【F:src/timeman.cpp†L118-L141】
+* `Move Overhead = 10` ms se infla a ~12 ms en este control, dejando menos tiempo real en cada jugada.【F:src/timeman.cpp†L118-L141】
+* `Minimum Thinking Time = 20` ms apenas impone una barrera y permite decisiones con décimas de segundo cuando el reloj baja.【F:src/engine.cpp†L112-L118】【F:src/timeman.cpp†L250-L261】
+
+Para los gauntlets locales (sin latencia de red) recomendamos los siguientes valores, que suben el consumo efectivo en ~20 % y reducen las jugadas relámpago que vimos en las partidas:
+
+| Opción UCI                  | Valor sugerido | Motivo |
+|-----------------------------|----------------|--------|
+| `Move Overhead`             | **12 ms**      | Mantiene un colchón mínimo frente al coste de E/S local pero evita recortes adicionales sobre un presupuesto ya ajustado.【F:src/timeman.cpp†L118-L141】 |
+| `Slow Mover`                | **120**        | Eleva el factor efectivo a ~1.09 en este control, lo que añade ~70 ms a la jugada media y da margen para tácticas críticas.【F:src/timeman.cpp†L118-L211】 |
+| `Minimum Thinking Time`     | **60 ms**      | Garantiza que incluso con poco tiempo se inviertan al menos 0.06 s por jugada, estabilizando la calidad bajo presión.【F:src/timeman.cpp†L118-L261】 |
+
+Aplicación práctica: al lanzar el SPRT local añade `setoption name Move Overhead value 12`, `setoption name Slow Mover value 120` y `setoption name Minimum Thinking Time value 60` antes de cada `go`. Si usas scripts, incluye estas órdenes en la inicialización del motor.
+
+=======
+ main
 ## Key Regression Themes
 
 ### 1. Time management underuse in sharp middlegames
