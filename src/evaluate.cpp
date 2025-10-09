@@ -180,6 +180,154 @@ Value adaptive_style_bonus(const Position& pos, Value current) {
     return Value(bonus);
 }
 
+Bitboard kingside_shield_mask(Color side) {
+    return side == Color::WHITE
+             ? square_bb(SQ_F2) | square_bb(SQ_G2) | square_bb(SQ_H2)
+                 | square_bb(SQ_F3) | square_bb(SQ_G3) | square_bb(SQ_H3)
+             : square_bb(SQ_F7) | square_bb(SQ_G7) | square_bb(SQ_H7)
+                 | square_bb(SQ_F6) | square_bb(SQ_G6) | square_bb(SQ_H6);
+}
+
+Bitboard central_anchor_mask(Color side) {
+    return side == Color::WHITE ? square_bb(SQ_D4) | square_bb(SQ_E4)
+                                : square_bb(SQ_D5) | square_bb(SQ_E5);
+}
+
+int kingside_overextension_penalty(const Position& pos, Color side) {
+    const Square kingSq = pos.square<KING>(side);
+    const Rank   home   = side == Color::WHITE ? RANK_1 : RANK_8;
+
+    if (rank_of(kingSq) != home || file_of(kingSq) < FILE_G)
+        return 0;
+
+    const Bitboard pawns   = pos.pieces(side, PAWN);
+    int             pushed  = 0;
+    int             deep    = 0;
+
+    for (File file : {FILE_G, FILE_H})
+    {
+        const Bitboard filePawns = pawns & file_bb(file);
+        if (!filePawns)
+            continue;
+
+        const Square pawnSq  = lsb(filePawns);
+        const int    relRank = static_cast<int>(relative_rank(side, pawnSq));
+
+        if (relRank >= static_cast<int>(RANK_4))
+        {
+            ++pushed;
+            if (relRank >= static_cast<int>(RANK_5))
+                ++deep;
+        }
+    }
+
+    if (!pushed)
+        return 0;
+
+    const int shieldPieces = popcount(pos.pieces(side) & kingside_shield_mask(side));
+    const int centerPawns  = popcount(pos.pieces(side, PAWN) & central_anchor_mask(side));
+
+    int penalty = 10 * pushed;
+
+    if (shieldPieces <= 1)
+        penalty += 6 * pushed;
+
+    if (deep)
+        penalty += 4 * deep;
+
+    const Square front1 = side == Color::WHITE ? SQ_G3 : SQ_G6;
+    const Square front2 = side == Color::WHITE ? SQ_H3 : SQ_H6;
+
+    int defendedFront = 0;
+    for (Square sq : {front1, front2})
+        if (is_ok(sq) && (pos.attackers_to(sq) & pos.pieces(side)))
+            ++defendedFront;
+
+    if (!defendedFront)
+        penalty += 5;
+
+    if (centerPawns == 0)
+    {
+        penalty += 6 + 3 * pushed;
+        const Bitboard enemyCentral = pos.pieces(~side, PAWN)
+                                      & central_anchor_mask(~side);
+        if (enemyCentral)
+            penalty += 4;
+    }
+
+    return penalty;
+}
+
+Bitboard forward_passed_mask(Color side, Square sq) {
+    Bitboard mask   = 0;
+    const int step  = side == Color::WHITE ? 1 : -1;
+    const int baseR = static_cast<int>(rank_of(sq));
+    const int baseF = static_cast<int>(file_of(sq));
+
+    for (int df = -1; df <= 1; ++df)
+    {
+        const int nf = baseF + df;
+        if (nf < static_cast<int>(FILE_A) || nf > static_cast<int>(FILE_H))
+            continue;
+
+        for (int r = baseR + step; r >= static_cast<int>(RANK_1)
+                                 && r <= static_cast<int>(RANK_8); r += step)
+            mask |= square_bb(make_square(static_cast<File>(nf), static_cast<Rank>(r)));
+    }
+
+    return mask;
+}
+
+int passed_pawn_pressure(const Position& pos, Color defender) {
+    const Color   attacker    = ~defender;
+    Bitboard      enemyPawns  = pos.pieces(defender, PAWN);
+    Bitboard      passerPawns = pos.pieces(attacker, PAWN);
+    const Square  kingSq      = pos.square<KING>(defender);
+    const int     kingPressure = popcount(pos.attackers_to(kingSq) & pos.pieces(attacker));
+    int           penalty      = 0;
+
+    while (passerPawns)
+    {
+        const Square sq = pop_lsb(passerPawns);
+
+        if (enemyPawns & forward_passed_mask(attacker, sq))
+            continue;
+
+        const int relRank = static_cast<int>(relative_rank(attacker, sq));
+        if (relRank < static_cast<int>(RANK_5))
+            continue;
+
+        int base = 8 + 4 * (relRank - static_cast<int>(RANK_5));
+        const Square pushSq = sq + pawn_push(attacker);
+
+        if (is_ok(pushSq))
+        {
+            if (!(pos.attackers_to(pushSq) & pos.pieces(defender)))
+                base += 6;
+
+            if (pos.attackers_to(pushSq) & pos.pieces(attacker))
+                base += 3;
+        }
+
+        const Square targetSq = is_ok(pushSq) ? pushSq : sq;
+        const int    kingDist = distance(kingSq, targetSq);
+
+        if (kingDist >= 4)
+            base += 4;
+        if (kingDist >= 5)
+            base += 3;
+
+        if (kingPressure >= 2)
+            base += 3;
+        if (kingPressure >= 3)
+            base += 2;
+
+        penalty += base;
+    }
+
+    return penalty;
+}
+
 // Simple tempo bonus favoring the side to move.
 //
 // The evaluation pipeline assumes this term is anti-symmetric under a
@@ -316,6 +464,14 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     v -= v * pos.rule50_count() / 212;
 
     v += tempo_bonus(pos);
+
+    const int flankPenaltyWhite = kingside_overextension_penalty(pos, Color::WHITE);
+    const int flankPenaltyBlack = kingside_overextension_penalty(pos, Color::BLACK);
+    const int passerPressureWhite = passed_pawn_pressure(pos, Color::WHITE);
+    const int passerPressureBlack = passed_pawn_pressure(pos, Color::BLACK);
+
+    v += flankPenaltyBlack - flankPenaltyWhite;
+    v += passerPressureBlack - passerPressureWhite;
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
