@@ -278,11 +278,16 @@ Bitboard forward_passed_mask(Color side, Square sq) {
     return mask;
 }
 
+inline int manhattan_distance(Square a, Square b) {
+    return distance<File>(a, b) + distance<Rank>(a, b);
+}
+
 int passed_pawn_pressure(const Position& pos, Color defender) {
     const Color   attacker    = ~defender;
     Bitboard      enemyPawns  = pos.pieces(defender, PAWN);
     Bitboard      passerPawns = pos.pieces(attacker, PAWN);
     const Square  kingSq      = pos.square<KING>(defender);
+    const Square  attackerKing = pos.square<KING>(attacker);
     const int     kingPressure = popcount(pos.attackers_to(kingSq) & pos.pieces(attacker));
     int           penalty      = 0;
 
@@ -311,11 +316,21 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
 
         const Square targetSq = is_ok(pushSq) ? pushSq : sq;
         const int    kingDist = distance(kingSq, targetSq);
+        const int    defenderManhattan = manhattan_distance(kingSq, targetSq);
+        const int    attackerManhattan = manhattan_distance(attackerKing, targetSq);
 
         if (kingDist >= 4)
             base += 4;
         if (kingDist >= 5)
             base += 3;
+
+        if (attackerManhattan <= 3)
+            base += 5;
+        if (attackerManhattan <= 2)
+            base += 4;
+
+        if (defenderManhattan > attackerManhattan)
+            base += 3 + defenderManhattan - attackerManhattan;
 
         if (kingPressure >= 2)
             base += 3;
@@ -369,6 +384,48 @@ int knight_mobility_penalty(const Position& pos, Color side) {
 
         if ((onEdgeFile || onEdgeRank) && safeMb == 0)
             penalty += 8;
+    }
+
+    return penalty;
+}
+
+int knight_outpost_penalty(const Position& pos, Color side) {
+    constexpr int    OutpostPenalty = 9;
+    const Bitboard   centralSquares = square_bb(SQ_D4) | square_bb(SQ_E4)
+                                    | square_bb(SQ_D5) | square_bb(SQ_E5);
+    Bitboard         knights        = pos.pieces(side, KNIGHT);
+    int              penalty        = 0;
+
+    while (knights)
+    {
+        const Square sq = pop_lsb(knights);
+
+        if (centralSquares & square_bb(sq))
+            continue;
+
+        const Bitboard moves = attacks_bb<KNIGHT>(sq);
+        if (moves & centralSquares)
+            continue;
+
+        penalty += OutpostPenalty;
+
+        Bitboard reach    = 0;
+        Bitboard frontier = moves;
+        for (int step = 0; step < 2 && frontier; ++step)
+        {
+            reach |= frontier;
+            Bitboard next = 0;
+            Bitboard tmp  = frontier;
+            while (tmp)
+            {
+                const Square fsq = pop_lsb(tmp);
+                next |= attacks_bb<KNIGHT>(fsq);
+            }
+            frontier = next & ~reach;
+        }
+
+        if (!(reach & centralSquares))
+            penalty += OutpostPenalty / 2;
     }
 
     return penalty;
@@ -657,6 +714,8 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     const int passerPressureBlack = passed_pawn_pressure(pos, Color::BLACK);
     const int knightPenaltyWhite  = knight_mobility_penalty(pos, Color::WHITE);
     const int knightPenaltyBlack  = knight_mobility_penalty(pos, Color::BLACK);
+    const int outpostPenaltyWhite = knight_outpost_penalty(pos, Color::WHITE);
+    const int outpostPenaltyBlack = knight_outpost_penalty(pos, Color::BLACK);
     const int centralBonusWhite   = central_stability_bonus(pos, Color::WHITE);
     const int centralBonusBlack   = central_stability_bonus(pos, Color::BLACK);
     const int kpScoreWhite        = king_pawn_endgame_score(pos, Color::WHITE);
@@ -665,6 +724,7 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     v += flankPenaltyBlack - flankPenaltyWhite;
     v += passerPressureBlack - passerPressureWhite;
     v += knightPenaltyBlack - knightPenaltyWhite;
+    v += outpostPenaltyBlack - outpostPenaltyWhite;
     v += centralBonusWhite - centralBonusBlack;
     v += kpScoreWhite - kpScoreBlack;
 
