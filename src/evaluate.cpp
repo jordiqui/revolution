@@ -278,70 +278,156 @@ Bitboard forward_passed_mask(Color side, Square sq) {
     return mask;
 }
 
-inline int manhattan_distance(Square a, Square b) {
-    return distance<File>(a, b) + distance<Rank>(a, b);
+int forward_distance_to_edge(Color side, Square sq) {
+    const Rank target = side == Color::WHITE ? RANK_8 : RANK_1;
+    return std::abs(static_cast<int>(target) - static_cast<int>(rank_of(sq)));
+}
+
+int rook_support_direction(Color side) {
+    return side == Color::WHITE ? -1 : 1;
+}
+
+bool rook_on_ray(const Position& pos, Color color, Square from, int stepRank) {
+    Square current = from;
+    while (true)
+    {
+        const int nextRank = static_cast<int>(rank_of(current)) + stepRank;
+        if (nextRank < static_cast<int>(RANK_1) || nextRank > static_cast<int>(RANK_8))
+            return false;
+
+        current = make_square(file_of(current), static_cast<Rank>(nextRank));
+        const Piece piece = pos.piece_on(current);
+        if (piece == NO_PIECE)
+            continue;
+
+        if (color_of(piece) == color && type_of(piece) == ROOK)
+            return true;
+
+        return false;
+    }
+}
+
+bool connected_passed_neighbor(const Position& pos, Color side, Square sq) {
+    const Bitboard pawns = pos.pieces(side, PAWN);
+    for (int df : {-1, 1})
+    {
+        const int nf = static_cast<int>(file_of(sq)) + df;
+        if (nf < static_cast<int>(FILE_A) || nf > static_cast<int>(FILE_H))
+            continue;
+
+        const Square sameRank = make_square(static_cast<File>(nf), rank_of(sq));
+        if ((pawns & square_bb(sameRank))
+            && Eval::detail::is_passed_pawn(pos, side, sameRank))
+            return true;
+
+        const Square forwardNeighbor = sameRank + pawn_push(side);
+        if (is_ok(forwardNeighbor) && file_of(forwardNeighbor) == static_cast<File>(nf)
+            && (pawns & square_bb(forwardNeighbor))
+            && Eval::detail::is_passed_pawn(pos, side, forwardNeighbor))
+            return true;
+    }
+
+    return false;
+}
+
+}  // namespace
+
+namespace Eval::detail {
+
+bool is_passed_pawn(const Position& pos, Color side, Square sq) {
+    const Bitboard enemyPawns = pos.pieces(~side, PAWN);
+    return !(forward_passed_mask(side, sq) & enemyPawns);
 }
 
 int passed_pawn_pressure(const Position& pos, Color defender) {
-    const Color   attacker    = ~defender;
-    Bitboard      enemyPawns  = pos.pieces(defender, PAWN);
-    Bitboard      passerPawns = pos.pieces(attacker, PAWN);
-    const Square  kingSq      = pos.square<KING>(defender);
-    const Square  attackerKing = pos.square<KING>(attacker);
-    const int     kingPressure = popcount(pos.attackers_to(kingSq) & pos.pieces(attacker));
-    int           penalty      = 0;
+    const Color  attacker     = ~defender;
+    const Square defenderKing = pos.square<KING>(defender);
+    const Square attackerKing = pos.square<KING>(attacker);
+    const int    kingPressure = popcount(pos.attackers_to(defenderKing) & pos.pieces(attacker));
+    Bitboard     pawns        = pos.pieces(attacker, PAWN);
+    int          penalty      = 0;
 
-    while (passerPawns)
+    while (pawns)
     {
-        const Square sq = pop_lsb(passerPawns);
-
-        if (enemyPawns & forward_passed_mask(attacker, sq))
+        const Square sq = pop_lsb(pawns);
+        if (!is_passed_pawn(pos, attacker, sq))
             continue;
 
         const int relRank = static_cast<int>(relative_rank(attacker, sq));
-        if (relRank < static_cast<int>(RANK_5))
-            continue;
 
-        int base = 8 + 4 * (relRank - static_cast<int>(RANK_5));
-        const Square pushSq = sq + pawn_push(attacker);
+        int base = 6 + 2 * std::max(0, relRank - static_cast<int>(RANK_3));
+        if (relRank >= static_cast<int>(RANK_5))
+            base += 6;
+        if (relRank >= static_cast<int>(RANK_6))
+            base += 6;
+        if (relRank == static_cast<int>(RANK_7))
+            base += 10;
+
+        const Square pushSq   = sq + pawn_push(attacker);
+        const Square promoSq  = make_square(file_of(sq), attacker == Color::WHITE ? RANK_8 : RANK_1);
+        const Square targetSq = is_ok(pushSq) ? pushSq : sq;
+
+        const int defFrontDist = distance(defenderKing, targetSq);
+        const int attFrontDist = distance(attackerKing, targetSq);
+        const int defPromoDist = distance(defenderKing, promoSq);
+        const int attPromoDist = distance(attackerKing, promoSq);
+        const int stepsToPromo = forward_distance_to_edge(attacker, sq);
+
+        base += std::max(0, defFrontDist - 2);
+        if (defFrontDist >= 4)
+            base += 4;
+        if (defPromoDist > attPromoDist)
+            base += 4;
+        if (attFrontDist + (pos.side_to_move() == attacker ? 0 : 1) < defFrontDist)
+            base += 5;
+        if (defPromoDist - attPromoDist >= 2 && relRank >= static_cast<int>(RANK_6))
+            base += 4;
+        if (stepsToPromo <= 2 && defPromoDist > attPromoDist)
+            base += 6;
 
         if (is_ok(pushSq))
         {
-            if (!(pos.attackers_to(pushSq) & pos.pieces(defender)))
-                base += 6;
+            const Bitboard defenders = pos.attackers_to(pushSq) & pos.pieces(defender);
+            const Bitboard support   = pos.attackers_to(pushSq) & pos.pieces(attacker);
 
-            if (pos.attackers_to(pushSq) & pos.pieces(attacker))
+            if (!defenders)
+                base += 6;
+            else if (popcount(defenders) == 1)
+                base += 2;
+
+            if (support)
                 base += 3;
         }
 
-        const Square targetSq = is_ok(pushSq) ? pushSq : sq;
-        const int    kingDist = distance(kingSq, targetSq);
-        const int    defenderManhattan = manhattan_distance(kingSq, targetSq);
-        const int    attackerManhattan = manhattan_distance(attackerKing, targetSq);
+        const int rookDir = rook_support_direction(attacker);
+        if (rook_on_ray(pos, attacker, sq, rookDir))
+            base += 9 + (relRank >= static_cast<int>(RANK_6) ? 3 : 0);
+        if (rook_on_ray(pos, defender, sq, -rookDir))
+            base -= 7;
 
-        if (kingDist >= 4)
-            base += 4;
-        if (kingDist >= 5)
+        if (connected_passed_neighbor(pos, attacker, sq))
+            base += 8 + (relRank >= static_cast<int>(RANK_6) ? 4 : 0);
+
+        const int defenderToPawn = distance(defenderKing, sq);
+        if (defenderToPawn >= 4)
             base += 3;
-
-        if (attackerManhattan <= 3)
-            base += 5;
-        if (attackerManhattan <= 2)
-            base += 4;
-
-        if (defenderManhattan > attackerManhattan)
-            base += 3 + defenderManhattan - attackerManhattan;
+        else if (defenderToPawn <= 2)
+            base -= 2;
 
         if (kingPressure >= 2)
             base += 3;
         if (kingPressure >= 3)
             base += 2;
 
-        penalty += base;
+        penalty += std::max(base, 0);
     }
 
     return penalty;
 }
+
+}  // namespace Eval::detail
+
+namespace {
 
 int knight_mobility_penalty(const Position& pos, Color side) {
     Bitboard knights        = pos.pieces(side, KNIGHT);
@@ -468,11 +554,6 @@ int central_stability_bonus(const Position& pos, Color side) {
     return bonus;
 }
 
-bool is_passed_pawn(const Position& pos, Color side, Square sq) {
-    const Bitboard enemyPawns = pos.pieces(~side, PAWN);
-    return !(forward_passed_mask(side, sq) & enemyPawns);
-}
-
 int king_pawn_endgame_score(const Position& pos, Color side) {
     if (pos.non_pawn_material(Color::WHITE) != 0 || pos.non_pawn_material(Color::BLACK) != 0)
         return 0;
@@ -505,7 +586,7 @@ int king_pawn_endgame_score(const Position& pos, Color side) {
     {
         const Square sq = pop_lsb(tmp);
 
-        if (!is_passed_pawn(pos, side, sq))
+        if (!Eval::detail::is_passed_pawn(pos, side, sq))
             continue;
 
         const int relRank = static_cast<int>(relative_rank(side, sq));
@@ -544,7 +625,7 @@ int king_pawn_endgame_score(const Position& pos, Color side) {
     {
         const Square sq = pop_lsb(enemyPawns);
 
-        if (!is_passed_pawn(pos, ~side, sq))
+        if (!Eval::detail::is_passed_pawn(pos, ~side, sq))
             continue;
 
         const Square blockSq = sq + pawn_push(~side);
@@ -710,8 +791,8 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     const int flankPenaltyWhite = kingside_overextension_penalty(pos, Color::WHITE);
     const int flankPenaltyBlack = kingside_overextension_penalty(pos, Color::BLACK);
-    const int passerPressureWhite = passed_pawn_pressure(pos, Color::WHITE);
-    const int passerPressureBlack = passed_pawn_pressure(pos, Color::BLACK);
+    const int passerPressureWhite = Eval::detail::passed_pawn_pressure(pos, Color::WHITE);
+    const int passerPressureBlack = Eval::detail::passed_pawn_pressure(pos, Color::BLACK);
     const int knightPenaltyWhite  = knight_mobility_penalty(pos, Color::WHITE);
     const int knightPenaltyBlack  = knight_mobility_penalty(pos, Color::BLACK);
     const int outpostPenaltyWhite = knight_outpost_penalty(pos, Color::WHITE);

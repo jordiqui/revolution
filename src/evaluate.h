@@ -54,6 +54,11 @@ Value evaluate(const NNUE::Networks&          networks,
 
 // Toggle for optional style-based evaluation adjustments.
 void set_adaptive_style(bool enabled);
+
+namespace detail {
+int  passed_pawn_pressure(const Position& pos, Color defender);
+bool is_passed_pawn(const Position& pos, Color side, Square sq);
+}  // namespace detail
 }  // namespace Eval
 
 }  // namespace Stockfish
