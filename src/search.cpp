@@ -1087,6 +1087,12 @@ moves_loop:  // When in check, search starts here
         movedPiece = pos.moved_piece(move);
         givesCheck = pos.gives_check(move);
 
+        if (givesCheck && move.promotion_type() != NO_PIECE_TYPE
+            && relative_rank(us, move.from_sq()) == RANK_7)
+        {
+            extension = std::max(extension, Depth(1));
+        }
+
         (ss + 1)->quietMoveStreak = (!capture && !givesCheck) ? (ss->quietMoveStreak + 1) : 0;
 
         // Calculate new depth for this move
