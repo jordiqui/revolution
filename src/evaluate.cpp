@@ -328,6 +328,192 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
     return penalty;
 }
 
+int knight_mobility_penalty(const Position& pos, Color side) {
+    Bitboard knights        = pos.pieces(side, KNIGHT);
+    const Bitboard friends  = pos.pieces(side);
+    const Bitboard enemyPAs = side == Color::WHITE
+                                ? pawn_attacks_bb<Color::BLACK>(pos.pieces(Color::BLACK, PAWN))
+                                : pawn_attacks_bb<Color::WHITE>(pos.pieces(Color::WHITE, PAWN));
+
+    int penalty = 0;
+
+    while (knights)
+    {
+        const Square sq       = pop_lsb(knights);
+        const Bitboard moves  = attacks_bb<KNIGHT>(sq) & ~friends;
+        const int      mob    = popcount(moves);
+        const Bitboard safe   = moves & ~enemyPAs;
+        const int      safeMb = popcount(safe);
+
+        const File file = file_of(sq);
+        const Rank rank = rank_of(sq);
+
+        const bool onEdgeFile = file == FILE_A || file == FILE_H;
+        const bool onEdgeRank = rank == RANK_1 || rank == RANK_8;
+
+        if (onEdgeFile || onEdgeRank)
+        {
+            penalty += 7;
+            if (onEdgeFile && onEdgeRank)
+                penalty += 4;
+        }
+
+        if (mob <= 2)
+            penalty += (3 - mob) * 6;
+
+        if (safeMb == 0)
+            penalty += 12;
+
+        if (mob == 0)
+            penalty += 24;
+
+        if ((onEdgeFile || onEdgeRank) && safeMb == 0)
+            penalty += 8;
+    }
+
+    return penalty;
+}
+
+int central_stability_bonus(const Position& pos, Color side) {
+    const Bitboard centerCore = square_bb(SQ_D4) | square_bb(SQ_E4)
+                              | square_bb(SQ_D5) | square_bb(SQ_E5);
+
+    Bitboard minors = pos.pieces(side, KNIGHT, BISHOP);
+    int      bonus  = 0;
+
+    while (minors)
+    {
+        const Square sq = pop_lsb(minors);
+
+        if (!(centerCore & square_bb(sq)))
+            continue;
+
+        const Bitboard attackers = pos.attackers_to(sq) & pos.pieces(side);
+        const bool      pawnSupport
+            = bool(attackers & pos.pieces(side, PAWN));
+        const Bitboard enemyPawnAttacks
+            = side == Color::WHITE
+                  ? pawn_attacks_bb<Color::BLACK>(pos.pieces(Color::BLACK, PAWN))
+                  : pawn_attacks_bb<Color::WHITE>(pos.pieces(Color::WHITE, PAWN));
+
+        if (enemyPawnAttacks & square_bb(sq))
+            continue;
+
+        if (!attackers)
+            continue;
+
+        bonus += pawnSupport ? 14 : 9;
+
+        if (pos.pieces(side, KNIGHT) & square_bb(sq))
+            bonus += 4;
+    }
+
+    return bonus;
+}
+
+bool is_passed_pawn(const Position& pos, Color side, Square sq) {
+    const Bitboard enemyPawns = pos.pieces(~side, PAWN);
+    return !(forward_passed_mask(side, sq) & enemyPawns);
+}
+
+int king_pawn_endgame_score(const Position& pos, Color side) {
+    if (pos.non_pawn_material(Color::WHITE) != 0 || pos.non_pawn_material(Color::BLACK) != 0)
+        return 0;
+
+    Bitboard pawns = pos.pieces(side, PAWN);
+    if (!pawns && !pos.pieces(~side, PAWN))
+    {
+        // King vs king: encourage opposition only.
+        const Square ownKing   = pos.square<KING>(side);
+        const Square enemyKing = pos.square<KING>(~side);
+        const int    dist      = distance(ownKing, enemyKing);
+        int          score     = 0;
+
+        if ((distance<File>(ownKing, enemyKing) == 0 || distance<Rank>(ownKing, enemyKing) == 0)
+            && dist == 2)
+        {
+            score += pos.side_to_move() == side ? -6 : 6;
+        }
+
+        return score;
+    }
+
+    const Square ownKing   = pos.square<KING>(side);
+    const Square enemyKing = pos.square<KING>(~side);
+
+    int score = 0;
+
+    Bitboard tmp = pawns;
+    while (tmp)
+    {
+        const Square sq = pop_lsb(tmp);
+
+        if (!is_passed_pawn(pos, side, sq))
+            continue;
+
+        const int relRank = static_cast<int>(relative_rank(side, sq));
+        const Square promo
+            = make_square(file_of(sq), side == Color::WHITE ? RANK_8 : RANK_1);
+        const Square front = sq + pawn_push(side);
+        const int    ownPromoDist   = distance(ownKing, promo);
+        const int    enemyPromoDist = distance(enemyKing, promo);
+        const int    ownFrontDist   = is_ok(front) ? distance(ownKing, front) : 0;
+        const int    enemyFrontDist = is_ok(front) ? distance(enemyKing, front) : 0;
+
+        score += 12 + 4 * std::max(0, relRank - static_cast<int>(RANK_3));
+
+        if (ownPromoDist + (pos.side_to_move() == side ? 0 : 1) <= enemyPromoDist)
+            score += 10;
+        else if (ownPromoDist > enemyPromoDist + 1)
+            score -= 8;
+
+        if (is_ok(front))
+        {
+            if (ownFrontDist <= enemyFrontDist - 1)
+                score += 6;
+            else if (ownFrontDist > enemyFrontDist)
+                score -= 4;
+        }
+
+        const int enemyKingToPawn = distance(enemyKing, sq);
+        if (enemyKingToPawn <= 2)
+            score -= 6;
+        else if (enemyKingToPawn >= 4)
+            score += 4;
+    }
+
+    Bitboard enemyPawns = pos.pieces(~side, PAWN);
+    while (enemyPawns)
+    {
+        const Square sq = pop_lsb(enemyPawns);
+
+        if (!is_passed_pawn(pos, ~side, sq))
+            continue;
+
+        const Square blockSq = sq + pawn_push(~side);
+        const int    blockDist
+            = distance(ownKing, is_ok(blockSq) ? blockSq : sq);
+
+        if (blockDist >= 4)
+            score -= 8;
+        else if (blockDist <= 2)
+            score += 4;
+
+        const int relRank = static_cast<int>(relative_rank(~side, sq));
+        if (relRank >= static_cast<int>(RANK_5) && blockDist >= 3)
+            score -= 6;
+    }
+
+    const int kingSep = distance(ownKing, enemyKing);
+    if ((distance<File>(ownKing, enemyKing) == 0 || distance<Rank>(ownKing, enemyKing) == 0)
+        && kingSep == 2)
+    {
+        score += pos.side_to_move() == side ? -6 : 6;
+    }
+
+    return score;
+}
+
 // Simple tempo bonus favoring the side to move.
 //
 // The evaluation pipeline assumes this term is anti-symmetric under a
@@ -469,9 +655,18 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     const int flankPenaltyBlack = kingside_overextension_penalty(pos, Color::BLACK);
     const int passerPressureWhite = passed_pawn_pressure(pos, Color::WHITE);
     const int passerPressureBlack = passed_pawn_pressure(pos, Color::BLACK);
+    const int knightPenaltyWhite  = knight_mobility_penalty(pos, Color::WHITE);
+    const int knightPenaltyBlack  = knight_mobility_penalty(pos, Color::BLACK);
+    const int centralBonusWhite   = central_stability_bonus(pos, Color::WHITE);
+    const int centralBonusBlack   = central_stability_bonus(pos, Color::BLACK);
+    const int kpScoreWhite        = king_pawn_endgame_score(pos, Color::WHITE);
+    const int kpScoreBlack        = king_pawn_endgame_score(pos, Color::BLACK);
 
     v += flankPenaltyBlack - flankPenaltyWhite;
     v += passerPressureBlack - passerPressureWhite;
+    v += knightPenaltyBlack - knightPenaltyWhite;
+    v += centralBonusWhite - centralBonusBlack;
+    v += kpScoreWhite - kpScoreBlack;
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
