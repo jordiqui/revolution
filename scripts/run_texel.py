@@ -156,7 +156,7 @@ def passed_pawn_score(board: chess.Board, color: chess.Color) -> int:
         rel_rank = relative_rank(color, sq)
         bonus = rank_bonus[rel_rank]
         block_sq = sq + (8 if color == chess.WHITE else -8)
-        if chess.SQUARES_A1 <= block_sq <= chess.SQUARES_H8:
+        if chess.A1 <= block_sq <= chess.H8:
             attackers_us = len(board.attackers(color, block_sq))
             attackers_them = len(board.attackers(not color, block_sq))
             piece = board.piece_at(block_sq)
