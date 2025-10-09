@@ -9,12 +9,123 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <sstream>
+#include <type_traits>
+#include <cstring>
+#include <functional>
 #include <zlib.h>
 
 #include "misc.h"
 #include "uci.h"
+#include "experience_io.h"
+
+namespace {
+
+using namespace Stockfish;
+
+constexpr char SUGAR_SIGNATURE[] = "SugaR Experience version 2";
+constexpr std::size_t SUGAR_SIGNATURE_SIZE = sizeof(SUGAR_SIGNATURE) - 1;  // Exclude null terminator
+constexpr std::uint8_t SUGAR_VERSION      = 2;
+constexpr std::uint16_t SUGAR_ENDIAN_TAG = 0x0002;
+constexpr float SUGAR_K_FACTOR            = 11.978f;
+constexpr std::uint32_t SUGAR_BUCKET_SIZE = 6;
+constexpr std::size_t SUGAR_META_BLOCKS   = 2;
+constexpr std::size_t SUGAR_HEADER_SIZE   = 1 + sizeof(std::uint64_t) + sizeof(std::uint32_t) * 2;
+constexpr std::size_t SUGAR_META_BLOCK_SIZE = sizeof(std::uint32_t) * 2 + sizeof(std::uint16_t)
+                                              + sizeof(float) + sizeof(std::uint64_t);
+constexpr std::size_t SUGAR_ENTRY_SIZE = sizeof(std::uint64_t) + sizeof(std::uint16_t) * 7
+                                         + sizeof(std::int32_t) * 3;
+
+static_assert(SUGAR_HEADER_SIZE == 17, "Unexpected SugaR header size");
+static_assert(SUGAR_META_BLOCK_SIZE == 22, "Unexpected SugaR meta block size");
+static_assert(SUGAR_ENTRY_SIZE == 34, "Unexpected SugaR entry size");
+
+template <typename T>
+void append_le(std::string& buffer, T value) {
+    using U = std::make_unsigned_t<std::remove_cv_t<T>>;
+    U v     = static_cast<U>(value);
+    for (std::size_t i = 0; i < sizeof(T); ++i)
+        buffer.push_back(static_cast<char>((v >> (8 * i)) & 0xFF));
+}
+
+inline void append_float_le(std::string& buffer, float value) {
+    static_assert(sizeof(float) == sizeof(std::uint32_t), "Unexpected float size");
+    std::uint32_t bits = 0;
+    std::memcpy(&bits, &value, sizeof(bits));
+    append_le(buffer, bits);
+}
+
+template <typename T>
+T read_le(const std::uint8_t* data) {
+    using U = std::make_unsigned_t<std::remove_cv_t<T>>;
+    U result = 0;
+    for (std::size_t i = 0; i < sizeof(T); ++i)
+        result |= static_cast<U>(data[i]) << (8 * i);
+    return static_cast<T>(result);
+}
+
+std::uint32_t determine_hash_bits(std::size_t positions) {
+    const std::size_t bucketTarget = positions ? positions : 1;
+    std::size_t       buckets      = (bucketTarget + SUGAR_BUCKET_SIZE - 1) / SUGAR_BUCKET_SIZE;
+    buckets                         = std::max<std::size_t>(buckets, 1);
+    std::uint32_t bits              = 0;
+    const auto     maxBits          = static_cast<std::uint32_t>(std::numeric_limits<std::size_t>::digits - 1);
+    while (bits < maxBits && (std::size_t{1} << bits) < buckets)
+        ++bits;
+    return std::max<std::uint32_t>(bits, 1);
+}
+
+void append_sugar_header(std::string& buffer, std::uint32_t hashBits, std::uint64_t counters) {
+    buffer.append(SUGAR_SIGNATURE, SUGAR_SIGNATURE_SIZE);
+    append_le(buffer, SUGAR_VERSION);
+    append_le(buffer, std::uint64_t{0});  // Seed (keep deterministic)
+    append_le(buffer, SUGAR_BUCKET_SIZE);
+    append_le(buffer, static_cast<std::uint32_t>(SUGAR_ENTRY_SIZE));
+
+    for (std::size_t i = 0; i < SUGAR_META_BLOCKS; ++i)
+    {
+        append_le(buffer, hashBits);
+        append_le(buffer, std::uint32_t{1});  // reserved
+        append_le(buffer, SUGAR_ENDIAN_TAG);
+        append_float_le(buffer, SUGAR_K_FACTOR);
+        append_le(buffer, counters);
+    }
+}
+
+bool load_sugar_entries(const std::string& buffer,
+                        std::size_t offset,
+                        std::size_t entrySize,
+                        const std::function<void(std::uint64_t, unsigned, int, int, int)>& insert_entry)
+{
+    if (entrySize < SUGAR_ENTRY_SIZE)
+        return false;
+
+    const auto* bytes = reinterpret_cast<const std::uint8_t*>(buffer.data());
+    const auto   end  = buffer.size();
+    if (offset > end)
+        return false;
+
+    while (offset + entrySize <= end)
+    {
+        const auto* entryPtr = bytes + offset;
+        int         count    = read_le<std::int16_t>(entryPtr + 14);
+        if (count > 0)
+        {
+            insert_entry(read_le<std::uint64_t>(entryPtr),
+                         read_le<std::uint16_t>(entryPtr + 8),
+                         static_cast<int>(read_le<std::int16_t>(entryPtr + 10)),
+                         static_cast<int>(read_le<std::int16_t>(entryPtr + 12)),
+                         count);
+        }
+        offset += entrySize;
+    }
+
+    return true;
+}
+
+}  // namespace
 
 namespace Stockfish {
 
@@ -93,7 +204,7 @@ void Experience::load(const std::string& file) {
 
     std::istringstream in(buffer);
 
-    const std::string sigV2 = "SugaR Experience version 2";
+    const std::string sigV2 = SUGAR_SIGNATURE;
     const std::string sigV1 = "SugaR";
     std::string       header(sigV2.size(), '\0');
     in.read(header.data(), header.size());
@@ -133,12 +244,12 @@ void Experience::load(const std::string& file) {
         if (isBL)
         {
             struct BinBL {
-                uint64_t key;
-                int32_t  depth;
-                int32_t  value;
-                uint16_t move;
-                uint16_t pad;
-                int32_t  perf;
+                std::uint64_t key;
+                std::int32_t  depth;
+                std::int32_t  value;
+                std::uint16_t move;
+                std::uint16_t pad;
+                std::int32_t  perf;
             };
             BinBL e;
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
@@ -146,35 +257,95 @@ void Experience::load(const std::string& file) {
         }
         else
         {
-            in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
-
-            struct BinV1 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint8_t  pad[4];
-            };
-            struct BinV2 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
-            };
+            const auto* bytes = reinterpret_cast<const std::uint8_t*>(buffer.data());
+            const auto   size  = buffer.size();
 
             if (isV2)
             {
-                BinV2 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, e.count);
+                bool parsed = false;
+                if (size >= SUGAR_SIGNATURE_SIZE + SUGAR_HEADER_SIZE)
+                {
+                    std::size_t offset = SUGAR_SIGNATURE_SIZE;
+                    std::uint8_t version = bytes[offset];
+                    offset += 1;
+                    if (version == SUGAR_VERSION)
+                    {
+                        if (size < offset + sizeof(std::uint64_t) + sizeof(std::uint32_t) * 2)
+                            offset = size;  // Force fallback
+                        else
+                        {
+                            offset += sizeof(std::uint64_t);  // seed
+                            offset += sizeof(std::uint32_t);  // bucket size
+                            const auto entrySize = static_cast<std::size_t>(read_le<std::uint32_t>(bytes + offset));
+                            offset += sizeof(std::uint32_t);
+
+                            if (size >= offset)
+                            {
+                                std::size_t remaining  = size - offset;
+                                std::size_t metaBlocks = 0;
+                                if (entrySize >= SUGAR_ENTRY_SIZE && SUGAR_META_BLOCK_SIZE)
+                                {
+                                    const std::size_t maxBlocks = remaining / SUGAR_META_BLOCK_SIZE;
+                                    for (std::size_t blocks = 0; blocks <= maxBlocks; ++blocks)
+                                    {
+                                        const std::size_t afterHeader = remaining - blocks * SUGAR_META_BLOCK_SIZE;
+                                        if (entrySize && afterHeader % entrySize == 0)
+                                        {
+                                            metaBlocks = blocks;
+                                            break;
+                                        }
+                                    }
+                                }
+
+                                if (metaBlocks * SUGAR_META_BLOCK_SIZE <= remaining)
+                                {
+                                    offset += metaBlocks * SUGAR_META_BLOCK_SIZE;
+                                    parsed = load_sugar_entries(buffer, offset, entrySize, insert_entry);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!parsed)
+                {
+                    struct BinV2 {
+                        std::uint64_t key;
+                        std::uint32_t move;
+                        std::int32_t  value;
+                        std::int32_t  depth;
+                        std::uint16_t count;
+                        std::uint8_t  pad[2];
+                    };
+
+                    std::size_t offset = sigV2.size();
+                    while (offset + sizeof(BinV2) <= size)
+                    {
+                        BinV2 e;
+                        std::memcpy(&e, bytes + offset, sizeof(e));
+                        insert_entry(e.key, e.move, e.value, e.depth, e.count);
+                        offset += sizeof(BinV2);
+                    }
+                }
             }
             else
             {
-                BinV1 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                struct BinV1 {
+                    std::uint64_t key;
+                    std::uint32_t move;
+                    std::int32_t  value;
+                    std::int32_t  depth;
+                    std::uint8_t  pad[4];
+                };
+
+                std::size_t offset = sigV1.size();
+                while (offset + sizeof(BinV1) <= size)
+                {
+                    BinV1 e;
+                    std::memcpy(&e, bytes + offset, sizeof(e));
                     insert_entry(e.key, e.move, e.value, e.depth, 1);
+                    offset += sizeof(BinV1);
+                }
             }
         }
     }
@@ -253,7 +424,10 @@ void Experience::save(const std::string& file) const {
     }
 
     std::string buffer;
-    std::size_t totalMoves = 0;
+    const std::size_t totalPositions = table.size();
+    std::size_t       totalMoves     = 0;
+    for (const auto& [_, vec] : table)
+        totalMoves += vec.size();
 
     if (brainLearnFormat)
     {
@@ -270,32 +444,38 @@ void Experience::save(const std::string& file) const {
             {
                 BinBL be{key, e.depth, e.score, static_cast<uint16_t>(e.move.raw()), 0, e.count};
                 buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
-                totalMoves++;
             }
     }
     else
     {
-        const std::string sig = "SugaR Experience version 2";
-        buffer.append(sig);
-        struct BinV2 {
-            uint64_t key;
-            uint32_t move;
-            int32_t  value;
-            int32_t  depth;
-            uint16_t count;
-            uint8_t  pad[2];
+        append_sugar_header(buffer, determine_hash_bits(totalPositions), totalMoves);
+
+        const auto clampScore = [](int value) {
+            return std::clamp(value,
+                              static_cast<int>(std::numeric_limits<std::int16_t>::min()),
+                              static_cast<int>(std::numeric_limits<std::int16_t>::max()));
         };
+        const auto clampDepth = [](int value) {
+            return std::clamp(value, 0, static_cast<int>(std::numeric_limits<std::int16_t>::max()));
+        };
+        const auto clampCount = [](int value) {
+            return std::clamp(value, 0, static_cast<int>(std::numeric_limits<std::int16_t>::max()));
+        };
+
         for (const auto& [key, vec] : table)
             for (const auto& e : vec)
             {
-                BinV2 be{key,
-                         static_cast<uint32_t>(e.move.raw()),
-                         e.score,
-                         e.depth,
-                         static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
-                         {0, 0}};
-                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
-                totalMoves++;
+                append_le(buffer, key);
+                append_le(buffer, static_cast<std::uint16_t>(e.move.raw()));
+                append_le(buffer, static_cast<std::int16_t>(clampScore(e.score)));
+                append_le(buffer, static_cast<std::int16_t>(clampDepth(e.depth)));
+                append_le(buffer, static_cast<std::int16_t>(clampCount(e.count)));
+                append_le(buffer, std::int32_t{0});
+                append_le(buffer, std::int32_t{0});
+                append_le(buffer, std::int32_t{0});
+                append_le(buffer, std::int16_t{0});
+                append_le(buffer, std::int16_t{0});
+                append_le(buffer, std::int16_t{0});
             }
     }
 
@@ -325,8 +505,6 @@ void Experience::save(const std::string& file) const {
         sync_cout << "info string Could not open " << path << " for writing" << sync_endl;
         return;
     }
-
-    std::size_t totalPositions = table.size();
 
     sync_cout << "info string " << path << " <- Total moves: " << totalMoves
               << ". Total positions: " << totalPositions << sync_endl;
@@ -400,6 +578,17 @@ void Experience::show(const Position& pos, int evalImportance, int maxMoves) con
         sync_cout << "info string " << UCIEngine::move(e.move, pos.is_chess960()) << " score "
                   << e.score << " depth " << e.depth << " count " << e.count << sync_endl;
     }
+}
+
+bool Experience_InitNew(const std::string& file) {
+    std::ofstream out(file, std::ios::binary | std::ios::trunc);
+    if (!out)
+        return false;
+
+    std::string buffer;
+    append_sugar_header(buffer, determine_hash_bits(0), 0);
+    out.write(buffer.data(), buffer.size());
+    return static_cast<bool>(out);
 }
 
 }  // namespace Stockfish
