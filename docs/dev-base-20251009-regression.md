@@ -6,6 +6,7 @@
 - **SPRT outcome:** Elo -22.4 ±23.9 (normalized -38.2 ±40.7), LOS 3.29 %, draw ratio 42.9 %, pairs ratio 0.63.
 - **Conclusion:** Current DEV build underperforms BASE; the negative log-likelihood ratio (-0.22) is consistent with a failing regression at this confidence window.
 
+codex/analyze-test-results-for-revolution-2.81-6u9a23
 ## Ajustes sugeridos para el control 10+0.1 en gauntlets locales
 
 El control de 10 segundos iniciales + 0.1 segundos de incremento deja un presupuesto medio de ~0.35 s por jugada (suponiendo 40 jugadas restantes). Con los valores por defecto la gestión de tiempo acaba usando solo ~0.32 s porque:
@@ -24,6 +25,8 @@ Para los gauntlets locales (sin latencia de red) recomendamos los siguientes val
 
 Aplicación práctica: al lanzar el SPRT local añade `setoption name Move Overhead value 12`, `setoption name Slow Mover value 120` y `setoption name Minimum Thinking Time value 60` antes de cada `go`. Si usas scripts, incluye estas órdenes en la inicialización del motor.
 
+=======
+ main
 ## Key Regression Themes
 
 ### 1. Time management underuse in sharp middlegames
