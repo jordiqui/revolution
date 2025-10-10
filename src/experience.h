@@ -20,10 +20,11 @@
 
 #pragma once
 
+#include <cstdint>
+#include <future>
+#include <string>
 #include <unordered_map>
 #include <vector>
-#include <string>
-#include <future>
 
 #include "position.h"
 #include "types.h"
@@ -52,8 +53,10 @@ class Experience {
     bool                                                  is_ready() const;
     std::unordered_map<Key, std::vector<ExperienceEntry>> table;
     bool                                                  binaryFormat     = false;
-    bool                                                  brainLearnFormat = true;
+    bool                                                  brainLearnFormat = false;
     std::future<void>                                     loader;
+    std::vector<char>                                     v2HeaderBytes;
+    std::uint32_t                                         v2EntrySize      = 0;
 };
 
 extern Experience experience;
