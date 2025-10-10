@@ -693,8 +693,10 @@ ifeq ($(optimize),yes)
 
 	ifeq ($(comp),clang)
 		clangmajorversion := $(shell $(CXX) -dumpversion 2>/dev/null | cut -f1 -d.)
-		ifeq ($(shell expr $(clangmajorversion) \< 16),1)
-			CXXFLAGS += -fexperimental-new-pass-manager
+		ifneq ($(clangmajorversion),)
+			ifeq ($(shell printf '%s\n' '$(clangmajorversion)' | awk '($$1+0) < 16 {print 1;}'),1)
+				CXXFLAGS += -fexperimental-new-pass-manager
+			endif
 		endif
 	endif
 endif
