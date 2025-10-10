@@ -2,23 +2,152 @@
 
 #include <algorithm>
 #include <cctype>
-#include <future>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <fstream>
+#include <future>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <sstream>
 #include <zlib.h>
 
+#include "experience_io.h"
 #include "misc.h"
 #include "uci.h"
+
+namespace {
+
+constexpr const char kSigV2[] = "SugaR Experience version 2";
+constexpr std::size_t kSigV2Len = sizeof(kSigV2) - 1;
+constexpr std::uint16_t kLittleEndianTag = 0x0002;
+constexpr std::size_t   kMetaBlockDefaultCount = 2;
+
+#pragma pack(push, 1)
+struct HeaderV2 {
+    std::uint8_t  version;
+    std::uint64_t seed;
+    std::uint32_t bucket_size;
+    std::uint32_t entry_size;
+};
+
+struct MetaBlockV2 {
+    std::uint32_t hash_bits;
+    std::uint32_t reserved;
+    std::uint16_t endian_tag;
+    float         k_factor;
+    std::uint64_t counters;
+};
+
+struct EntryV2 {
+    std::uint64_t key;
+    std::uint16_t move;
+    std::int16_t  score;
+    std::int16_t  depth;
+    std::int16_t  count;
+    std::int32_t  wins;
+    std::int32_t  losses;
+    std::int32_t  draws;
+    std::int16_t  flags;
+    std::int16_t  age;
+    std::int16_t  pad;
+};
+#pragma pack(pop)
+
+static_assert(sizeof(EntryV2) == 34, "EntryV2 must match the SugaR layout");
+
+HeaderV2 make_default_header(std::uint32_t entrySize) {
+    using clock    = std::chrono::high_resolution_clock;
+    auto now       = clock::now().time_since_epoch().count();
+    HeaderV2 hdr{};
+    hdr.version     = 2;
+    hdr.seed        = static_cast<std::uint64_t>(now);
+    hdr.bucket_size = 6;
+    hdr.entry_size  = entrySize;
+    return hdr;
+}
+
+MetaBlockV2 make_default_meta() {
+    MetaBlockV2 meta{};
+    meta.hash_bits  = 23;
+    meta.reserved   = 1;
+    meta.endian_tag = kLittleEndianTag;
+    meta.k_factor   = 11.978f;
+    meta.counters   = 0;
+    return meta;
+}
+
+std::vector<char> default_header_bytes(std::uint32_t entrySize) {
+    const HeaderV2   header   = make_default_header(entrySize);
+    const MetaBlockV2 meta    = make_default_meta();
+    const std::size_t headerBytes = sizeof(header) + kMetaBlockDefaultCount * sizeof(meta);
+
+    std::vector<char> bytes(headerBytes);
+    std::memcpy(bytes.data(), &header, sizeof(header));
+    for (std::size_t i = 0; i < kMetaBlockDefaultCount; ++i)
+        std::memcpy(bytes.data() + sizeof(header) + i * sizeof(meta), &meta, sizeof(meta));
+    return bytes;
+}
+
+std::size_t determine_meta_blocks(std::size_t fileSize, std::size_t sigSize, const HeaderV2& header) {
+    const std::size_t headerBasic   = sizeof(header);
+    if (fileSize < sigSize + headerBasic)
+        return 0;
+
+    const std::size_t headerRemaining = fileSize - (sigSize + headerBasic);
+    const std::size_t metaBlockSize   = sizeof(MetaBlockV2);
+    if (!header.entry_size)
+        return 0;
+
+    for (std::size_t blocks = 1; blocks <= headerRemaining / metaBlockSize; ++blocks)
+    {
+        const std::size_t afterHeader = headerRemaining - blocks * metaBlockSize;
+        if (afterHeader % header.entry_size == 0)
+            return blocks;
+    }
+
+    return 0;
+}
+
+std::int16_t clamp_score(int value) {
+    return static_cast<std::int16_t>(std::clamp(value, -32768, 32767));
+}
+
+std::int16_t sanitize_count(int value) {
+    value = std::clamp(value, 1, 32767);
+    return static_cast<std::int16_t>(value);
+}
+
+int decode_count(const EntryV2& entry) {
+    int count = entry.count;
+    if (count <= 0)
+    {
+        const long total = static_cast<long>(entry.wins) + entry.losses + entry.draws;
+        if (total > 0)
+            count = static_cast<int>(std::min<long>(total, std::numeric_limits<int>::max()));
+    }
+    return std::max(count, 1);
+}
+
+}  // namespace
 
 namespace Stockfish {
 
 Experience experience;
+
+bool Experience_InitNew(const std::string& path) {
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out)
+        return false;
+
+    const auto headerBytes = default_header_bytes(sizeof(EntryV2));
+    out.write(kSigV2, kSigV2Len);
+    out.write(headerBytes.data(), static_cast<std::streamsize>(headerBytes.size()));
+    return static_cast<bool>(out);
+}
 
 void Experience::wait_until_loaded() const {
     if (loader.valid())
@@ -106,6 +235,8 @@ void Experience::load(const std::string& file) {
     table.clear();
     binaryFormat     = isV1 || isV2 || isBL;
     brainLearnFormat = isBL;
+    v2HeaderBytes.clear();
+    v2EntrySize = 0;
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
@@ -144,9 +275,81 @@ void Experience::load(const std::string& file) {
             while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
                 insert_entry(e.key, e.move, e.value, e.depth, 1);
         }
+        else if (isV2)
+        {
+            in.seekg(static_cast<std::streamoff>(kSigV2Len), std::ios::beg);
+
+            HeaderV2 header{};
+            if (!in.read(reinterpret_cast<char*>(&header), sizeof(header)))
+            {
+                sync_cout << "info string Malformed experience header in " << display << sync_endl;
+                return;
+            }
+
+            if (!header.entry_size)
+                header.entry_size = static_cast<std::uint32_t>(sizeof(EntryV2));
+
+            v2EntrySize = header.entry_size;
+            const std::size_t metaBlocks = determine_meta_blocks(buffer.size(), kSigV2Len, header);
+            const std::size_t metaBytes  = metaBlocks * sizeof(MetaBlockV2);
+
+            v2HeaderBytes.resize(sizeof(header) + metaBytes);
+            std::memcpy(v2HeaderBytes.data(), &header, sizeof(header));
+
+            for (std::size_t i = 0; i < metaBlocks; ++i)
+            {
+                MetaBlockV2 meta{};
+                if (!in.read(reinterpret_cast<char*>(&meta), sizeof(meta)))
+                {
+                    v2HeaderBytes.resize(sizeof(header) + i * sizeof(meta));
+                    break;
+                }
+                std::memcpy(v2HeaderBytes.data() + sizeof(header) + i * sizeof(meta), &meta, sizeof(meta));
+            }
+
+            const std::size_t entryOffset = kSigV2Len + sizeof(header) + metaBytes;
+            in.clear();
+            in.seekg(static_cast<std::streamoff>(entryOffset), std::ios::beg);
+
+            const std::size_t entrySize = v2EntrySize ? v2EntrySize : sizeof(EntryV2);
+            if (entrySize)
+            {
+                std::vector<char> entry(entrySize);
+
+                struct LegacyEntry {
+                    uint64_t key;
+                    uint32_t move;
+                    int32_t  value;
+                    int32_t  depth;
+                    uint16_t count;
+                    uint8_t  pad[2];
+                };
+
+                while (in.read(entry.data(), static_cast<std::streamsize>(entry.size())))
+                {
+                    if (entry.size() >= sizeof(EntryV2))
+                    {
+                        EntryV2 e{};
+                        std::memcpy(&e, entry.data(), sizeof(e));
+                        insert_entry(e.key,
+                                     e.move,
+                                     e.score,
+                                     e.depth,
+                                     decode_count(e));
+                    }
+                    else if (entry.size() >= sizeof(LegacyEntry))
+                    {
+                        LegacyEntry e{};
+                        std::memcpy(&e, entry.data(), sizeof(e));
+                        int count = e.count ? e.count : 1;
+                        insert_entry(e.key, e.move, e.value, e.depth, count);
+                    }
+                }
+            }
+        }
         else
         {
-            in.seekg(isV2 ? sigV2.size() : sigV1.size(), std::ios::beg);
+            in.seekg(static_cast<std::streamoff>(sigV1.size()), std::ios::beg);
 
             struct BinV1 {
                 uint64_t key;
@@ -155,27 +358,10 @@ void Experience::load(const std::string& file) {
                 int32_t  depth;
                 uint8_t  pad[4];
             };
-            struct BinV2 {
-                uint64_t key;
-                uint32_t move;
-                int32_t  value;
-                int32_t  depth;
-                uint16_t count;
-                uint8_t  pad[2];
-            };
 
-            if (isV2)
-            {
-                BinV2 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, e.count);
-            }
-            else
-            {
-                BinV1 e;
-                while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
-                    insert_entry(e.key, e.move, e.value, e.depth, 1);
-            }
+            BinV1 e;
+            while (in.read(reinterpret_cast<char*>(&e), sizeof(e)))
+                insert_entry(e.key, e.move, e.value, e.depth, 1);
         }
     }
     else
@@ -275,26 +461,53 @@ void Experience::save(const std::string& file) const {
     }
     else
     {
-        const std::string sig = "SugaR Experience version 2";
-        buffer.append(sig);
-        struct BinV2 {
-            uint64_t key;
-            uint32_t move;
-            int32_t  value;
-            int32_t  depth;
-            uint16_t count;
-            uint8_t  pad[2];
-        };
+        std::vector<char> headerBytes = v2HeaderBytes;
+        const std::size_t minHeaderSize = sizeof(HeaderV2) + sizeof(MetaBlockV2);
+        if (headerBytes.size() < minHeaderSize)
+            headerBytes = default_header_bytes(static_cast<std::uint32_t>(sizeof(EntryV2)));
+
+        HeaderV2 header{};
+        std::memcpy(&header, headerBytes.data(), std::min(headerBytes.size(), sizeof(header)));
+
+        const std::uint32_t desiredEntrySize = std::max<std::uint32_t>(header.entry_size,
+                                                                        static_cast<std::uint32_t>(sizeof(EntryV2)));
+        if (!header.entry_size || header.entry_size != desiredEntrySize)
+        {
+            header.entry_size = desiredEntrySize;
+            if (headerBytes.size() >= sizeof(header))
+                std::memcpy(headerBytes.data(), &header, sizeof(header));
+            else
+                headerBytes = default_header_bytes(desiredEntrySize);
+        }
+
+        std::size_t entryCount = 0;
+        for (const auto& kv : table)
+            entryCount += kv.second.size();
+
+        buffer.reserve(buffer.size() + kSigV2Len + headerBytes.size() + entryCount * header.entry_size);
+        buffer.append(kSigV2, kSigV2Len);
+        buffer.append(headerBytes.data(), headerBytes.size());
+
+        std::vector<char> entryBytes(header.entry_size, 0);
         for (const auto& [key, vec] : table)
             for (const auto& e : vec)
             {
-                BinV2 be{key,
-                         static_cast<uint32_t>(e.move.raw()),
-                         e.score,
-                         e.depth,
-                         static_cast<uint16_t>(std::min(e.count, 0xFFFF)),
-                         {0, 0}};
-                buffer.append(reinterpret_cast<const char*>(&be), sizeof(be));
+                EntryV2 out{};
+                out.key   = key;
+                out.move  = static_cast<std::uint16_t>(e.move.raw());
+                out.score = clamp_score(e.score);
+                out.depth = clamp_score(e.depth);
+                out.count = sanitize_count(e.count);
+                out.wins  = 0;
+                out.losses = 0;
+                out.draws  = out.count;
+                out.flags  = 0;
+                out.age    = 0;
+                out.pad    = 0;
+
+                std::fill(entryBytes.begin(), entryBytes.end(), 0);
+                std::memcpy(entryBytes.data(), &out, std::min(sizeof(out), entryBytes.size()));
+                buffer.append(entryBytes.data(), entryBytes.size());
                 totalMoves++;
             }
     }
