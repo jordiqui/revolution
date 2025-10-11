@@ -8,6 +8,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <limits>
 #include <string_view>
 
 namespace Stockfish {
