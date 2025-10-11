@@ -278,11 +278,6 @@ Bitboard forward_passed_mask(Color side, Square sq) {
     return mask;
 }
 
-int forward_distance_to_edge(Color side, Square sq) {
-    const Rank target = side == Color::WHITE ? RANK_8 : RANK_1;
-    return std::abs(static_cast<int>(target) - static_cast<int>(rank_of(sq)));
-}
-
 int rook_support_direction(Color side) {
     return side == Color::WHITE ? -1 : 1;
 }
@@ -355,13 +350,16 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
 
         const int relRank = static_cast<int>(relative_rank(attacker, sq));
 
-        int base = 6 + 2 * std::max(0, relRank - static_cast<int>(RANK_3));
-        if (relRank >= static_cast<int>(RANK_5))
-            base += 6;
+        // Early passed pawns rarely decide games by force. Ignore anything that has
+        // not at least reached the 5th rank from the attacker's perspective.
+        if (relRank < static_cast<int>(RANK_5))
+            continue;
+
+        int base = 8 + 4 * (relRank - static_cast<int>(RANK_5));
         if (relRank >= static_cast<int>(RANK_6))
-            base += 6;
+            base += 4;
         if (relRank == static_cast<int>(RANK_7))
-            base += 10;
+            base += 4;
 
         const Square pushSq   = sq + pawn_push(attacker);
         const Square promoSq  = make_square(file_of(sq), attacker == Color::WHITE ? RANK_8 : RANK_1);
@@ -371,19 +369,20 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
         const int attFrontDist = distance(attackerKing, targetSq);
         const int defPromoDist = distance(defenderKing, promoSq);
         const int attPromoDist = distance(attackerKing, promoSq);
-        const int stepsToPromo = forward_distance_to_edge(attacker, sq);
 
-        base += std::max(0, defFrontDist - 2);
         if (defFrontDist >= 4)
             base += 4;
+        if (defFrontDist >= 5)
+            base += 3;
+
         if (defPromoDist > attPromoDist)
-            base += 4;
-        if (attFrontDist + (pos.side_to_move() == attacker ? 0 : 1) < defFrontDist)
-            base += 5;
+            base += 3;
+
         if (defPromoDist - attPromoDist >= 2 && relRank >= static_cast<int>(RANK_6))
-            base += 4;
-        if (stepsToPromo <= 2 && defPromoDist > attPromoDist)
-            base += 6;
+            base += 3;
+
+        if (attFrontDist + (pos.side_to_move() == attacker ? 0 : 1) <= defFrontDist - 1)
+            base += 3;
 
         if (is_ok(pushSq))
         {
@@ -391,7 +390,7 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
             const Bitboard support   = pos.attackers_to(pushSq) & pos.pieces(attacker);
 
             if (!defenders)
-                base += 6;
+                base += 5;
             else if (popcount(defenders) == 1)
                 base += 2;
 
@@ -401,23 +400,23 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
 
         const int rookDir = rook_support_direction(attacker);
         if (rook_on_ray(pos, attacker, sq, rookDir))
-            base += 9 + (relRank >= static_cast<int>(RANK_6) ? 3 : 0);
+            base += 5 + (relRank >= static_cast<int>(RANK_6) ? 2 : 0);
         if (rook_on_ray(pos, defender, sq, -rookDir))
-            base -= 7;
+            base -= 4;
 
         if (connected_passed_neighbor(pos, attacker, sq))
-            base += 8 + (relRank >= static_cast<int>(RANK_6) ? 4 : 0);
+            base += 5 + (relRank >= static_cast<int>(RANK_6) ? 2 : 0);
 
         const int defenderToPawn = distance(defenderKing, sq);
         if (defenderToPawn >= 4)
-            base += 3;
+            base += 2;
         else if (defenderToPawn <= 2)
             base -= 2;
 
         if (kingPressure >= 2)
-            base += 3;
-        if (kingPressure >= 3)
             base += 2;
+        if (kingPressure >= 3)
+            base += 1;
 
         penalty += std::max(base, 0);
     }

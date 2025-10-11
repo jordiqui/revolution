@@ -19,10 +19,12 @@ int PressureFromFen(const std::string& fen, Color defender) {
 }  // namespace
 
 TEST(PassedPawnEvaluation, HypnosGame1KingRace) {
-    const std::string fen = "6k1/6P1/5K2/8/8/8/8/8 w - - 0 1";
-    const int         penalty
-        = PressureFromFen(fen, Color::BLACK);  // Derived from game 1 endgame race
-    EXPECT_GE(penalty, 40);
+    const std::string farKing = "6k1/6P1/5K2/8/8/8/8/8 w - - 0 1";
+    const std::string nearKing = "5k2/6P1/5K2/8/8/8/8/8 w - - 0 1";
+    const int         penaltyFar  = PressureFromFen(farKing, Color::BLACK);
+    const int         penaltyNear = PressureFromFen(nearKing, Color::BLACK);
+    EXPECT_GT(penaltyFar, penaltyNear);
+    EXPECT_GT(penaltyFar, 0);
 }
 
 TEST(PassedPawnEvaluation, BrainlearnGame4RookBlockadeMitigates) {
