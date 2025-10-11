@@ -76,6 +76,34 @@ Supported architectures:
 
 Full compilation guides available in [documentation][doc-link].
 
+### MPI Cluster builds
+
+Revolution now ships with an MPI-enabled binary that distributes root move
+searches across multiple machines. To build it you need an MPI toolchain (for
+example OpenMPI or MS-MPI) and you should compile with the dedicated target:
+
+```bash
+cd src
+make -j cluster-build ARCH=x86-64-avx2 COMPCXX=mpic++
+```
+
+The resulting executable (`revolution_cluster` on Linux/macOS or
+`revolution_cluster.exe` on Windows) must be placed on every participating
+machine. All nodes must run under the same operating system account and have
+network access to each other so that `mpirun` (or `mpiexec`) can launch the
+processes with identical credentials.
+
+Start a clustered search from the master node with:
+
+```bash
+mpirun -np 4 ./revolution_cluster
+```
+
+Rank zero exposes the usual UCI interface. Worker ranks automatically mirror the
+position sent by the master, evaluate the subset of root moves assigned to them,
+and return their best score. Sending the `quit` command from the GUI or command
+line cleanly shuts down every rank.
+
 ## Syzygy Tablebases
 
 Revolution can probe [Syzygy](https://github.com/syzygy1) endgame tablebases when a

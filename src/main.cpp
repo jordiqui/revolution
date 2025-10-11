@@ -23,6 +23,7 @@
 #include "tune.h"
 #include "bitboard.h"
 #include "position.h"
+#include "cluster.h"
 
 #ifndef ENGINE_BUILD_DATE
     // Optional custom build identifier
@@ -52,10 +53,21 @@ int main(int argc, char* argv[]) {
     Bitboards::init();
     Position::init();
 
+    Cluster::init(argc, argv);
+
+    if (Cluster::active() && !Cluster::is_master())
+    {
+        Cluster::worker_loop();
+        Cluster::finalize();
+        return 0;
+    }
+
     UCIEngine uci(argc, argv);
 
     Tune::init(uci.engine_options());
 
     uci.loop();
+    Cluster::signal_quit();
+    Cluster::finalize();
     return 0;
 }

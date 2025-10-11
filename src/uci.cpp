@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <string_view>
@@ -32,6 +33,7 @@
 #include <vector>
 
 #include "benchmark.h"
+#include "cluster.h"
 #include "engine.h"
 #include "memory.h"
 #include "movegen.h"
@@ -248,9 +250,209 @@ void UCIEngine::go(std::istringstream& is) {
     Search::LimitsType limits = parse_limits(is);
 
     if (limits.perft)
+    {
         perft(limits);
-    else
-        engine.go(limits);
+        return;
+    }
+
+#ifdef USE_MPI
+    if (Cluster::active() && Cluster::is_master() && Cluster::size() > 1)
+    {
+        const Position& pos      = engine.position();
+        const bool      chess960 = (bool) engine.get_options()["UCI_Chess960"];
+
+        std::vector<Move> rootMoves;
+
+        if (!limits.searchmoves.empty())
+        {
+            for (const auto& token : limits.searchmoves)
+            {
+                Move move = to_move(pos, token);
+                if (move != Move::none() && pos.legal(move))
+                    rootMoves.push_back(move);
+            }
+        }
+        else
+        {
+            for (const auto& move : MoveList<LEGAL>(pos))
+                rootMoves.push_back(move);
+        }
+
+        if (rootMoves.size() >= 2)
+        {
+            const int processes = Cluster::size();
+            std::vector<std::vector<std::string>> assignments(processes);
+
+            for (size_t idx = 0; idx < rootMoves.size(); ++idx)
+                assignments[idx % processes].push_back(to_lower(move(rootMoves[idx], chess960)));
+
+            Search::LimitsType masterLimits = limits;
+            masterLimits.searchmoves        = assignments[0];
+
+            Cluster::broadcast_command(Cluster::Command::Go);
+
+            Cluster::LimitsMessage packedLimits = Cluster::pack_limits(limits);
+            std::string            fen          = engine.fen();
+
+            for (int rank = 1; rank < processes; ++rank)
+            {
+                Cluster::send_limits(rank, packedLimits);
+                Cluster::send_fen(rank, fen);
+                Cluster::send_moves(rank, assignments[rank]);
+            }
+
+            struct Capture {
+                Score       score;
+                bool        hasScore = false;
+                int         depth    = 0;
+                int         selDepth = 0;
+                uint64_t    nodes    = 0;
+                std::string bestmove;
+                std::string ponder;
+                bool        hasMove  = false;
+            } masterCapture;
+
+            auto& options = engine.get_options();
+
+            engine.set_on_update_full([&](const Engine::InfoFull& info) {
+                masterCapture.score    = info.score;
+                masterCapture.hasScore = true;
+                masterCapture.depth    = info.depth;
+                masterCapture.selDepth = info.selDepth;
+                masterCapture.nodes    = info.nodes;
+                on_update_full(info, options["UCI_ShowWDL"]);
+            });
+
+            engine.set_on_update_no_moves([&](const Engine::InfoShort& info) {
+                masterCapture.score    = info.score;
+                masterCapture.hasScore = true;
+                on_update_no_moves(info);
+            });
+
+            engine.set_on_iter([&](const Engine::InfoIter& iter) { on_iter(iter); });
+
+            engine.set_on_bestmove([&](std::string_view best, std::string_view ponder) {
+                masterCapture.bestmove = std::string(best);
+                masterCapture.ponder   = std::string(ponder);
+                masterCapture.hasMove  = true;
+            });
+
+            if (!masterLimits.searchmoves.empty())
+            {
+                engine.go(masterLimits);
+                engine.wait_for_search_finished();
+            }
+
+            auto capture_to_result = [](const Capture& capture) {
+                Cluster::ResultMessage result{};
+                result.hasMove = capture.hasMove ? 1 : 0;
+                result.depth   = capture.depth;
+                result.selDepth = capture.selDepth;
+                result.nodes    = capture.nodes;
+
+                if (capture.hasScore)
+                {
+                    capture.score.visit(overload{
+                      [&](Score::Mate mate) {
+                          result.scoreType  = 2;
+                          result.scoreValue = mate.plies;
+                          result.extra      = 0;
+                      },
+                      [&](Score::Tablebase tb) {
+                          result.scoreType  = 3;
+                          result.scoreValue = tb.plies;
+                          result.extra      = tb.win ? 1 : 0;
+                      },
+                      [&](Score::InternalUnits units) {
+                          result.scoreType  = 1;
+                          result.scoreValue = units.value;
+                          result.extra      = 0;
+                      }});
+                }
+                else
+                {
+                    result.scoreType  = 0;
+                    result.scoreValue = 0;
+                    result.extra      = 0;
+                }
+
+                return result;
+            };
+
+            Cluster::ResultMessage masterResult = capture_to_result(masterCapture);
+
+            std::vector<Cluster::ResultMessage> workerResults(processes - 1);
+            std::vector<std::string>            workerBest(processes - 1);
+            std::vector<std::string>            workerPonder(processes - 1);
+
+            for (int rank = 1; rank < processes; ++rank)
+                Cluster::recv_result(rank, workerResults[rank - 1], workerBest[rank - 1], workerPonder[rank - 1]);
+
+            auto score_key = [](const Cluster::ResultMessage& result) {
+                if (!result.hasMove)
+                    return std::numeric_limits<long long>::min();
+
+                switch (result.scoreType)
+                {
+                case 2:  // Mate
+                {
+                    const int distance = result.scoreValue;
+                    return distance >= 0 ? 1'000'000LL - distance : -1'000'000LL - distance;
+                }
+                case 3:  // Tablebase
+                {
+                    const int distance = result.scoreValue;
+                    return distance >= 0 ? 500'000LL - distance : -500'000LL - distance;
+                }
+                case 1:
+                    return static_cast<long long>(result.scoreValue);
+                default:
+                    return std::numeric_limits<long long>::min() / 2;
+                }
+            };
+
+            Cluster::ResultMessage bestResult = masterResult;
+            std::string            bestMove   = masterCapture.bestmove;
+            std::string            bestPonder = masterCapture.ponder;
+            int                    bestRank   = 0;
+
+            long long bestKey = score_key(bestResult);
+
+            uint64_t totalNodes = masterResult.nodes;
+
+            for (int rank = 1; rank < processes; ++rank)
+            {
+                const auto& workerRes = workerResults[rank - 1];
+                totalNodes += workerRes.nodes;
+                long long key = score_key(workerRes);
+
+                if (key > bestKey || (key == bestKey && workerRes.depth > bestResult.depth))
+                {
+                    bestKey    = key;
+                    bestResult = workerRes;
+                    bestMove   = workerBest[rank - 1];
+                    bestPonder = workerPonder[rank - 1];
+                    bestRank   = rank;
+                }
+            }
+
+            if (bestMove.empty() && masterCapture.hasMove)
+                bestMove = masterCapture.bestmove;
+
+            if (bestMove.empty())
+                bestMove = "(none)";
+
+            sync_cout << "info string cluster processes " << processes << " nodes " << totalNodes
+                      << " selected " << bestMove << " from rank " << bestRank << sync_endl;
+
+            on_bestmove(bestMove, bestPonder);
+            init_search_update_listeners();
+            return;
+        }
+    }
+#endif
+
+    engine.go(limits);
 }
 
 void UCIEngine::bench(std::istream& args) {
