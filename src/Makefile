@@ -44,6 +44,20 @@ else
         EXE = revolution_dev_010925_v1.0.1
 endif
 
+mpi ?= no
+
+ifeq ($(mpi),yes)
+    ifndef COMPCXX
+        COMPCXX := mpic++
+    endif
+    EXTRACXXFLAGS += -DUSE_MPI
+    ifeq ($(target_windows),yes)
+        EXE = revolution_cluster.exe
+    else
+        EXE = revolution_cluster
+    endif
+endif
+
 ### Installation dir definitions
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
@@ -52,17 +66,17 @@ BINDIR = $(PREFIX)/bin
 PGOBENCH = $(WINE_PATH) ./$(EXE) bench
 
 ### Source and object files
-SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
+SRCS = benchmark.cpp bitboard.cpp cluster.cpp evaluate.cpp main.cpp \
         misc.cpp movegen.cpp movepick.cpp polybook.cpp position.cpp \
         search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
         nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/features/half_ka_v2_hm.cpp nnue/network.cpp \
         engine.cpp score.cpp memory.cpp experience.cpp
 
-HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.h \
-		nnue/nnue_misc.h nnue/features/half_ka_v2_hm.h nnue/layers/affine_transform.h \
-		nnue/layers/affine_transform_sparse_input.h nnue/layers/clipped_relu.h \
-		nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h nnue/nnue_architecture.h \
-		nnue/nnue_common.h nnue/nnue_feature_transformer.h nnue/simd.h position.h \
+HEADERS = benchmark.h bitboard.h cluster.h evaluate.h misc.h movegen.h movepick.h history.h \
+                nnue/nnue_misc.h nnue/features/half_ka_v2_hm.h nnue/layers/affine_transform.h \
+                nnue/layers/affine_transform_sparse_input.h nnue/layers/clipped_relu.h \
+                nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h nnue/nnue_architecture.h \
+                nnue/nnue_common.h nnue/nnue_feature_transformer.h nnue/simd.h position.h \
                 search.h syzygy/tbprobe.h thread.h thread_win32_osx.h timeman.h \
                 tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h \
                 experience.h
@@ -900,18 +914,19 @@ help:
 	@echo "" && \
 	echo "To compile stockfish, type: " && \
 	echo "" && \
-	echo "make -j target [ARCH=arch] [COMP=compiler] [COMPCXX=cxx]" && \
-	echo "" && \
-	echo "Supported targets:" && \
-	echo "" && \
-	echo "help                    > Display architecture details" && \
-	echo "profile-build           > standard build with profile-guided optimization" && \
-	echo "build                   > skip profile-guided optimization" && \
-	echo "net                     > Download the default nnue nets" && \
-	echo "strip                   > Strip executable" && \
-	echo "install                 > Install executable" && \
-	echo "clean                   > Clean up" && \
-	echo "" && \
+        echo "make -j target [ARCH=arch] [COMP=compiler] [COMPCXX=cxx]" && \
+        echo "" && \
+        echo "Supported targets:" && \
+        echo "" && \
+        echo "help                    > Display architecture details" && \
+        echo "profile-build           > standard build with profile-guided optimization" && \
+        echo "build                   > skip profile-guided optimization" && \
+        echo "cluster-build           > build the MPI-enabled cluster binary" && \
+        echo "net                     > Download the default nnue nets" && \
+        echo "strip                   > Strip executable" && \
+        echo "install                 > Install executable" && \
+        echo "clean                   > Clean up" && \
+        echo "" && \
 	echo "Supported archs:" && \
 	echo "" && \
 	echo "native                  > select the best architecture for the host processor (default)" && \
@@ -973,18 +988,21 @@ ifneq ($(SUPPORTED_ARCH), true)
 endif
 
 
-.PHONY: help analyze build profile-build strip install clean net \
-	objclean profileclean config-sanity \
-	icx-profile-use icx-profile-make \
-	gcc-profile-use gcc-profile-make \
-	clang-profile-use clang-profile-make FORCE \
-	format analyze
+.PHONY: help analyze build profile-build cluster-build strip install clean net \
+        objclean profileclean config-sanity \
+        icx-profile-use icx-profile-make \
+        gcc-profile-use gcc-profile-make \
+        clang-profile-use clang-profile-make FORCE \
+        format analyze
 
 analyze: net config-sanity objclean
 	$(MAKE) -k ARCH=$(ARCH) COMP=$(COMP) $(OBJS)
 
 build: net config-sanity
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
+
+cluster-build: net config-sanity
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) mpi=yes all
 
 profile-build: net config-sanity objclean profileclean
 	@echo ""
