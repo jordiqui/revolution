@@ -343,34 +343,3 @@ void worker_loop() {
 }  // namespace Cluster
 }  // namespace Stockfish
 
-#ifndef USE_MPI
-
-namespace Stockfish {
-namespace Cluster {
-
-void init(int& argc, char**& argv) {
-    (void) argc;
-    (void) argv;
-}
-
-void finalize() {}
-
-void signal_quit() {}
-
-bool active() {
-    return false;
-}
-
-bool is_master() {
-    return true;
-}
-
-int size() {
-    return 1;
-}
-
-}  // namespace Cluster
-}  // namespace Stockfish
-
-#endif
-
