@@ -50,6 +50,19 @@ ifeq ($(mpi),yes)
     ifndef COMPCXX
         COMPCXX := mpic++
     endif
+    MPI_CXX_PATH := $(shell command -v $(COMPCXX) 2> /dev/null)
+    ifeq ($(MPI_CXX_PATH),)
+        ifeq ($(COMPCXX),mpic++)
+            MPI_CXX_PATH := $(shell command -v mpicxx 2> /dev/null)
+            ifneq ($(MPI_CXX_PATH),)
+                COMPCXX := mpicxx
+            else
+                $(error MPI support requested (mpi=yes) but neither 'mpic++' nor 'mpicxx' was found in PATH. Install an MPI toolchain or set COMPCXX to a valid MPI C++ compiler.)
+            endif
+        else
+            $(error MPI support requested (mpi=yes) but the specified MPI C++ compiler '$(COMPCXX)' was not found in PATH. Install it or adjust COMPCXX.)
+        endif
+    endif
     EXTRACXXFLAGS += -DUSE_MPI
     ifeq ($(target_windows),yes)
         EXE = revolution_cluster.exe
