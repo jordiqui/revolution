@@ -19,6 +19,7 @@
 */
 
 #include "uci.h"
+#include "engine_config.h"
 
 #include <algorithm>
 #include <cctype>
@@ -43,13 +44,6 @@
 #include "experience.h"
 #include "types.h"
 #include "ucioption.h"
-
-#ifndef ENGINE_NAME
-    #define ENGINE_NAME "revolution dev 010925 v1.0.1"
-#endif
-#ifndef ENGINE_BUILD_DATE
-    #define ENGINE_BUILD_DATE __DATE__
-#endif
 
 namespace Stockfish {
 
@@ -128,9 +122,10 @@ void UCIEngine::loop() {
         {
             // Force a stable, explicit UCI name so GUIs show "Revolution 1.0"
             sync_cout_start();
-            std::cout << "id name " << ENGINE_NAME;
-            if (*ENGINE_BUILD_DATE)
-                std::cout << ' ' << ENGINE_BUILD_DATE;
+            std::cout << "id name " << engine_name_string();
+            const std::string& buildDate = engine_build_date_string();
+            if (!buildDate.empty())
+                std::cout << ' ' << buildDate;
             std::cout
               << "\n"
               << "id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)"
@@ -662,7 +657,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // clang-format off
 
     std::cerr << "==========================="
-              << "\nVersion                    :   << ENGINE_NAME << " << __DATE__ << " " << __TIME__
+              << "\nVersion                    : " << engine_name_string() << ' ' << __DATE__ << ' ' << __TIME__
               << compiler_info()
               << "Large pages                  : " << (has_large_pages() ? "yes" : "no")
               << "\nUser invocation            : " << BenchmarkCommand << " "

@@ -141,12 +141,12 @@ void TTWriter::write(
 
 static constexpr int ClusterSize = 3;
 
-struct Cluster {
+struct TTCluster {
     TTEntry entry[ClusterSize];
     char    padding[2];  // Pad to 32 bytes
 };
 
-static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
+static_assert(sizeof(TTCluster) == 32, "Suboptimal Cluster size");
 
 
 // Sets the size of the transposition table,
@@ -155,9 +155,9 @@ static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
 void TranspositionTable::resize(size_t mbSize, ThreadPool& threads) {
     aligned_large_pages_free(table);
 
-    clusterCount = mbSize * 1024 * 1024 / sizeof(Cluster);
+    clusterCount = mbSize * 1024 * 1024 / sizeof(TTCluster);
 
-    table = static_cast<Cluster*>(aligned_large_pages_alloc(clusterCount * sizeof(Cluster)));
+    table = static_cast<TTCluster*>(aligned_large_pages_alloc(clusterCount * sizeof(TTCluster)));
 
     if (!table)
     {
@@ -183,7 +183,7 @@ void TranspositionTable::clear(ThreadPool& threads) {
             const size_t start  = stride * i;
             const size_t len    = i + 1 != threadCount ? stride : clusterCount - start;
 
-            std::memset(&table[start], 0, len * sizeof(Cluster));
+            std::memset(&table[start], 0, len * sizeof(TTCluster));
         });
     }
 
