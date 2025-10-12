@@ -78,7 +78,30 @@ inline std::string sanitize_macro_string(std::string_view raw) {
 }  // namespace detail
 
 inline const std::string& name() {
-    static const std::string value = detail::sanitize_macro_string(ENGINE_STRINGIFY(ENGINE_NAME));
+    static const std::string value = [] {
+        std::string sanitized = detail::sanitize_macro_string(ENGINE_STRINGIFY(ENGINE_NAME));
+
+        auto normalize = [](std::string_view text) {
+            std::string result;
+            result.reserve(text.size());
+
+            for (char ch : text)
+            {
+                if (!std::isspace(static_cast<unsigned char>(ch)))
+                    result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+            }
+
+            return result;
+        };
+
+        const std::string normalized = normalize(sanitized);
+        const bool looks_like_legacy = normalized.rfind("revolutiondev", 0) == 0;
+
+        if (sanitized.empty() || looks_like_legacy)
+            return std::string("revolution-cluster-mpi-121025");
+
+        return sanitized;
+    }();
     return value;
 }
 
