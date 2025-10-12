@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution_dev_010925_v1.0.1.exe
+        EXE = revolution-cluster.exe
 else
-        EXE = revolution_dev_010925_v1.0.1
+        EXE = revolution-cluster
 endif
 
 mpi ?= no
@@ -65,9 +65,9 @@ ifeq ($(mpi),yes)
     endif
     EXTRACXXFLAGS += -DUSE_MPI
     ifeq ($(target_windows),yes)
-        EXE = revolution_cluster.exe
+        EXE = revolution-cluster.exe
     else
-        EXE = revolution_cluster
+        EXE = revolution-cluster
     endif
 endif
 
@@ -869,11 +869,11 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "revolution dev 010925 v1.0.1"
+#   - ENGINE_NAME: "revolution-cluster-mpi-121025"
 #   - ENGINE_BUILD_DATE: optional build identifier
 # You can override on the command line:
-#   make ENGINE_NAME="revolution dev 010925 v1.0.1" ENGINE_BUILD_DATE=20250901
-ENGINE_NAME        ?= revolution dev 010925 v1.0.1
+#   make ENGINE_NAME="revolution-cluster-mpi-121025" ENGINE_BUILD_DATE=20250901
+ENGINE_NAME        ?= revolution-cluster-mpi-121025
 ENGINE_BUILD_DATE  ?= $(shell date +%Y-%m-%d)
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
