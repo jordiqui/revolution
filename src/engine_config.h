@@ -10,7 +10,7 @@
 #define ENGINE_STRINGIFY(x) ENGINE_STRINGIFY_DETAIL(x)
 
 #ifndef ENGINE_NAME
-#    define ENGINE_NAME revolution-cluster-mpi-121025
+#    define ENGINE_NAME revolution cluster 121025
 #endif
 
 #ifndef ENGINE_BUILD_DATE
@@ -99,7 +99,7 @@ inline const std::string& name() {
         const bool contains_legacy_token  = normalized.find("revolutiondev") != std::string::npos;
 
         if (sanitized.empty() || looks_like_legacy_prefix || contains_legacy_token)
-            return std::string("revolution-cluster-mpi-121025");
+            return std::string("revolution cluster 121025");
 
         return sanitized;
     }();

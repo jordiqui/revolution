@@ -7,7 +7,7 @@
 - Engine now appends the build date after its name in UCI identification.
 ### Changed
 - Simplified rule-50 key adjustment by removing the unused template parameter.
-- Updated the default UCI identification string to "revolution-cluster-mpi-121025" so GUIs display the new name consistently.
+- Updated the default UCI identification string to "revolution cluster 121025" so GUIs display the new name consistently.
 
 ## [1.0.0-dev 2708225]
 ### Changed

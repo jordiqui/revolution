@@ -142,5 +142,5 @@ TEST(ExperienceFileFormat, RealFileIfProvided) {
 }
 
 TEST(EngineIdentity, DefaultUciNameIsClusterIdentifier) {
-    EXPECT_EQ(Stockfish::engine_name_string(), "revolution-cluster-mpi-121025");
+    EXPECT_EQ(Stockfish::engine_name_string(), "revolution cluster 121025");
 }

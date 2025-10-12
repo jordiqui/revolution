@@ -869,12 +869,12 @@ endif
 ### 3.8.4 Engine identity (UCI id name / build date)
 # UCI "id name" string shown in GUIs.
 # Defaults:
-#   - ENGINE_NAME: "revolution-cluster-mpi-121025"
+#   - ENGINE_NAME: "revolution cluster 121025"
 #   - ENGINE_BUILD_DATE: optional build identifier
 # You can override on the command line:
-#   make ENGINE_NAME="revolution-cluster-mpi-121025" ENGINE_BUILD_DATE=20250901
-ENGINE_NAME        ?= revolution-cluster-mpi-121025
-ENGINE_BUILD_DATE  ?= $(shell date +%Y-%m-%d)
+#   make ENGINE_NAME="revolution cluster 121025" ENGINE_BUILD_DATE=20250901
+ENGINE_NAME        ?= revolution cluster 121025
+ENGINE_BUILD_DATE  ?=
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
 
 ### 3.9 Link Time Optimization
