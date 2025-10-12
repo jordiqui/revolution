@@ -4,6 +4,8 @@
 #include <string>
 #include <vector>
 
+#include "engine_config.h"
+
 namespace {
 
 #pragma pack(push,1)
@@ -137,4 +139,8 @@ TEST(ExperienceFileFormat, RealFileIfProvided) {
     } else {
         EXPECT_TRUE(ValidateExpFile(env)) << "El archivo real no pasó la validación.";
     }
+}
+
+TEST(EngineIdentity, DefaultUciNameIsClusterIdentifier) {
+    EXPECT_EQ(Stockfish::engine_name_string(), "revolution-cluster-mpi-121025");
 }
