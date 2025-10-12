@@ -120,7 +120,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            // Force a stable, explicit UCI name so GUIs show "revolution-cluster-mpi-121025"
+            // Force a stable, explicit UCI name so GUIs show "revolution cluster 121025"
             sync_cout_start();
             std::cout << "id name " << engine_name_string();
             const std::string& buildDate = engine_build_date_string();
