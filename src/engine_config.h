@@ -95,9 +95,10 @@ inline const std::string& name() {
         };
 
         const std::string normalized = normalize(sanitized);
-        const bool looks_like_legacy = normalized.rfind("revolutiondev", 0) == 0;
+        const bool looks_like_legacy_prefix = normalized.rfind("revolutiondev", 0) == 0;
+        const bool contains_legacy_token  = normalized.find("revolutiondev") != std::string::npos;
 
-        if (sanitized.empty() || looks_like_legacy)
+        if (sanitized.empty() || looks_like_legacy_prefix || contains_legacy_token)
             return std::string("revolution-cluster-mpi-121025");
 
         return sanitized;
