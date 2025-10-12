@@ -161,6 +161,8 @@ LimitsMessage recv_limits(int src) {
     return msg;
 }
 
+namespace {
+
 void send_string_impl(int dest, const std::string& value, int tag) {
     int length = static_cast<int>(value.size());
     MPI_Send(&length, 1, MPI_INT, dest, tag, MPI_COMM_WORLD);
@@ -193,6 +195,8 @@ std::vector<std::string> recv_string_vector_impl(int src, int tag) {
         values.push_back(recv_string_impl(src, tag));
     return values;
 }
+
+}  // namespace
 
 void send_fen(int dest, const std::string& fen) {
     send_string_impl(dest, fen, TAG_FEN);
