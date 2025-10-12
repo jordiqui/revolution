@@ -18,6 +18,7 @@
 
 #include "tt.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -196,14 +197,20 @@ void TranspositionTable::clear(ThreadPool& threads) {
 // occupation during a search. The hash is x permill full, as per UCI protocol.
 // Only counts entries which match the current generation.
 int TranspositionTable::hashfull(int maxAge) const {
-    int maxAgeInternal = maxAge << GENERATION_BITS;
-    int cnt            = 0;
-    for (int i = 0; i < 1000; ++i)
+    if (!table || !clusterCount)
+        return 0;
+
+    const size_t samples        = std::min<size_t>(clusterCount, 1000);
+    const int    sampleCount    = static_cast<int>(samples);
+    const int    maxAgeInternal = maxAge << GENERATION_BITS;
+    int          cnt            = 0;
+
+    for (size_t i = 0; i < samples; ++i)
         for (int j = 0; j < ClusterSize; ++j)
             cnt += table[i].entry[j].is_occupied()
                 && table[i].entry[j].relative_age(generation8) <= maxAgeInternal;
 
-    return cnt / ClusterSize;
+    return sampleCount ? cnt * 1000 / (ClusterSize * sampleCount) : 0;
 }
 
 
