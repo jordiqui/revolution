@@ -14,7 +14,7 @@
 #endif
 
 #ifndef ENGINE_BUILD_DATE
-#    define ENGINE_BUILD_DATE
+#    define ENGINE_BUILD_DATE 20251012
 #endif
 
 namespace Stockfish {
@@ -75,26 +75,26 @@ inline std::string sanitize_macro_string(std::string_view raw) {
     return cleaned;
 }
 
+inline std::string normalize_for_comparison(std::string_view text) {
+    std::string result;
+    result.reserve(text.size());
+
+    for (char ch : text)
+    {
+        if (std::isalnum(static_cast<unsigned char>(ch)))
+            result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
+    }
+
+    return result;
+}
+
 }  // namespace detail
 
 inline const std::string& name() {
     static const std::string value = [] {
         std::string sanitized = detail::sanitize_macro_string(ENGINE_STRINGIFY(ENGINE_NAME));
 
-        auto normalize = [](std::string_view text) {
-            std::string result;
-            result.reserve(text.size());
-
-            for (char ch : text)
-            {
-                if (!std::isspace(static_cast<unsigned char>(ch)))
-                    result.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(ch))));
-            }
-
-            return result;
-        };
-
-        const std::string normalized = normalize(sanitized);
+        const std::string normalized = detail::normalize_for_comparison(sanitized);
         const bool looks_like_legacy_prefix = normalized.rfind("revolutiondev", 0) == 0;
         const bool contains_legacy_token  = normalized.find("revolutiondev") != std::string::npos;
 
@@ -107,7 +107,20 @@ inline const std::string& name() {
 }
 
 inline const std::string& build_date() {
-    static const std::string value = detail::sanitize_macro_string(ENGINE_STRINGIFY(ENGINE_BUILD_DATE));
+    static const std::string value = [] {
+        std::string sanitized = detail::sanitize_macro_string(ENGINE_STRINGIFY(ENGINE_BUILD_DATE));
+
+        const std::string normalized = detail::normalize_for_comparison(sanitized);
+        const bool missing_or_legacy = sanitized.empty()
+                                     || normalized.find("20250902") != std::string::npos
+                                     || normalized.find("20250901") != std::string::npos
+                                     || normalized.find("010925") != std::string::npos;
+
+        if (missing_or_legacy)
+            return std::string("20251012");
+
+        return sanitized;
+    }();
     return value;
 }
 

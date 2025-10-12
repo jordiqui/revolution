@@ -872,7 +872,7 @@ endif
 #   - ENGINE_NAME: "revolution cluster 121025"
 #   - ENGINE_BUILD_DATE: optional build identifier
 # You can override on the command line:
-#   make ENGINE_NAME="revolution cluster 121025" ENGINE_BUILD_DATE=20250901
+#   make ENGINE_NAME="revolution cluster 121025" ENGINE_BUILD_DATE=20251012
 ENGINE_NAME        ?= revolution cluster 121025
 ENGINE_BUILD_DATE  ?=
 CXXFLAGS += -DENGINE_NAME='"$(ENGINE_NAME)"' -DENGINE_BUILD_DATE='"$(ENGINE_BUILD_DATE)"'
