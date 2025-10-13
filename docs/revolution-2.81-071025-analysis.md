@@ -57,8 +57,20 @@ Revolution 2.81-071025 scored losses in seven catalogued games across White and 
 2. **Endgame Conversion Defense**: In several tablebase adjudications, Revolution reached technically lost endings with insufficient counterplay. Improved prophylaxis earlier (e.g., maintaining rook activity vs BrainLearn) could avoid such transitions.
 3. **Knight Coordination**: Opponents frequently dominated with centralized knights (RapTora’s `Ne5`/`Ng5`, BrainLearn’s `Nd6`/`Nf6`). Revolution’s piece placement lacked flexibility to contest outposts.
 
+## Evaluation Weight Review: Dark Squares & Knight Outposts
+
+### Dark-square control
+- The handcrafted terms that touch central control—`central_anchor_mask()` and `central_stability_bonus()`—only score occupancy on the four central squares and never look at colour complexes or half-board coverage.【F:src/evaluate.cpp†L118-L170】
+- That narrow scope leaves recurring dark-square weaknesses (e.g., holes on f5/d5 after bishop trades) unpenalized until an enemy piece actually lands there, mirroring the tournament losses where opponents entrenched knights on dark complexes.
+- Recommended adjustment: add a light-weight term that measures the net coverage of dark squares in the opponent half (e.g., attacked squares minus undefended weaknesses) and gates the penalty when the side lacks a dark-squared bishop. Calibrate the swing to 6–8 cp per deficit cluster so it harmonizes with existing kingside-structure terms and remains subordinate to NNUE output.
+
+### Knight outpost penalties
+- `knight_outpost_penalty()` charges 9 cp whenever a knight neither occupies nor can reach the four central squares within one move, plus another 4 cp if two ply of knight hops still miss the core.【F:src/evaluate.cpp†L477-L511】
+- During the reviewed losses, this discourages flexible regrouping (e.g., holding a knight on c6 against queenside pawn storms) because the engine trades tangible defensive duties for the static penalty.
+- Suggested refinements: (1) reduce the base penalty to roughly 6 cp so covering a weakness can outweigh the heuristic; (2) exempt knights that already contest adjacent key squares (c/d/e/f files) or that help defend high-value pawns; (3) couple the extra half-penalty to actual enemy control of the centre instead of the current reachability-only test. These tweaks preserve the original goal—encouraging central outposts—while avoiding overpunishment of practical defensive setups.
+
 ## Recommendations
 - Test alternative time-management settings: `Move Overhead = 55`, `Slow Mover = 85`, `Minimum Thinking Time = 70` as a starting point for bullet matches.
 - Incorporate opening book refinements to avoid sharp lines where early pawn thrusts are common, especially against Stockfish derivatives.
-- Analyze Revolution’s evaluation weights for dark-square control and knight outpost penalties; adjustments could mitigate recurring structural issues observed in these games.
+- Prototype the suggested dark-square coverage heuristic and the softened knight-outpost penalty in self-play, monitoring whether the adjustments close the recurring structural gaps before enabling them in production builds.
 
