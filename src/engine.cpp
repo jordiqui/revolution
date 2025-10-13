@@ -213,6 +213,16 @@ Engine::Engine(std::optional<std::string> path) :
                     return std::nullopt;
                 }));
 
+    options.add("Eval DarkSquare Coverage", Option(false, [](const Option& o) {
+                    Eval::set_dark_square_coverage(bool(o));
+                    return std::nullopt;
+                }));
+
+    options.add("Eval Soft Knight Outposts", Option(false, [](const Option& o) {
+                    Eval::set_soft_knight_outposts(bool(o));
+                    return std::nullopt;
+                }));
+
     options.add(  //
       "EvalFile", Option(Eval::EvalFileDefaultNameBig.data(), [this](const Option& o) {
           load_big_network(o);

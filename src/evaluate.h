@@ -54,6 +54,9 @@ Value evaluate(const NNUE::Networks&          networks,
 
 // Toggle for optional style-based evaluation adjustments.
 void set_adaptive_style(bool enabled);
+// Toggles for experimental evaluation heuristics that are prototyped via self-play.
+void set_dark_square_coverage(bool enabled);
+void set_soft_knight_outposts(bool enabled);
 
 namespace detail {
 int  passed_pawn_pressure(const Position& pos, Color defender);
