@@ -475,11 +475,17 @@ int knight_mobility_penalty(const Position& pos, Color side) {
 }
 
 int knight_outpost_penalty(const Position& pos, Color side) {
-    constexpr int    OutpostPenalty = 9;
-    const Bitboard   centralSquares = square_bb(SQ_D4) | square_bb(SQ_E4)
+    constexpr int  LegacyOutpostPenalty = 9;
+    const Bitboard centralSquares       = square_bb(SQ_D4) | square_bb(SQ_E4)
                                     | square_bb(SQ_D5) | square_bb(SQ_E5);
-    Bitboard         knights        = pos.pieces(side, KNIGHT);
-    int              penalty        = 0;
+    Bitboard       knights              = pos.pieces(side, KNIGHT);
+    const Bitboard friendlyPawnAttacks  = side == Color::WHITE
+                                             ? pawn_attacks_bb<Color::WHITE>(pos.pieces(side, PAWN))
+                                             : pawn_attacks_bb<Color::BLACK>(pos.pieces(side, PAWN));
+    const Bitboard enemyPawnAttacks     = side == Color::WHITE
+                                             ? pawn_attacks_bb<Color::BLACK>(pos.pieces(Color::BLACK, PAWN))
+                                             : pawn_attacks_bb<Color::WHITE>(pos.pieces(Color::WHITE, PAWN));
+    int            penalty              = 0;
 
     while (knights)
     {
@@ -492,7 +498,26 @@ int knight_outpost_penalty(const Position& pos, Color side) {
         if (moves & centralSquares)
             continue;
 
-        penalty += OutpostPenalty;
+        int basePenalty = LegacyOutpostPenalty;
+
+        if (Eval::soft_knight_outposts)
+        {
+            basePenalty = 6;
+
+            const Rank relRank = relative_rank(side, sq);
+            if (relRank >= RANK_5)
+                basePenalty -= 2;
+
+            if (friendlyPawnAttacks & square_bb(sq))
+                basePenalty -= 2;
+
+            if (enemyPawnAttacks & square_bb(sq))
+                basePenalty += 2;
+
+            basePenalty = std::clamp(basePenalty, 2, 12);
+        }
+
+        penalty += basePenalty;
 
         Bitboard reach    = 0;
         Bitboard frontier = moves;
@@ -510,7 +535,52 @@ int knight_outpost_penalty(const Position& pos, Color side) {
         }
 
         if (!(reach & centralSquares))
-            penalty += OutpostPenalty / 2;
+        {
+            const int extensionPenalty
+                = Eval::soft_knight_outposts ? std::max(2, basePenalty / 2) : LegacyOutpostPenalty / 2;
+            penalty += extensionPenalty;
+        }
+    }
+
+    return penalty;
+}
+
+int dark_square_coverage_penalty(const Position& pos, Color side) {
+    constexpr Bitboard DarkSquares = 0xAA55AA55AA55AA55ULL;
+
+    const Square  king    = pos.square<KING>(side);
+    Bitboard      zone    = (attacks_bb<KING>(king) | square_bb(king)) & DarkSquares;
+    const Bitboard friendPawns = pos.pieces(side, PAWN);
+    const Bitboard pawnCoverage = side == Color::WHITE
+                                      ? pawn_attacks_bb<Color::WHITE>(friendPawns)
+                                      : pawn_attacks_bb<Color::BLACK>(friendPawns);
+
+    if (!zone)
+        return 0;
+
+    const Bitboard friendlyPieces = pos.pieces(side);
+    const Bitboard enemyPieces    = pos.pieces(~side);
+
+    int penalty = 0;
+
+    Bitboard squares = zone;
+    while (squares)
+    {
+        const Square sq            = pop_lsb(squares);
+        const int    defenderCount = popcount(pos.attackers_to(sq) & friendlyPieces);
+        const int    attackerCount = popcount(pos.attackers_to(sq) & enemyPieces);
+
+        if (defenderCount == 0)
+            penalty += 5;
+
+        if (attackerCount > defenderCount)
+            penalty += (attackerCount - defenderCount) * 3;
+    }
+
+    if (!(pos.pieces(side, BISHOP) & DarkSquares))
+    {
+        const Bitboard holes = zone & ~pawnCoverage;
+        penalty += std::min(12, 2 * popcount(holes));
     }
 
     return penalty;
@@ -667,8 +737,12 @@ Value tempo_bonus(const Position& pos) {
 }  // namespace
 
 namespace Eval {
-static bool adaptive_style = false;
+static bool adaptive_style          = false;
+static bool dark_square_coverage    = false;
+static bool soft_knight_outposts    = false;
 void        set_adaptive_style(bool enabled) { adaptive_style = enabled; }
+void        set_dark_square_coverage(bool enabled) { dark_square_coverage = enabled; }
+void        set_soft_knight_outposts(bool enabled) { soft_knight_outposts = enabled; }
 }  // namespace Eval
 
 // Returns a static, purely materialistic evaluation of the position from
@@ -788,18 +862,20 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     v += tempo_bonus(pos);
 
-    const int flankPenaltyWhite = kingside_overextension_penalty(pos, Color::WHITE);
-    const int flankPenaltyBlack = kingside_overextension_penalty(pos, Color::BLACK);
-    const int passerPressureWhite = Eval::detail::passed_pawn_pressure(pos, Color::WHITE);
-    const int passerPressureBlack = Eval::detail::passed_pawn_pressure(pos, Color::BLACK);
-    const int knightPenaltyWhite  = knight_mobility_penalty(pos, Color::WHITE);
-    const int knightPenaltyBlack  = knight_mobility_penalty(pos, Color::BLACK);
-    const int outpostPenaltyWhite = knight_outpost_penalty(pos, Color::WHITE);
-    const int outpostPenaltyBlack = knight_outpost_penalty(pos, Color::BLACK);
-    const int centralBonusWhite   = central_stability_bonus(pos, Color::WHITE);
-    const int centralBonusBlack   = central_stability_bonus(pos, Color::BLACK);
-    const int kpScoreWhite        = king_pawn_endgame_score(pos, Color::WHITE);
-    const int kpScoreBlack        = king_pawn_endgame_score(pos, Color::BLACK);
+    const int flankPenaltyWhite     = kingside_overextension_penalty(pos, Color::WHITE);
+    const int flankPenaltyBlack     = kingside_overextension_penalty(pos, Color::BLACK);
+    const int passerPressureWhite   = Eval::detail::passed_pawn_pressure(pos, Color::WHITE);
+    const int passerPressureBlack   = Eval::detail::passed_pawn_pressure(pos, Color::BLACK);
+    const int knightPenaltyWhite    = knight_mobility_penalty(pos, Color::WHITE);
+    const int knightPenaltyBlack    = knight_mobility_penalty(pos, Color::BLACK);
+    const int outpostPenaltyWhite   = knight_outpost_penalty(pos, Color::WHITE);
+    const int outpostPenaltyBlack   = knight_outpost_penalty(pos, Color::BLACK);
+    const int centralBonusWhite     = central_stability_bonus(pos, Color::WHITE);
+    const int centralBonusBlack     = central_stability_bonus(pos, Color::BLACK);
+    const int kpScoreWhite          = king_pawn_endgame_score(pos, Color::WHITE);
+    const int kpScoreBlack          = king_pawn_endgame_score(pos, Color::BLACK);
+    const int darkCoveragePenaltyW  = dark_square_coverage ? dark_square_coverage_penalty(pos, Color::WHITE) : 0;
+    const int darkCoveragePenaltyB  = dark_square_coverage ? dark_square_coverage_penalty(pos, Color::BLACK) : 0;
 
     v += flankPenaltyBlack - flankPenaltyWhite;
     v += passerPressureBlack - passerPressureWhite;
@@ -807,6 +883,8 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     v += outpostPenaltyBlack - outpostPenaltyWhite;
     v += centralBonusWhite - centralBonusBlack;
     v += kpScoreWhite - kpScoreBlack;
+    if (dark_square_coverage)
+        v += darkCoveragePenaltyB - darkCoveragePenaltyW;
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
