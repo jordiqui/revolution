@@ -500,7 +500,7 @@ int knight_outpost_penalty(const Position& pos, Color side) {
 
         int basePenalty = LegacyOutpostPenalty;
 
-        if (Eval::soft_knight_outposts)
+        if (Eval::soft_knight_outposts_enabled())
         {
             basePenalty = 6;
 
@@ -537,7 +537,7 @@ int knight_outpost_penalty(const Position& pos, Color side) {
         if (!(reach & centralSquares))
         {
             const int extensionPenalty
-                = Eval::soft_knight_outposts ? std::max(2, basePenalty / 2) : LegacyOutpostPenalty / 2;
+                = Eval::soft_knight_outposts_enabled() ? std::max(2, basePenalty / 2) : LegacyOutpostPenalty / 2;
             penalty += extensionPenalty;
         }
     }
@@ -743,6 +743,7 @@ static bool soft_knight_outposts    = false;
 void        set_adaptive_style(bool enabled) { adaptive_style = enabled; }
 void        set_dark_square_coverage(bool enabled) { dark_square_coverage = enabled; }
 void        set_soft_knight_outposts(bool enabled) { soft_knight_outposts = enabled; }
+bool        soft_knight_outposts_enabled() { return soft_knight_outposts; }
 }  // namespace Eval
 
 // Returns a static, purely materialistic evaluation of the position from

@@ -57,10 +57,12 @@ void set_adaptive_style(bool enabled);
 // Toggles for experimental evaluation heuristics that are prototyped via self-play.
 void set_dark_square_coverage(bool enabled);
 void set_soft_knight_outposts(bool enabled);
+bool soft_knight_outposts_enabled();
 
 namespace detail {
 int  passed_pawn_pressure(const Position& pos, Color defender);
 bool is_passed_pawn(const Position& pos, Color side, Square sq);
+int  forward_distance_to_edge(Color side, Square sq);
 }  // namespace detail
 }  // namespace Eval
 
