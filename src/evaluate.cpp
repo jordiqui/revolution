@@ -19,6 +19,7 @@
 #include "evaluate.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -92,39 +93,23 @@ thread_local EvalCacheEntry eval_cache[EVAL_CACHE_SIZE];
 
 namespace {
 
-// Basic positional cues used to slightly bias evaluation depending on the
-// phase of the game. The intent is to provide a light-weight and easily
-// switchable mechanism to alter style without replicating any particular
-// engine's approach.
-struct StyleIndicators {
-    int pressure;  // attackers on the opposing king
-    int shield;    // defenders near our own king
-    int center;    // friendly pieces controlling the central squares
-};
-
-// Forward declaration of the internal implementation so tests can reuse it without
-// triggering recursion through gather_indicators().
-StyleIndicators compute_indicators(const Position& pos);
-
+// Forward declaration for the self-test used by style indicators.
 #ifndef NDEBUG
 void assert_indicator_counts();
+static std::once_flag indicatorsSelfTest;
 #endif
 
-// Collect the above indicators from the current position.
-StyleIndicators gather_indicators(const Position& pos) {
+}  // namespace
+
+Eval::StyleIndicators Eval::style_indicators(const Position& pos, Color perspective) {
 #ifndef NDEBUG
-    static std::once_flag selfTestFlag;
-    std::call_once(selfTestFlag, []() { assert_indicator_counts(); });
+    std::call_once(indicatorsSelfTest, []() { assert_indicator_counts(); });
 #endif
-    return compute_indicators(pos);
-}
 
-StyleIndicators compute_indicators(const Position& pos) {
-    StyleIndicators ind{};
-    const Square    enemyKing      = pos.square<KING>(~pos.side_to_move());
-    const Square    ownKing        = pos.square<KING>(pos.side_to_move());
-    const Bitboard  friendlyPieces = pos.pieces(pos.side_to_move());
-    [[maybe_unused]] const Bitboard enemyPieces = pos.pieces(~pos.side_to_move());
+    Eval::StyleIndicators ind{};
+    const Square   enemyKing      = pos.square<KING>(~perspective);
+    const Square   ownKing        = pos.square<KING>(perspective);
+    const Bitboard friendlyPieces = pos.pieces(perspective);
 
     ind.pressure = popcount(pos.attackers_to(enemyKing) & friendlyPieces);
     ind.shield   = popcount(pos.attackers_to(ownKing) & friendlyPieces);
@@ -134,26 +119,28 @@ StyleIndicators compute_indicators(const Position& pos) {
     return ind;
 }
 
+namespace {
+
 #ifndef NDEBUG
 void assert_indicator_counts() {
-    auto indicators_for = [](const std::string& fen) {
+    auto indicators_for = [](const std::string& fen, Color perspective) {
         StateInfo st;
         Position  pos;
         pos.set(fen, false, &st);
-        return compute_indicators(pos);
+        return Eval::style_indicators(pos, perspective);
     };
 
     {
         // White to move with both sides influencing the black king. Only white attackers
         // should contribute to pressure.
-        const StyleIndicators ind = indicators_for("4k3/6n1/6B1/8/8/8/8/4K3 w - - 0 1");
+        const Eval::StyleIndicators ind = indicators_for("4k3/6n1/6B1/8/8/8/8/4K3 w - - 0 1", Color::WHITE);
         assert(ind.pressure == 1);
         assert(ind.shield == 0);
     }
 
     {
         // White king defended by a friendly knight while under attack from an enemy one.
-        const StyleIndicators ind = indicators_for("4k3/8/8/8/8/5N2/6n1/4K3 w - - 0 1");
+        const Eval::StyleIndicators ind = indicators_for("4k3/8/8/8/8/5N2/6n1/4K3 w - - 0 1", Color::WHITE);
         assert(ind.shield == 1);
         assert(ind.pressure == 0);
     }
@@ -161,7 +148,7 @@ void assert_indicator_counts() {
     {
         // Black to move: ensure we count black attackers on the white king and black
         // defenders around their own king while ignoring white contributions.
-        const StyleIndicators ind = indicators_for("4k3/6n1/6B1/8/8/8/4r1N1/4K3 b - - 0 1");
+        const Eval::StyleIndicators ind = indicators_for("4k3/6n1/6B1/8/8/8/4r1N1/4K3 b - - 0 1", Color::BLACK);
         assert(ind.pressure == 1);
         assert(ind.shield == 1);
     }
@@ -170,7 +157,7 @@ void assert_indicator_counts() {
 
 // Compute an adjustment based on the indicators and the current evaluation.
 Value adaptive_style_bonus(const Position& pos, Value current) {
-    StyleIndicators ind = gather_indicators(pos);
+    Eval::StyleIndicators ind = Eval::style_indicators(pos, pos.side_to_move());
 
     int atkW = current > 50 ? 3 : 1;
     int defW = current < -50 ? 3 : 1;
@@ -200,25 +187,50 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
     if (rank_of(kingSq) != home || file_of(kingSq) < FILE_G)
         return 0;
 
-    const Bitboard pawns   = pos.pieces(side, PAWN);
-    int             pushed  = 0;
-    int             deep    = 0;
+    const Bitboard pawns      = pos.pieces(side, PAWN);
+    const Bitboard minorPieces = pos.pieces(side, KNIGHT) | pos.pieces(side, BISHOP);
+    const Bitboard enemyHeavy  = pos.pieces(~side, ROOK) | pos.pieces(~side, QUEEN);
 
+    int pushed = 0;
+    int deep   = 0;
+
+    std::array<bool, 2> shallowPawnOnFile{false, false};
+    std::array<int, 2>  fileThreats{0, 0};
+
+    size_t idx = 0;
     for (File file : {FILE_G, FILE_H})
     {
         const Bitboard filePawns = pawns & file_bb(file);
-        if (!filePawns)
-            continue;
-
-        const Square pawnSq  = lsb(filePawns);
-        const int    relRank = static_cast<int>(relative_rank(side, pawnSq));
-
-        if (relRank >= static_cast<int>(RANK_4))
+        if (filePawns)
         {
-            ++pushed;
-            if (relRank >= static_cast<int>(RANK_5))
-                ++deep;
+            Bitboard tmp = filePawns;
+            while (tmp)
+            {
+                const Square pawnSq  = pop_lsb(tmp);
+                const int    relRank = static_cast<int>(relative_rank(side, pawnSq));
+
+                if (relRank <= static_cast<int>(RANK_3))
+                    shallowPawnOnFile[idx] = true;
+
+                if (relRank >= static_cast<int>(RANK_4))
+                {
+                    ++pushed;
+                    if (relRank >= static_cast<int>(RANK_5))
+                        ++deep;
+                }
+            }
         }
+
+        const Square homeSq    = make_square(file, home);
+        const Square guard1    = make_square(file, side == Color::WHITE ? RANK_2 : RANK_7);
+        const Square guard2    = make_square(file, side == Color::WHITE ? RANK_3 : RANK_6);
+        const std::array<Square, 3> probeSquares{homeSq, guard1, guard2};
+
+        for (Square sq : probeSquares)
+            if (is_ok(sq))
+                fileThreats[idx] += popcount(pos.attackers_to(sq) & enemyHeavy);
+
+        ++idx;
     }
 
     if (!pushed)
@@ -244,7 +256,42 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
             ++defendedFront;
 
     if (!defendedFront)
-        penalty += 5;
+        penalty += 8 + 3 * std::max(1, pushed);
+    else if (defendedFront == 1)
+        penalty += 3;
+
+    idx = 0;
+    for (File file : {FILE_G, FILE_H})
+    {
+        const bool shallowCover = shallowPawnOnFile[idx];
+        const bool openFile     = !shallowCover;
+        const int  threatCount  = fileThreats[idx];
+
+        if (openFile && threatCount)
+        {
+            penalty += 6 + 3 * threatCount;
+            if (!defendedFront)
+                penalty += 4;
+        }
+        else if (threatCount >= 2)
+            penalty += 3;
+
+        ++idx;
+    }
+
+    const std::array<Square, 2> keyDarkSquares{
+      side == Color::WHITE ? SQ_F3 : SQ_F6,
+      side == Color::WHITE ? SQ_G2 : SQ_G7};
+
+    int minorDefenders = 0;
+    for (Square sq : keyDarkSquares)
+        if (is_ok(sq))
+            minorDefenders += popcount(pos.attackers_to(sq) & minorPieces);
+
+    if (minorDefenders == 0)
+        penalty += 10 + 4 * pushed;
+    else if (minorDefenders == 1)
+        penalty += 4;
 
     if (centerPawns == 0)
     {
@@ -398,14 +445,41 @@ int passed_pawn_pressure(const Position& pos, Color defender) {
                 base += 3;
         }
 
-        const int rookDir = rook_support_direction(attacker);
-        if (rook_on_ray(pos, attacker, sq, rookDir))
-            base += 9 + (relRank >= static_cast<int>(RANK_6) ? 3 : 0);
-        if (rook_on_ray(pos, defender, sq, -rookDir))
-            base -= 7;
+        const int  rookDir            = rook_support_direction(attacker);
+        const bool rookBehindAttacker = rook_on_ray(pos, attacker, sq, rookDir);
+        const bool rookOpposingDef    = rook_on_ray(pos, defender, sq, -rookDir);
+
+        if (rookBehindAttacker)
+        {
+            base += 12 + (relRank >= static_cast<int>(RANK_6) ? 5 : 0);
+            if (relRank >= static_cast<int>(RANK_5))
+                base += 4;
+        }
+
+        if (rookOpposingDef)
+            base -= 9;
+        else if (relRank >= static_cast<int>(RANK_5))
+            base += 8;
+        else
+            base += 4;
 
         if (connected_passed_neighbor(pos, attacker, sq))
-            base += 8 + (relRank >= static_cast<int>(RANK_6) ? 4 : 0);
+        {
+            base += 10 + (relRank >= static_cast<int>(RANK_5) ? 4 : 0);
+            if (relRank >= static_cast<int>(RANK_6))
+                base += 4;
+        }
+
+        const File file        = file_of(sq);
+        const bool outsideFile = file == FILE_A || file == FILE_H;
+        if (outsideFile && relRank >= static_cast<int>(RANK_5))
+        {
+            base += 6;
+            if (rookBehindAttacker)
+                base += 4;
+            if (!rookOpposingDef)
+                base += 4;
+        }
 
         const int defenderToPawn = distance(defenderKing, sq);
         if (defenderToPawn >= 4)
@@ -581,6 +655,16 @@ int dark_square_coverage_penalty(const Position& pos, Color side) {
     {
         const Bitboard holes = zone & ~pawnCoverage;
         penalty += std::min(12, 2 * popcount(holes));
+
+        const Eval::StyleIndicators ours   = Eval::style_indicators(pos, side);
+        const Eval::StyleIndicators theirs = Eval::style_indicators(pos, ~side);
+        const int                   shieldGap = std::max(0, theirs.pressure - ours.shield);
+
+        if (ours.shield <= 1)
+            penalty += 4;
+
+        if (shieldGap)
+            penalty += std::min(10, 3 * shieldGap);
     }
 
     return penalty;

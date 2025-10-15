@@ -1049,6 +1049,79 @@ moves_loop:  // When in check, search starts here
     MovePicker mp(pos, ttData.move, depth, &mainHistory, &lowPlyHistory, &captureHistory, contHist,
                   &pawnHistory, ss->ply);
 
+    const Eval::StyleIndicators ourIndicators   = Eval::style_indicators(pos, us);
+    const Eval::StyleIndicators theirIndicators = Eval::style_indicators(pos, ~us);
+    const bool                  shieldLow = !ss->inCheck && ourIndicators.shield <= 1
+                         && theirIndicators.pressure >= ourIndicators.shield;
+
+    bool evalCollapsed = false;
+    if (!ss->inCheck && (ss - 2)->staticEval != VALUE_NONE && ss->staticEval != VALUE_NONE)
+        evalCollapsed = (ss - 2)->staticEval - ss->staticEval >= 120;
+
+    auto outside_passer_threat = [&]() {
+        Bitboard pawns = pos.pieces(~us, PAWN);
+        while (pawns)
+        {
+            const Square sq = pop_lsb(pawns);
+            if (!Eval::detail::is_passed_pawn(pos, ~us, sq))
+                continue;
+
+            const File file = file_of(sq);
+            if (file != FILE_A && file != FILE_H)
+                continue;
+
+            if (static_cast<int>(relative_rank(~us, sq)) < static_cast<int>(RANK_5))
+                continue;
+
+            const int step        = (~us == Color::WHITE) ? -1 : 1;
+            Square     current     = sq;
+            bool       rookBehind  = false;
+            while (true)
+            {
+                const int nextRank = static_cast<int>(rank_of(current)) + step;
+                if (nextRank < static_cast<int>(RANK_1) || nextRank > static_cast<int>(RANK_8))
+                    break;
+
+                current = make_square(file, static_cast<Rank>(nextRank));
+                const Piece piece = pos.piece_on(current);
+                if (piece == NO_PIECE)
+                    continue;
+
+                if (color_of(piece) == ~us && type_of(piece) == ROOK)
+                    rookBehind = true;
+                break;
+            }
+
+            if (!rookBehind)
+                continue;
+
+            current       = sq;
+            bool rookAhead = false;
+            while (true)
+            {
+                const int nextRank = static_cast<int>(rank_of(current)) - step;
+                if (nextRank < static_cast<int>(RANK_1) || nextRank > static_cast<int>(RANK_8))
+                    break;
+
+                current = make_square(file, static_cast<Rank>(nextRank));
+                const Piece piece = pos.piece_on(current);
+                if (piece == NO_PIECE)
+                    continue;
+
+                if (color_of(piece) == us && type_of(piece) == ROOK)
+                    rookAhead = true;
+                break;
+            }
+
+            if (!rookAhead)
+                return true;
+        }
+
+        return false;
+    };
+
+    const bool guardReductions = shieldLow || evalCollapsed || (!ss->inCheck && outside_passer_threat());
+
     value = bestValue;
 
     int moveCount = 0;
@@ -1103,6 +1176,12 @@ moves_loop:  // When in check, search starts here
         Depth r = (moveCount > 1 && depth >= 3)
                     ? reduction(improving, depth, moveCount, delta)
                     : Depth(0);
+
+        if (guardReductions && !capture && !givesCheck && depth >= 3 && moveCount > 1)
+        {
+            const Depth guard = depth >= 6 ? Depth(768) : Depth(512);
+            r = std::max<Depth>(Depth(0), r - guard);
+        }
 
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls

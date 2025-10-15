@@ -29,6 +29,12 @@ class Position;
 
 namespace Eval {
 
+struct StyleIndicators {
+    int pressure;
+    int shield;
+    int center;
+};
+
 // The default net name MUST follow the format nn-[SHA256 first 12 digits].nnue
 // for the build process (profile-build and fishtest) to work. Do not change the
 // names or the location where these constants are defined, as they are used in
@@ -51,6 +57,8 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorStack&  accumulators,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
+
+StyleIndicators style_indicators(const Position& pos, Color perspective);
 
 // Toggle for optional style-based evaluation adjustments.
 void set_adaptive_style(bool enabled);

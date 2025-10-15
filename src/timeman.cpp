@@ -27,6 +27,7 @@
 #include "ucioption.h"
 
 #include "bitboard.h"
+#include "evaluate.h"
 #include "position.h"
 
 namespace Stockfish {
@@ -48,6 +49,8 @@ void TimeManagement::advance_nodes_time(std::int64_t nodes) {
 //      1) x basetime (+ z increment)
 //      2) x moves in y seconds (+ z increment)
 namespace {
+
+constexpr Bitboard DarkSquares = 0xAA55AA55AA55AA55ULL;
 
 Bitboard forward_passed_mask(Color side, Square sq) {
     Bitboard mask    = 0;
@@ -140,6 +143,33 @@ void TimeManagement::init(Search::LimitsType& limits,
                                                         : 1.02 + 0.04 * (matchBias - 1.0);
     moveOverhead = TimePoint(std::lround(std::max(0.0, double(moveOverhead) * overheadBias)));
 
+    const Eval::StyleIndicators ourIndicators   = Eval::style_indicators(pos, us);
+    const Eval::StyleIndicators theirIndicators = Eval::style_indicators(pos, ~us);
+    const double                ourPasserUrgency   = passed_pawn_urgency(pos, us);
+    const double                theirPasserUrgency = passed_pawn_urgency(pos, ~us);
+
+    const double shieldBalance = double(ourIndicators.shield) - double(theirIndicators.pressure);
+    const double calmScore     = std::max(0.0, shieldBalance - theirPasserUrgency * 0.75);
+    double       dangerScore   = std::max(0.0, -shieldBalance)
+                           + std::max(0.0, theirPasserUrgency - ourPasserUrgency * 0.5);
+
+    if (!(pos.pieces(us, BISHOP) & DarkSquares) && ourIndicators.shield <= 1)
+        dangerScore += 0.8;
+
+    const double dangerScale = std::clamp(dangerScore * 0.06, 0.0, 0.20);
+    if (dangerScale > 0.0)
+    {
+        slowMover *= std::max(0.72, 1.0 - dangerScale);
+        const double overheadBoost = 1.0 + 1.8 * dangerScale;
+        moveOverhead = TimePoint(std::lround(std::max(0.0, double(moveOverhead) * overheadBoost)));
+    }
+    else
+    {
+        const double calmScale = std::min(0.12, calmScore * 0.04);
+        if (calmScale > 0.0)
+            slowMover *= 1.0 + calmScale;
+    }
+
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
     double optScale, maxScale;
@@ -214,9 +244,7 @@ void TimeManagement::init(Search::LimitsType& limits,
 
     if (pos.count<PAWN>() <= 8)
     {
-        const double ourUrgency   = passed_pawn_urgency(pos, us);
-        const double theirUrgency = passed_pawn_urgency(pos, ~us);
-        const double combined     = std::clamp(ourUrgency + 0.6 * theirUrgency, 0.0, 0.24);
+        const double combined = std::clamp(ourPasserUrgency + 0.6 * theirPasserUrgency, 0.0, 0.24);
 
         passerTimeScale += combined;
     }
