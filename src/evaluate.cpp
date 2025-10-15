@@ -197,10 +197,11 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
     std::array<bool, 2> shallowPawnOnFile{false, false};
     std::array<int, 2>  fileThreats{0, 0};
 
-    size_t idx = 0;
-    for (File file : {FILE_G, FILE_H})
+    constexpr std::array<File, 2> flankFiles{FILE_G, FILE_H};
+
+    for (size_t idx = 0; idx < flankFiles.size(); ++idx)
     {
-        const Bitboard filePawns = pawns & file_bb(file);
+        const Bitboard filePawns = pawns & file_bb(flankFiles[idx]);
         if (filePawns)
         {
             Bitboard tmp = filePawns;
@@ -221,16 +222,15 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
             }
         }
 
-        const Square homeSq    = make_square(file, home);
-        const Square guard1    = make_square(file, side == Color::WHITE ? RANK_2 : RANK_7);
-        const Square guard2    = make_square(file, side == Color::WHITE ? RANK_3 : RANK_6);
+        const Square homeSq    = make_square(flankFiles[idx], home);
+        const Square guard1    = make_square(flankFiles[idx], side == Color::WHITE ? RANK_2 : RANK_7);
+        const Square guard2    = make_square(flankFiles[idx], side == Color::WHITE ? RANK_3 : RANK_6);
         const std::array<Square, 3> probeSquares{homeSq, guard1, guard2};
 
         for (Square sq : probeSquares)
             if (is_ok(sq))
                 fileThreats[idx] += popcount(pos.attackers_to(sq) & enemyHeavy);
 
-        ++idx;
     }
 
     if (!pushed)
@@ -260,8 +260,7 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
     else if (defendedFront == 1)
         penalty += 3;
 
-    idx = 0;
-    for (File file : {FILE_G, FILE_H})
+    for (size_t idx = 0; idx < flankFiles.size(); ++idx)
     {
         const bool shallowCover = shallowPawnOnFile[idx];
         const bool openFile     = !shallowCover;
@@ -275,8 +274,6 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
         }
         else if (threatCount >= 2)
             penalty += 3;
-
-        ++idx;
     }
 
     const std::array<Square, 2> keyDarkSquares{
