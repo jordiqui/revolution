@@ -535,7 +535,7 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (it == table.end())
         return Move::none();
 
-    const auto& vec = it->second;
+    auto& vec = it->second;
     if (vec.empty())
         return Move::none();
 
@@ -563,8 +563,8 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     const auto selectionStart = std::chrono::steady_clock::now();
 #endif
 
-    std::vector<ExperienceEntry> best(static_cast<std::size_t>(limit));
-    std::partial_sort_copy(vec.begin(), vec.end(), best.begin(), best.end(), comparator);
+    std::vector<ExperienceEntry> bestEntries(static_cast<std::size_t>(limit));
+    std::partial_sort_copy(vec.begin(), vec.end(), bestEntries.begin(), bestEntries.end(), comparator);
 
 #ifdef EXPERIENCE_PROBE_PROFILE
     const auto selectionEnd = std::chrono::steady_clock::now();
@@ -579,26 +579,21 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
               << " total_us " << totalMicros << sync_endl;
 #endif
 
-    if (best.empty() || best.front().depth < minDepth)
+    if (bestEntries.empty() || bestEntries.front().depth < minDepth)
         return Move::none();
 
     // Pick the best move deterministically instead of randomly.  The highest
     // ranked move represents the one with the best historical evaluation.
- codex/introduce-configurable-caps-for-positions
-    Move best = vec.front().move;
+    const Move bestMove = bestEntries.front().move;
 
-    auto& origVec = it->second;
-    for (auto& e : origVec)
-        if (e.move == best)
+    for (auto& e : vec)
+        if (e.move == bestMove)
         {
             e.lastUse = ++updateCounter;
             break;
         }
 
-    return best;
-=======
-    return best.front().move;
- main
+    return bestMove;
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
