@@ -242,12 +242,15 @@ void Search::Worker::start_searching() {
     // the UCI protocol states that we shouldn't print the best move before the
     // GUI sends a "stop" or "ponderhit" command. We therefore simply wait here
     // until the GUI sends one of those commands.
-    while (!threads.stop && (main_manager()->ponder || limits.infinite))
-    {}  // Busy wait for a stop or a ponder reset
+    threads.wait_for_control_event([&]() {
+        return !threads.stop.load(std::memory_order_relaxed)
+               && (main_manager()->ponder.load(std::memory_order_relaxed) || limits.infinite);
+    });
 
     // Stop the threads if not already stopped (also raise the stop if
     // "ponderhit" just reset threads.ponder)
     threads.stop = true;
+    threads.notify_control_event();
 
     // Wait until all threads have finished
     threads.wait_for_search_finished();
@@ -509,7 +512,10 @@ void Search::Worker::iterative_deepening() {
                 || (rootMoves[0].score != -VALUE_INFINITE
                     && rootMoves[0].score <= VALUE_MATED_IN_MAX_PLY
                     && VALUE_MATE + rootMoves[0].score <= 2 * limits.mate)))
+        {
             threads.stop = true;
+            threads.notify_control_event();
+        }
 
         // If the skill level is enabled and time is up, pick a sub-optimal best move
         if (skill.enabled() && skill.time_to_pick(rootDepth))
@@ -553,7 +559,10 @@ void Search::Worker::iterative_deepening() {
 
             if (completedDepth >= 10 && nodesEffort >= 92425 && elapsedTime > totalTime * 0.666
                 && !mainThread->ponder)
+            {
                 threads.stop = true;
+                threads.notify_control_event();
+            }
 
             // Stop the search if we have exceeded the totalTime or maximum
             if (elapsedTime > std::min(totalTime, double(mainThread->tm.maximum())))
@@ -563,7 +572,10 @@ void Search::Worker::iterative_deepening() {
                 if (mainThread->ponder)
                     mainThread->stopOnPonderhit = true;
                 else
+                {
                     threads.stop = true;
+                    threads.notify_control_event();
+                }
             }
             else
                 threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.503;
@@ -2115,7 +2127,10 @@ void SearchManager::check_time(Search::Worker& worker) {
       && ((worker.limits.use_time_management() && (elapsed > tm.maximum() || stopOnPonderhit))
           || (worker.limits.movetime && elapsed >= worker.limits.movetime)
           || (worker.limits.nodes && worker.threads.nodes_searched() >= worker.limits.nodes)))
+    {
         worker.threads.stop = worker.threads.abortedSearch = true;
+        worker.threads.notify_control_event();
+    }
 }
 
 // Used to correct and extend PVs for moves that have a TB (but not a mate) score.
