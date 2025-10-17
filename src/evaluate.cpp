@@ -236,7 +236,7 @@ int kingside_overextension_penalty(const Position& pos, Color side) {
     if (!pushed)
         return 0;
 
-    const int shieldPieces = popcount(pos.pieces(side) & kingside_shield_mask(side));
+    const int shieldPieces = popcount(pos.pieces(side, PAWN) & kingside_shield_mask(side));
     const int centerPawns  = popcount(pos.pieces(side, PAWN) & central_anchor_mask(side));
 
     int penalty = 10 * pushed;
