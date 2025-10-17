@@ -516,26 +516,56 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
     if (it == table.end())
         return Move::none();
 
-    auto vec = it->second;
+    const auto& vec = it->second;
     if (vec.empty())
         return Move::none();
 
-    // Order moves by their historical evaluation and depth so that the most
-    // promising moves come first.  This allows the engine to "learn" from
-    // previous games by preferring moves with the best average score at the
-    // deepest search.
-    std::sort(vec.begin(), vec.end(), [&](const ExperienceEntry& a, const ExperienceEntry& b) {
-        return (a.score + evalImportance * a.depth) > (b.score + evalImportance * b.depth);
-    });
+    const int limit = std::min<int>({maxMoves, width, static_cast<int>(vec.size())});
+    if (limit <= 0)
+        return Move::none();
 
-    vec.resize(std::min<int>({maxMoves, width, static_cast<int>(vec.size())}));
+#ifdef EXPERIENCE_PROBE_PROFILE
+    const auto profileStart = std::chrono::steady_clock::now();
+#endif
 
-    if (vec.empty() || vec.front().depth < minDepth)
+    const auto comparator = [&](const ExperienceEntry& a, const ExperienceEntry& b) {
+        const int lhs = a.score + evalImportance * a.depth;
+        const int rhs = b.score + evalImportance * b.depth;
+        if (lhs != rhs)
+            return lhs > rhs;
+        if (a.depth != b.depth)
+            return a.depth > b.depth;
+        if (a.count != b.count)
+            return a.count > b.count;
+        return a.move.raw() < b.move.raw();
+    };
+
+#ifdef EXPERIENCE_PROBE_PROFILE
+    const auto selectionStart = std::chrono::steady_clock::now();
+#endif
+
+    std::vector<ExperienceEntry> best(static_cast<std::size_t>(limit));
+    std::partial_sort_copy(vec.begin(), vec.end(), best.begin(), best.end(), comparator);
+
+#ifdef EXPERIENCE_PROBE_PROFILE
+    const auto selectionEnd = std::chrono::steady_clock::now();
+    const auto profileEnd   = selectionEnd;
+    const auto selectionMicros =
+        std::chrono::duration_cast<std::chrono::microseconds>(selectionEnd - selectionStart).count();
+    const auto totalMicros =
+        std::chrono::duration_cast<std::chrono::microseconds>(profileEnd - profileStart).count();
+    sync_cout << "info string experience_probe entries " << vec.size()
+              << " limit " << limit
+              << " partial_sort_us " << selectionMicros
+              << " total_us " << totalMicros << sync_endl;
+#endif
+
+    if (best.empty() || best.front().depth < minDepth)
         return Move::none();
 
     // Pick the best move deterministically instead of randomly.  The highest
     // ranked move represents the one with the best historical evaluation.
-    return vec.front().move;
+    return best.front().move;
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
