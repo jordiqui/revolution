@@ -12,6 +12,7 @@
 #include <limits>
 #include <memory>
 #include <sstream>
+#include <tuple>
 #include <type_traits>
 #include <cstring>
 #include <functional>
@@ -143,6 +144,11 @@ bool Experience::is_ready() const {
 void Experience::clear() {
     wait_until_loaded();
     table.clear();
+    totalEntries               = 0;
+    totalPrunedPositions       = 0;
+    totalPrunedEntries         = 0;
+    totalPerPositionEvictions  = 0;
+    updateCounter              = 0;
 }
 
 void Experience::load(const std::string& file) {
@@ -215,8 +221,13 @@ void Experience::load(const std::string& file) {
     in.seekg(0, std::ios::beg);
 
     table.clear();
-    binaryFormat     = isV1 || isV2 || isBL;
-    brainLearnFormat = isBL;
+    binaryFormat              = isV1 || isV2 || isBL;
+    brainLearnFormat          = isBL;
+    totalEntries              = 0;
+    totalPrunedPositions      = 0;
+    totalPrunedEntries        = 0;
+    totalPerPositionEvictions = 0;
+    updateCounter             = 0;
 
     std::size_t totalMoves     = 0;
     std::size_t duplicateMoves = 0;
@@ -233,10 +244,14 @@ void Experience::load(const std::string& file) {
                 e.score = score;
                 e.depth = depth;
                 e.count += count;
+                e.lastUse = ++updateCounter;
                 break;
             }
         if (!dup)
-            vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count});
+        {
+            vec.push_back({Move(static_cast<std::uint16_t>(move)), score, depth, count, ++updateCounter});
+            ++totalEntries;
+        }
     };
 
     if (binaryFormat)
@@ -380,13 +395,17 @@ void Experience::load(const std::string& file) {
         }
     }
 
+    enforce_limits();
+
     std::size_t totalPositions = table.size();
     double      frag           = totalPositions ? 100.0 * duplicateMoves / totalPositions : 0.0;
 
     sync_cout << "info string " << display << " -> Total moves: " << totalMoves
-              << ". Total positions: " << totalPositions << ". Duplicate moves: " << duplicateMoves
+              << ". Total positions: " << totalPositions << ". Entries kept: " << totalEntries
+              << ". Duplicate moves: " << duplicateMoves
               << ". Fragmentation: " << std::fixed << std::setprecision(2) << frag << "%)"
-              << sync_endl;
+              << ". Approx memory: " << std::fixed << std::setprecision(2)
+              << approximate_memory_usage_mib() << " MiB" << sync_endl;
 
     binaryFormat = true;
 
@@ -565,26 +584,59 @@ Move Experience::probe(Position& pos, int width, int evalImportance, int minDept
 
     // Pick the best move deterministically instead of randomly.  The highest
     // ranked move represents the one with the best historical evaluation.
+ codex/introduce-configurable-caps-for-positions
+    Move best = vec.front().move;
+
+    auto& origVec = it->second;
+    for (auto& e : origVec)
+        if (e.move == best)
+        {
+            e.lastUse = ++updateCounter;
+            break;
+        }
+
+    return best;
+=======
     return best.front().move;
+ main
 }
 
 void Experience::update(Position& pos, Move move, int score, int depth) {
     if (!is_ready())
         return;
-    auto& vec = table[pos.key()];
-    for (auto& e : vec)
-        if (e.move == move)
-        {
-            // Update the stored statistics with a running average of the
-            // evaluation.  This simple learning mechanism increases the score
-            // reliability over time and retains the deepest search depth seen.
-            e.score = (e.score * e.count + score) / (e.count + 1);
-            e.depth = std::max(e.depth, depth);
-            e.count++;
-            return;
-        }
-    // First encounter of this move in the current position.
-    vec.push_back({move, score, depth, 1});
+    const Key key = pos.key();
+    auto       it  = table.find(key);
+
+    if (it != table.end())
+    {
+        auto& vec = it->second;
+        for (auto& e : vec)
+            if (e.move == move)
+            {
+                // Update the stored statistics with a running average of the
+                // evaluation.  This simple learning mechanism increases the score
+                // reliability over time and retains the deepest search depth seen.
+                e.score   = (e.score * e.count + score) / (e.count + 1);
+                e.depth   = std::max(e.depth, depth);
+                e.count++;
+                e.lastUse = ++updateCounter;
+                return;
+            }
+
+        // First encounter of this move in the current position.
+        vec.push_back({move, score, depth, 1, ++updateCounter});
+        ++totalEntries;
+        prune_entries_for_position(vec);
+        return;
+    }
+
+    if (maxPositionsLimit && table.size() >= maxPositionsLimit)
+        prune_position_limit(true);
+
+    auto& vec = table[key];
+    vec.push_back({move, score, depth, 1, ++updateCounter});
+    ++totalEntries;
+    prune_entries_for_position(vec);
 }
 
 void Experience::show(const Position& pos, int evalImportance, int maxMoves) const {
@@ -608,6 +660,150 @@ void Experience::show(const Position& pos, int evalImportance, int maxMoves) con
         sync_cout << "info string " << UCIEngine::move(e.move, pos.is_chess960()) << " score "
                   << e.score << " depth " << e.depth << " count " << e.count << sync_endl;
     }
+}
+
+void Experience::set_limits(std::size_t maxPositions, std::size_t maxEntriesPerPosition) {
+    wait_until_loaded();
+    maxPositionsLimit          = maxPositions;
+    maxEntriesPerPositionLimit = maxEntriesPerPosition;
+    enforce_limits();
+    log_prune_event("limit-update", 0, 0);
+}
+
+void Experience::enforce_limits() {
+    if (!maxEntriesPerPositionLimit && !maxPositionsLimit)
+        return;
+
+    if (maxEntriesPerPositionLimit)
+        for (auto it = table.begin(); it != table.end(); ++it)
+            prune_entries_for_position(it->second);
+
+    if (maxPositionsLimit && table.size() > maxPositionsLimit)
+        prune_position_limit(false);
+}
+
+std::size_t Experience::prune_entries_for_position(std::vector<ExperienceEntry>& vec) {
+    if (!maxEntriesPerPositionLimit || vec.size() <= maxEntriesPerPositionLimit)
+        return 0;
+
+    const auto entryLess = [](const ExperienceEntry& lhs, const ExperienceEntry& rhs) {
+        if (lhs.lastUse != rhs.lastUse)
+            return lhs.lastUse < rhs.lastUse;
+        if (lhs.depth != rhs.depth)
+            return lhs.depth < rhs.depth;
+        if (lhs.count != rhs.count)
+            return lhs.count < rhs.count;
+        return lhs.score < rhs.score;
+    };
+
+    std::size_t removed = 0;
+    while (vec.size() > maxEntriesPerPositionLimit)
+    {
+        auto victim = std::min_element(vec.begin(), vec.end(), entryLess);
+        if (victim == vec.end())
+            break;
+        totalEntries -= 1;
+        totalPerPositionEvictions += 1;
+        vec.erase(victim);
+        ++removed;
+    }
+
+    if (removed)
+        log_prune_event("per-position-limit", 0, removed);
+
+    return removed;
+}
+
+void Experience::prune_position_limit(bool reserveSlotForNewPosition) {
+    if (!maxPositionsLimit)
+        return;
+
+    std::size_t target = maxPositionsLimit;
+    if (reserveSlotForNewPosition && target > 0)
+        --target;
+
+    if (table.size() <= target)
+        return;
+
+    std::size_t removedPositions = 0;
+    std::size_t removedEntries   = 0;
+
+    while (table.size() > target)
+    {
+        auto worstIt = table.end();
+        auto worstScore = std::tuple<std::uint64_t, int, int, std::size_t>{std::numeric_limits<std::uint64_t>::max(),
+                                                                           std::numeric_limits<int>::max(),
+                                                                           std::numeric_limits<int>::max(),
+                                                                           std::numeric_limits<std::size_t>::max()};
+
+        for (auto it = table.begin(); it != table.end(); ++it)
+        {
+            if (it->second.empty())
+            {
+                worstIt    = it;
+                worstScore = {0, 0, 0, 0};
+                break;
+            }
+
+            std::uint64_t newest     = 0;
+            int           bestDepth  = 0;
+            int           totalCount = 0;
+            for (const auto& e : it->second)
+            {
+                newest     = std::max(newest, e.lastUse);
+                bestDepth  = std::max(bestDepth, e.depth);
+                totalCount += e.count;
+            }
+
+            auto candidateScore = std::tuple<std::uint64_t, int, int, std::size_t>{newest, bestDepth, totalCount,
+                                                                                   it->second.size()};
+            if (worstIt == table.end() || candidateScore < worstScore)
+            {
+                worstIt    = it;
+                worstScore = candidateScore;
+            }
+        }
+
+        if (worstIt == table.end())
+            break;
+
+        removedEntries += worstIt->second.size();
+        totalEntries    -= worstIt->second.size();
+        table.erase(worstIt);
+        ++removedPositions;
+        ++totalPrunedPositions;
+    }
+
+    if (removedPositions)
+    {
+        totalPrunedEntries += removedEntries;
+        log_prune_event("position-limit", removedPositions, removedEntries);
+    }
+}
+
+void Experience::log_prune_event(std::string_view reason,
+                                 std::size_t     positionsRemoved,
+                                 std::size_t     entriesRemoved) {
+    std::ostringstream memory;
+    memory << std::fixed << std::setprecision(2) << approximate_memory_usage_mib();
+
+    sync_cout << "info string Experience prune reason=" << reason
+              << " positions_removed=" << positionsRemoved
+              << " entries_removed=" << entriesRemoved
+              << " total_positions=" << table.size() << " total_entries=" << totalEntries
+              << " max_positions=" << maxPositionsLimit
+              << " max_entries_per_position=" << maxEntriesPerPositionLimit
+              << " approx_memory_mib=" << memory.str()
+              << " total_positions_pruned=" << totalPrunedPositions
+              << " total_entries_pruned=" << totalPrunedEntries
+              << " total_per_position_evictions=" << totalPerPositionEvictions << sync_endl;
+}
+
+double Experience::approximate_memory_usage_mib() const {
+    constexpr double BytesPerMiB = 1024.0 * 1024.0;
+    double           bytes       = static_cast<double>(totalEntries) * sizeof(ExperienceEntry);
+    bytes += static_cast<double>(table.size()) * (sizeof(Key) + sizeof(std::vector<ExperienceEntry>));
+    return bytes / BytesPerMiB;
 }
 
 bool Experience_InitNew(const std::string& file) {
