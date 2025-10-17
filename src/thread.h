@@ -151,6 +151,18 @@ class ThreadPool {
 
     std::atomic_bool stop, abortedSearch, increaseDepth;
 
+    template<typename Predicate>
+    void wait_for_control_event(Predicate predicate) const
+    {
+        if (!predicate())
+            return;
+
+        std::unique_lock<std::mutex> lk(controlMutex);
+        controlCv.wait(lk, [&] { return !predicate(); });
+    }
+
+    void notify_control_event() const { controlCv.notify_all(); }
+
     auto cbegin() const noexcept { return threads.cbegin(); }
     auto begin() noexcept { return threads.begin(); }
     auto end() noexcept { return threads.end(); }
@@ -162,6 +174,9 @@ class ThreadPool {
     StateListPtr                         setupStates;
     std::vector<std::unique_ptr<Thread>> threads;
     std::vector<NumaIndex>               boundThreadToNumaNode;
+
+    mutable std::mutex              controlMutex;
+    mutable std::condition_variable controlCv;
 
     uint64_t accumulate(std::atomic<uint64_t> Search::Worker::* member) const {
 
