@@ -197,6 +197,16 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Eval Weight", Option(5, 0, 10));
     options.add("Experience Min Depth", Option(27, 4, 64));
     options.add("Experience Max Moves", Option(16, 1, 100));
+    options.add("Experience Max Positions", Option(250000, 0, 5000000, [](const Option& o) {
+                    experience.set_limits(static_cast<std::size_t>(int(o)),
+                                           experience.max_entries_per_position_limit());
+                    return std::nullopt;
+                }));
+    options.add("Experience Max Entries Per Position", Option(24, 1, 128, [](const Option& o) {
+                    experience.set_limits(experience.max_positions_limit(),
+                                           static_cast<std::size_t>(int(o)));
+                    return std::nullopt;
+                }));
     options.add("Experience Book", Option(false));
     options.add("Experience Book Max Moves", Option(100, 1, 100));
     options.add("Experience Book Min Depth", Option(4, 1, 255));
@@ -234,6 +244,9 @@ Engine::Engine(std::optional<std::string> path) :
           load_small_network(o);
           return std::nullopt;
       }));
+
+    experience.set_limits(static_cast<std::size_t>(int(options["Experience Max Positions"])),
+                          static_cast<std::size_t>(int(options["Experience Max Entries Per Position"])));
 
     load_networks();
     resize_threads();
