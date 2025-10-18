@@ -1,20 +1,24 @@
-import subprocess
-from typing import List
-import os
 import collections
-import time
-import sys
-import traceback
-import fnmatch
-from functools import wraps
-from contextlib import redirect_stdout
-import io
-import tarfile
-import pathlib
 import concurrent.futures
-import tempfile
+import fnmatch
+import io
+import os
+import pathlib
 import shutil
-import requests
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import traceback
+from contextlib import redirect_stdout
+from functools import wraps
+from typing import List
+
+try:  # requests is optional in some environments
+    import requests
+except ImportError:  # pragma: no cover - exercised when requests is unavailable
+    requests = None
 
 CYAN_COLOR = "\033[36m"
 GRAY_COLOR = "\033[2m"
@@ -89,6 +93,10 @@ class Syzygy:
 
     @staticmethod
     def download_syzygy():
+        if requests is None:
+            raise RuntimeError(
+                "The optional 'requests' dependency is required to download Syzygy tables."
+            )
         if not os.path.isdir(os.path.join(PATH, "syzygy")):
             url = "https://api.github.com/repos/niklasf/python-chess/tarball/9b9aa13f9f36d08aadfabff872882f4ab1494e95"
             file = "niklasf-python-chess-9b9aa13"
