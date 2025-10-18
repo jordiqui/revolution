@@ -939,17 +939,17 @@ DirtyPiece Position::do_move(Move                      m,
     // if the position was not repeated.
     st->repetition = 0;
     int end        = std::min(st->rule50, st->pliesFromNull);
-    if (end >= 4)
+    if (end >= 2)
     {
-        StateInfo* stp = st->previous->previous;
-        for (int i = 4; i <= end; i += 2)
+        StateInfo* stp = st->previous ? st->previous->previous : nullptr;
+        for (int i = 2; stp && i <= end; i += 2)
         {
-            stp = stp->previous->previous;
             if (stp->key == st->key)
             {
                 st->repetition = stp->repetition ? -i : i;
                 break;
             }
+            stp = stp->previous ? stp->previous->previous : nullptr;
         }
     }
 
