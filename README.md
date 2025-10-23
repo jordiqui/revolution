@@ -23,7 +23,7 @@ The same name is embedded in the executable so that analysis reports from popula
 can attribute results to Revolution 2.90-231025.
 
 ## Getting started
-Refer to the `stockfish/README.md` file for detailed build and usage instructions. The
+Refer to the `README.stockfish.md` file for detailed build and usage instructions. The
 commands and options described there apply equally to Revolution.
 
 ## Credits
@@ -33,4 +33,4 @@ commands and options described there apply equally to Revolution.
 
 ## License
 Revolution remains distributed under the GNU General Public License version 3 (or any
-later version). See `stockfish/Copying.txt` for the full license text.
+later version). See `Copying.txt` for the full license text.

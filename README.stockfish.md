@@ -1,6 +1,6 @@
 <div align="center">
 
-  <img src="../assets/revolution-logo.svg" alt="Revolution logo" width="128" />
+  <img src="assets/revolution-logo.svg" alt="Revolution logo" width="128" />
 
   <h3>Revolution 2.90-231025</h3>
 
