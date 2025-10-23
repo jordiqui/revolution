@@ -37,18 +37,11 @@
 #include "syzygy/tbprobe.h"
 #include "tt.h"
 #include "uci.h"
+#include "zobrist.h"
 
 using std::string;
 
 namespace Stockfish {
-
-namespace Zobrist {
-
-Key psq[PIECE_NB][SQUARE_NB];
-Key enpassant[FILE_NB];
-Key castling[CASTLING_RIGHT_NB];
-Key side, noPawns;
-}
 
 namespace {
 
@@ -112,23 +105,7 @@ std::array<Move, 8192> cuckooMove;
 // Initializes at startup the various arrays used to compute hash keys
 void Position::init() {
 
-    PRNG rng(1070372);
-
-    for (Piece pc : Pieces)
-        for (Square s = SQ_A1; s <= SQ_H8; ++s)
-            Zobrist::psq[pc][s] = rng.rand<Key>();
-    // pawns on these squares will promote
-    std::fill_n(Zobrist::psq[W_PAWN] + SQ_A8, 8, 0);
-    std::fill_n(Zobrist::psq[B_PAWN], 8, 0);
-
-    for (File f = FILE_A; f <= FILE_H; ++f)
-        Zobrist::enpassant[f] = rng.rand<Key>();
-
-    for (int cr = NO_CASTLING; cr <= ANY_CASTLING; ++cr)
-        Zobrist::castling[cr] = rng.rand<Key>();
-
-    Zobrist::side    = rng.rand<Key>();
-    Zobrist::noPawns = rng.rand<Key>();
+    Zobrist::init();
 
     // Prepare the cuckoo tables
     cuckoo.fill(0);
