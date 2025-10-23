@@ -207,24 +207,6 @@ void Search::Worker::start_searching() {
     {
         iterative_deepening();
         return;
-        if (bookMove == Move::none())
-        {
-            if (auto suggestion = experience.best_book_move(rootPos); suggestion.has_value())
-            {
-                std::string ponder;
-                auto        candidate = std::find(rootMoves.begin(), rootMoves.end(), suggestion->move);
-
-                if (candidate != rootMoves.end() && candidate->pv.size() > 1)
-                    ponder = UCIEngine::move(candidate->pv[1], rootPos.is_chess960());
-
-                if (!suggestion->info.empty())
-                    sync_cout << "info string " << suggestion->info << sync_endl;
-
-                main_manager()->updates.onBestmove(
-                  UCIEngine::move(suggestion->move, rootPos.is_chess960()), ponder);
-                return;
-            }
-        }
     }
 
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
