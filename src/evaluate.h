@@ -51,6 +51,8 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorStack&  accumulators,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
+
+int king_danger(const Position& pos, Color defender);
 }  // namespace Eval
 
 }  // namespace Stockfish

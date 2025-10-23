@@ -181,6 +181,16 @@ void update_correction_history(const Position& pos,
 
 // Add a small random component to draw evaluations to avoid 3-fold blindness
 Value value_draw(size_t nodes) { return VALUE_DRAW - 1 + Value(nodes & 0x2); }
+
+Value draw_bias(Value context) {
+    if (context <= VALUE_DRAW)
+        return VALUE_ZERO;
+
+    Value margin = std::clamp<Value>((context - VALUE_DRAW) / 32, VALUE_ZERO, Value(4));
+    return Value(8) + margin;
+}
+
+Value biased_draw(size_t nodes, Value context) { return value_draw(nodes) - draw_bias(context); }
 Value value_to_tt(Value v, int ply);
 Value value_from_tt(Value v, int ply, int r50c);
 void  update_pv(Move* pv, Move move, const Move* childPv);
@@ -463,6 +473,18 @@ void Search::Worker::iterative_deepening() {
                 int streakGrow = std::abs(streak) * std::max(2, currentDelta / 8);
                 return currentDelta + baseGrow + streakGrow;
             };
+            bool autoExpanded    = false;
+            bool pvFallbackUsed  = false;
+            auto apply_auto_expand = [&](Value center) {
+                delta = widen_window(delta, localMissStreak);
+                Value newAlpha = std::max(center - delta, -VALUE_INFINITE);
+                Value newBeta  = std::min(center + delta, VALUE_INFINITE);
+                if (newBeta <= newAlpha)
+                    newBeta = std::min<Value>(VALUE_INFINITE, newAlpha + 1);
+                alpha        = newAlpha;
+                beta         = newBeta;
+                autoExpanded = true;
+            };
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -497,30 +519,51 @@ void Search::Worker::iterative_deepening() {
                 // otherwise exit the loop.
                 if (bestValue <= alpha)
                 {
-                    beta  = (alpha + beta) / 2;
-                    alpha = std::max(bestValue - delta, -VALUE_INFINITE);
-
                     failedHighCnt = 0;
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
 
                     localHitStreak  = 0;
                     localMissStreak = localMissStreak < 0 ? localMissStreak - 1 : -1;
+
+                    if (!autoExpanded)
+                        apply_auto_expand(bestValue);
+                    else if (!pvFallbackUsed)
+                    {
+                        alpha           = -VALUE_INFINITE;
+                        beta            = VALUE_INFINITE;
+                        pvFallbackUsed  = true;
+                    }
+                    else
+                        break;
+
+                    assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
+                    continue;
                 }
                 else if (bestValue >= beta)
                 {
-                    beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
 
                     localHitStreak  = 0;
                     localMissStreak = localMissStreak > 0 ? localMissStreak + 1 : 1;
+
+                    if (!autoExpanded)
+                        apply_auto_expand(bestValue);
+                    else if (!pvFallbackUsed)
+                    {
+                        alpha           = -VALUE_INFINITE;
+                        beta            = VALUE_INFINITE;
+                        pvFallbackUsed  = true;
+                        failedHighCnt   = 0;
+                    }
+                    else
+                        break;
+
+                    assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
+                    continue;
                 }
                 else
                     break;
-
-                delta = widen_window(delta, localMissStreak);
-
-                assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
 
             if (!threads.stop)
@@ -731,9 +774,11 @@ Value Search::Worker::search(
     depth = std::min(depth, MAX_PLY - 1);
 
     // Check if we have an upcoming move that draws by repetition
-    if (!rootNode && alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
+    if (!rootNode && pos.upcoming_repetition(ss->ply))
     {
-        alpha = value_draw(this->nodes);
+        Value repetitionScore = biased_draw(this->nodes, alpha);
+        if (repetitionScore > alpha)
+            alpha = repetitionScore;
         if (alpha >= beta)
             return alpha;
     }
@@ -755,6 +800,7 @@ Value Search::Worker::search(
     int   priorReduction = (ss - 1)->reduction;
     (ss - 1)->reduction  = 0;
     Piece movedPiece;
+    int   kingDanger = 0;
 
     ValueList<Move, 32> capturesSearched;
     ValueList<Move, 32> quietsSearched;
@@ -781,8 +827,12 @@ Value Search::Worker::search(
         // Step 2. Check for aborted search and immediate draw
         if (threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply)
             || ss->ply >= MAX_PLY)
-            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos)
-                                                        : value_draw(thisThread->nodes);
+        {
+            if (ss->ply >= MAX_PLY && !ss->inCheck)
+                return evaluate(pos);
+
+            return biased_draw(this->nodes, alpha);
+        }
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply + 1), but if alpha is already bigger because
@@ -909,6 +959,7 @@ Value Search::Worker::search(
         // Skip early pruning when in check
         ss->staticEval = eval = (ss - 2)->staticEval;
         improving             = false;
+        kingDanger            = Eval::king_danger(pos, us);
         goto moves_loop;
     }
     else if (excludedMove)
@@ -961,6 +1012,8 @@ Value Search::Worker::search(
     correctionAbs  = std::abs(correctionValue);
     historyPenalty = std::max(0, -(ss - 1)->statScore);
     historyPenalty += correctionAbs / 256;
+
+    kingDanger = Eval::king_danger(pos, us);
 
     if (priorReduction >= 3 && !opponentWorsening)
         depth++;
@@ -1368,6 +1421,22 @@ moves_loop:  // When in check, search starts here
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 1582 / 16384;
 
+        int reductionCap = 6144;
+        if (PvNode)
+            reductionCap = std::min(reductionCap, 4096);
+        if (ss->inCheck)
+            reductionCap = std::min(reductionCap, 3072);
+        if (capture || givesCheck)
+            reductionCap = std::min(reductionCap, 3584);
+        if (kingDanger > 40)
+        {
+            int dangerExcess = std::min(kingDanger - 40, 80);
+            int dangerCap    = 4096 - dangerExcess * 16;
+            reductionCap     = std::min(reductionCap, std::max(2048, dangerCap));
+        }
+
+        r = std::min<Depth>(r, reductionCap);
+
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
         {
@@ -1646,9 +1715,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     assert(PvNode || (alpha == beta - 1));
 
     // Check if we have an upcoming move that draws by repetition
-    if (alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
+    if (pos.upcoming_repetition(ss->ply))
     {
-        alpha = value_draw(this->nodes);
+        Value repetitionScore = biased_draw(this->nodes, alpha);
+        if (repetitionScore > alpha)
+            alpha = repetitionScore;
         if (alpha >= beta)
             return alpha;
     }

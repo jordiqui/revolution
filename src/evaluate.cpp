@@ -38,6 +38,115 @@
 
 namespace Stockfish {
 
+namespace {
+
+int amplify_ten_percent(int base) {
+    return base + (base + 9) / 10;
+}
+
+int open_file_danger(const Position& pos, Color defender, Square ksq) {
+    Bitboard friendlyPawns = pos.pieces(defender, PAWN);
+    Bitboard enemyMajors   = pos.pieces(~defender, ROOK) | pos.pieces(~defender, QUEEN);
+
+    auto penalty_for_file = [&](File file, bool primary) {
+        Bitboard mask = file_bb(file);
+        if (friendlyPawns & mask)
+            return 0;
+
+        bool enemyPressure = enemyMajors & mask;
+        int  base          = primary ? 12 : 6;
+        if (enemyPressure)
+            base += primary ? 6 : 4;
+        return base;
+    };
+
+    File kingFile = file_of(ksq);
+    int  base     = penalty_for_file(kingFile, true);
+
+    if (kingFile > FILE_A)
+        base += penalty_for_file(File(kingFile - 1), false);
+    if (kingFile < FILE_H)
+        base += penalty_for_file(File(kingFile + 1), false);
+
+    return base;
+}
+
+int pawn_storm_danger(const Position& pos, Color defender, Square ksq) {
+    Bitboard enemyPawns = pos.pieces(~defender, PAWN);
+
+    auto penalty_for_file = [&](File file) {
+        Bitboard pawns = enemyPawns & file_bb(file);
+        int      total = 0;
+        while (pawns)
+        {
+            Square sq = pop_lsb(pawns);
+
+            if ((defender == WHITE && rank_of(sq) <= rank_of(ksq))
+                || (defender == BLACK && rank_of(sq) >= rank_of(ksq)))
+                continue;
+
+            int rankDist = distance<Rank>(sq, ksq);
+            if (rankDist > 3)
+                continue;
+
+            int closeness = 4 - rankDist;  // 1..3 when within range
+            int weight    = (file == file_of(ksq)) ? 5 : 3;
+            total += closeness * weight;
+        }
+        return total;
+    };
+
+    File kingFile = file_of(ksq);
+    int  base     = penalty_for_file(kingFile);
+
+    if (kingFile > FILE_A)
+        base += penalty_for_file(File(kingFile - 1));
+    if (kingFile < FILE_H)
+        base += penalty_for_file(File(kingFile + 1));
+
+    return base;
+}
+
+int rook_battery_danger(const Position& pos, Color defender, Square ksq) {
+    int        danger = 0;
+    Direction  forward = defender == WHITE ? NORTH : SOUTH;
+    Square     sq      = ksq + forward;
+    bool       firstHeavy = false;
+
+    while (is_ok(sq))
+    {
+        Piece pc = pos.piece_on(sq);
+
+        if (pc == NO_PIECE)
+        {
+            sq += forward;
+            continue;
+        }
+
+        if (color_of(pc) == defender)
+            break;
+
+        if (type_of(pc) == ROOK || type_of(pc) == QUEEN)
+        {
+            if (!firstHeavy)
+                firstHeavy = true;
+            else
+            {
+                danger += 18;
+                break;
+            }
+        }
+        else
+            break;
+
+        sq += forward;
+    }
+
+    return danger;
+}
+
+}  // namespace
+
 // Returns a static, purely materialistic evaluation of the position from
 // the point of view of the given color. It can be divided by PawnValue to get
 // an approximation of the material advantage on the board in terms of pawns.
@@ -123,7 +232,32 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
+    Square wKing = pos.square<KING>(WHITE);
+    Square bKing = pos.square<KING>(BLACK);
+
+    int whiteDanger = amplify_ten_percent(open_file_danger(pos, WHITE, wKing))
+                    + amplify_ten_percent(pawn_storm_danger(pos, WHITE, wKing))
+                    + rook_battery_danger(pos, WHITE, wKing);
+
+    int blackDanger = amplify_ten_percent(open_file_danger(pos, BLACK, bKing))
+                    + amplify_ten_percent(pawn_storm_danger(pos, BLACK, bKing))
+                    + rook_battery_danger(pos, BLACK, bKing);
+
+    int  dangerDiff   = blackDanger - whiteDanger;
+    bool stmIsWhite   = pos.side_to_move() == WHITE;
+    Value safetyBonus = stmIsWhite ? Value(dangerDiff) : Value(-dangerDiff);
+    v += safetyBonus;
+
     return v;
+}
+
+int Eval::king_danger(const Position& pos, Color defender) {
+    Square kingSq = pos.square<KING>(defender);
+    int    open   = open_file_danger(pos, defender, kingSq);
+    int    storms = pawn_storm_danger(pos, defender, kingSq);
+    int    battery = rook_battery_danger(pos, defender, kingSq);
+
+    return amplify_ten_percent(open) + amplify_ten_percent(storms) + battery;
 }
 
 // Like evaluate(), but instead of returning a value, it returns
