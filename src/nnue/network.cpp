@@ -354,7 +354,13 @@ void Network<Arch, Transformer>::load_internal() {
     {
         evalFile.current        = evalFile.defaultName;
         evalFile.netDescription = description.value();
+        return;
     }
+
+    evalFile.current        = evalFile.defaultName;
+    evalFile.netDescription = "Zero-initialized fallback";
+    sync_cout << "info string Failed to load embedded network '" << evalFile.defaultName
+              << "'. Using zero-initialized fallback parameters." << sync_endl;
 }
 
 

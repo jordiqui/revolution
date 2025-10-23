@@ -4,6 +4,7 @@
 
 #include <cassert>
 #include <cstdint>
+#include <iostream>
 
 #ifndef _WIN32
     #include <fcntl.h>

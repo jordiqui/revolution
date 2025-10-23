@@ -70,7 +70,18 @@ HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 
-VPATH = syzygy:nnue:nnue/features
+VPATH = syzygy:nnue:nnue/features:book:book/polyglot:book/ctg
+
+LLVM_PROFDATA ?= $(or $(shell command -v llvm-profdata 2>/dev/null), \
+                        $(shell command -v llvm-profdata-18 2>/dev/null), \
+                        $(shell command -v llvm-profdata-20 2>/dev/null), \
+                        $(shell command -v llvm-profdata-19 2>/dev/null), \
+                        $(shell command -v llvm-profdata-17 2>/dev/null), \
+                        $(shell command -v llvm-profdata-16 2>/dev/null))
+
+ifeq ($(LLVM_PROFDATA),)
+LLVM_PROFDATA := llvm-profdata
+endif
 
 ### ==========================================================================
 ### Section 2. High-level Configuration
@@ -1083,7 +1094,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) llvm-profdata merge -output=stockfish.profdata *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=stockfish.profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1111,7 +1122,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) llvm-profdata merge -output=stockfish.profdata *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
