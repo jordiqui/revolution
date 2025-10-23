@@ -1,9 +1,6 @@
 #ifndef BOOKMANAGER_H_INCLUDED
 #define BOOKMANAGER_H_INCLUDED
 
-﻿#ifndef BOOKMANAGER_H_INCLUDED
-#define BOOKMANAGER_H_INCLUDED
-
 #include <array>
 #include <memory>
 #include <string>
