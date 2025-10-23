@@ -32,6 +32,47 @@ handling of green/red annotations, etc.).
 Book parsing is based on the BrainLearn project – many thanks to **amchess** and Khalid Omar for
 sharing their work.
 
+## Experience learning support with Q-learning
+
+Revolution 2.90 bundles the BrainLearn experience hash so it shares the same UCI options as
+BrainFish while persisting the accumulated data to `experience.exp`. Each entry in the file mirrors
+the in-memory BrainLearn transposition table and stores:
+
+- the best move in UCI format,
+- the board signature (hash key),
+- the best move depth and score, and
+- the best move performance derived from the BrainLearn WDL model (or a custom trainer-provided
+  value).
+
+During startup the engine automatically merges additional files that follow the
+`<fileType><qualityIndex>.exp` naming convention (for example `experience0.exp`, `experience1.exp`,
+…) into `experience.exp` and then deletes the merged inputs. Legacy `.bin` learning files can be
+reused by renaming the extension to `.exp`.
+
+Learning activates whenever a new game begins or the side to move has eight pieces or fewer.
+Entries are updated when a new best score is found at depth ≥ 4 plies according to the BrainLearn
+aspiration window. Because data is written on `quit` or `stop`, allow additional time for disk
+access when learning is heavily used.
+
+The following UCI controls are provided:
+
+- **Read only learning** – open the experience file without persisting changes.
+- **Self Q-learning** – enable the Q-learning update policy for self-play.
+- **Experience Book** – treat the experience file as a move book that prioritises win probability,
+  internal score, and depth (the `showexp` token lists stored moves for the current position).
+- **Experience Book Max Moves** – limit the number of book candidates (default 100).
+- **Experience Book Min Depth** – minimum search depth required for book use (default 4).
+- **Concurrent Experience** – keep per-instance experience files to avoid write conflicts.
+- **quickresetexp** – recompute the stored performance values with the latest BrainLearn WDL
+  model.
+
+When performance needs to be realigned, send the UCI token `quickresetexp`. The command reloads
+`experience.exp`, recomputes the performance for each move, and persists the updated values for
+future sessions.
+
+Many thanks to **amchess** for sharing the BrainLearn experience learning infrastructure that makes
+this integration possible.
+
 ## Version identity
 The engine identifies itself in UCI GUIs as:
 
