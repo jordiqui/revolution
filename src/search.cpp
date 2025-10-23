@@ -72,16 +72,35 @@ namespace {
 // tests at these types of time controls.
 
 // Futility margin
-Value futility_margin(Depth d, bool noTtCutNode, bool improving, bool oppWorsening) {
+Value futility_margin(Depth d,
+                      bool   noTtCutNode,
+                      bool   improving,
+                      bool   oppWorsening,
+                      int    correctionAbs,
+                      int    historyPenalty) {
     Value futilityMult       = 110 - 25 * noTtCutNode;
     Value improvingDeduction = improving * futilityMult * 2;
     Value worseningDeduction = oppWorsening * futilityMult / 3;
 
-    return futilityMult * d - improvingDeduction - worseningDeduction;
+    Value base = futilityMult * d - improvingDeduction - worseningDeduction;
+
+    Value correctionReduction =
+      Value(std::min(correctionAbs / 2048, 4 * int(futilityMult)));
+    Value historyReduction =
+      Value(std::min(historyPenalty / 64, 3 * int(futilityMult)));
+
+    base -= correctionReduction;
+    base -= historyReduction;
+
+    return std::max<Value>(0, base);
 }
 
-constexpr int futility_move_count(bool improving, Depth depth) {
-    return (3 + depth * depth) / (2 - improving);
+int futility_move_count(bool improving, Depth depth, int historyPenalty, int complexityHint) {
+    int base = (3 + depth * depth) / (2 - improving);
+    base += historyPenalty / 2048;
+    base += std::max(0, complexityHint - 24) / 6;
+
+    return base;
 }
 
 int correction_value(const Worker& w, const Position& pos, const Stack* const ss) {
@@ -98,7 +117,7 @@ int correction_value(const Worker& w, const Position& pos, const Stack* const ss
     return 7685 * pcv + 7495 * micv + 9144 * (wnpcv + bnpcv) + 6469 * cntcv;
 }
 
-int risk_tolerance(const Position& pos, Value v) {
+int risk_tolerance(const Position& pos, Value v, Depth depth, Value window) {
     // Returns (some constant of) second derivative of sigmoid.
     static constexpr auto sigmoid_d2 = [](int x, int y) {
         return 644800 * x / ((x * x + 3 * y * y) * y);
@@ -122,7 +141,14 @@ int risk_tolerance(const Position& pos, Value v) {
     int winning_risk = sigmoid_d2(v - a, b);
     int losing_risk  = sigmoid_d2(v + a, b);
 
-    return -(winning_risk + losing_risk) * 32;
+    int base = -(winning_risk + losing_risk) * 32;
+
+    int depthInt    = std::max<int>(depth, 0);
+    int depthScale  = std::max(24, 64 - 3 * std::min(depthInt, 12));
+    int windowWidth = std::max(0, int(window));
+    int windowScale = std::clamp(96 - windowWidth / 16, 48, 128);
+
+    return base * depthScale * windowScale / (64 * 96);
 }
 
 // Add correctionHistory value to raw staticEval and guarantee evaluation
@@ -409,8 +435,16 @@ void Search::Worker::iterative_deepening() {
             selDepth = 0;
 
             // Reset aspiration window starting size
-            delta     = 5 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 11834;
-            Value avg = rootMoves[pvIdx].averageScore;
+            RootMove& currentRoot = rootMoves[pvIdx];
+            delta = 5 + std::abs(currentRoot.meanSquaredScore) / 11834;
+
+            if (currentRoot.aspirationHitStreak > 1)
+                delta = std::max(3, delta - currentRoot.aspirationHitStreak);
+            if (currentRoot.aspirationMissStreak != 0)
+                delta += std::abs(currentRoot.aspirationMissStreak)
+                         * std::max(2, delta / 4);
+
+            Value avg = currentRoot.averageScore;
             alpha     = std::max(avg - delta, -VALUE_INFINITE);
             beta      = std::min(avg + delta, VALUE_INFINITE);
 
@@ -422,6 +456,13 @@ void Search::Worker::iterative_deepening() {
             // high/low, re-search with a bigger window until we don't fail
             // high/low anymore.
             int failedHighCnt = 0;
+            int localHitStreak = currentRoot.aspirationHitStreak;
+            int localMissStreak = currentRoot.aspirationMissStreak;
+            auto widen_window = [](int currentDelta, int streak) {
+                int baseGrow   = std::max(4, currentDelta / 4);
+                int streakGrow = std::abs(streak) * std::max(2, currentDelta / 8);
+                return currentDelta + baseGrow + streakGrow;
+            };
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -462,18 +503,44 @@ void Search::Worker::iterative_deepening() {
                     failedHighCnt = 0;
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
+
+                    localHitStreak  = 0;
+                    localMissStreak = localMissStreak < 0 ? localMissStreak - 1 : -1;
                 }
                 else if (bestValue >= beta)
                 {
                     beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
+
+                    localHitStreak  = 0;
+                    localMissStreak = localMissStreak > 0 ? localMissStreak + 1 : 1;
                 }
                 else
                     break;
 
-                delta += delta / 3;
+                delta = widen_window(delta, localMissStreak);
 
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
+            }
+
+            if (!threads.stop)
+            {
+                bool succeeded = bestValue > alpha && bestValue < beta;
+                if (succeeded)
+                {
+                    localHitStreak = std::min(localHitStreak + 1, 6);
+                    if (localMissStreak > 0)
+                        localMissStreak = std::max(localMissStreak - 1, 0);
+                    else if (localMissStreak < 0)
+                        localMissStreak = std::min(localMissStreak + 1, 0);
+                }
+                else
+                    localHitStreak = 0;
+
+                localMissStreak = std::clamp(localMissStreak, -6, 6);
+
+                currentRoot.aspirationHitStreak  = localHitStreak;
+                currentRoot.aspirationMissStreak = localMissStreak;
             }
 
             // Sort the PV lines searched so far and update the GUI
@@ -888,6 +955,10 @@ Value Search::Worker::search(
 
     opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
 
+    int correctionAbs   = std::abs(correctionValue);
+    int historyPenalty  = std::max(0, -(ss - 1)->statScore);
+    historyPenalty     += correctionAbs / 256;
+
     if (priorReduction >= 3 && !opponentWorsening)
         depth++;
     if (priorReduction >= 1 && depth >= 2 && ss->staticEval + (ss - 1)->staticEval > 188)
@@ -902,8 +973,9 @@ Value Search::Worker::search(
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
     if (!ss->ttPv && depth < 14
-        && eval - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening)
-               - (ss - 1)->statScore / 301 + 37 - std::abs(correctionValue) / 139878
+        && eval - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
+                                  correctionAbs, historyPenalty)
+               - (ss - 1)->statScore / 301 + 37 - correctionAbs / 139878
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
@@ -1096,7 +1168,11 @@ moves_loop:  // When in check, search starts here
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
             // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            if (moveCount >= futility_move_count(improving, depth))
+            int complexityHint = pos.count<PAWN>() + pos.count<KNIGHT>()
+                                + pos.count<BISHOP>() + pos.count<ROOK>()
+                                + pos.count<QUEEN>();
+            if (moveCount
+                >= futility_move_count(improving, depth, historyPenalty, complexityHint))
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
@@ -1255,7 +1331,7 @@ moves_loop:  // When in check, search starts here
         r -= std::abs(correctionValue) / 29696;
 
         if (PvNode && std::abs(bestValue) <= 2000)
-            r -= risk_tolerance(pos, bestValue);
+            r -= risk_tolerance(pos, bestValue, depth, Value(delta));
 
         // Increase reduction for cut nodes
         if (cutNode)

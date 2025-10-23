@@ -22,6 +22,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
+#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -47,7 +48,19 @@ int Eval::simple_eval(const Position& pos, Color c) {
 
 bool Eval::use_smallnet(const Position& pos) {
     int simpleEval = simple_eval(pos, pos.side_to_move());
-    return std::abs(simpleEval) > 962;
+
+    int nonPawnCount = pos.count<KNIGHT>() + pos.count<BISHOP>() + pos.count<ROOK>()
+                     + pos.count<QUEEN>();
+    int pawnCount    = pos.count<PAWN>();
+    int phase        = std::clamp(14 - nonPawnCount, 0, 14);
+    int fiftyCount   = pos.rule50_count();
+
+    int dryFactor      = std::max(0, 8 - pawnCount / 2) + std::max(0, phase - 4);
+    int fiftyAdjustment = fiftyCount * (4 + dryFactor) / 16;
+    int threshold        = 880 + phase * 18 + fiftyAdjustment;
+    threshold            = std::clamp(threshold, 720, 1400);
+
+    return std::abs(simpleEval) > threshold;
 }
 
 // Evaluate is the evaluator for the outer world. It returns a static evaluation
@@ -76,14 +89,26 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     // Blend optimism and eval with nnue complexity
     int nnueComplexity = std::abs(psqt - positional);
-    optimism += optimism * nnueComplexity / 468;
-    nnue -= nnue * nnueComplexity / 18000;
+    int compressedComplexity =
+      std::min(4096, int(std::sqrt(static_cast<double>(nnueComplexity))) * 64);
+    optimism += optimism * compressedComplexity / 2048;
+    nnue -= nnue * compressedComplexity / 28000;
 
     int material = 535 * pos.count<PAWN>() + pos.non_pawn_material();
     int v        = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
 
-    // Damp down the evaluation linearly when shuffling
-    v -= v * pos.rule50_count() / 212;
+    // Damp down the evaluation with sensitivity to piece count and remaining advantage
+    int rule50 = pos.rule50_count();
+    if (rule50)
+    {
+        int pieces = pos.count<PAWN>() + pos.count<KNIGHT>() + pos.count<BISHOP>()
+                   + pos.count<ROOK>() + pos.count<QUEEN>();
+        int dryness = std::max(0, 12 - pieces);
+        int advShield = std::clamp(std::abs(v) - 180, 0, 640);
+        int weight    = std::clamp(48 + dryness * 8 - advShield / 4, 12, 96);
+        int64_t damping = int64_t(v) * rule50 * weight / (212 * 64);
+        v -= Value(damping);
+    }
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);

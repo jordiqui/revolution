@@ -111,6 +111,8 @@ struct RootMove {
     int               selDepth         = 0;
     int               tbRank           = 0;
     Value             tbScore;
+    int               aspirationHitStreak  = 0;
+    int               aspirationMissStreak = 0;
     std::vector<Move> pv;
 };
 
