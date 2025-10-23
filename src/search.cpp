@@ -901,6 +901,9 @@ Value Search::Worker::search(
     // Step 6. Static evaluation of the position
     Value      unadjustedStaticEval = VALUE_NONE;
     const auto correctionValue      = correction_value(*thisThread, pos, ss);
+    int correctionAbs  = 0;
+    int historyPenalty = 0;
+
     if (ss->inCheck)
     {
         // Skip early pruning when in check
@@ -955,9 +958,9 @@ Value Search::Worker::search(
 
     opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
 
-    int correctionAbs   = std::abs(correctionValue);
-    int historyPenalty  = std::max(0, -(ss - 1)->statScore);
-    historyPenalty     += correctionAbs / 256;
+    correctionAbs  = std::abs(correctionValue);
+    historyPenalty = std::max(0, -(ss - 1)->statScore);
+    historyPenalty += correctionAbs / 256;
 
     if (priorReduction >= 3 && !opponentWorsening)
         depth++;
