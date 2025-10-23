@@ -41,6 +41,7 @@
 #include "movepick.h"
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"
+#include "book/book_manager.h"
 #include "position.h"
 #include "syzygy/tbprobe.h"
 #include "thread.h"
@@ -180,6 +181,7 @@ Search::Worker::Worker(SharedState&                    sharedState,
     threadIdx(threadId),
     numaAccessToken(token),
     manager(std::move(sm)),
+    bookMan(sharedState.bookMan),
     options(sharedState.options),
     threads(sharedState.threads),
     tt(sharedState.tt),
@@ -208,6 +210,29 @@ void Search::Worker::start_searching() {
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
                             main_manager()->originalTimeAdjust);
     tt.new_search();
+
+    Move bookMove = Move::none();
+    if (!rootMoves.empty() && !limits.infinite && !limits.depth && !limits.mate
+        && !limits.nodes && !limits.perft && !main_manager()->ponder)
+    {
+        bookMove = bookMan.probe(rootPos, options);
+
+        if (bookMove != Move::none())
+        {
+            auto it = std::find(rootMoves.begin(), rootMoves.end(), bookMove);
+
+            if (it != rootMoves.end())
+            {
+                std::string ponder;
+                if (it->pv.size() > 1)
+                    ponder = UCIEngine::move(it->pv[1], rootPos.is_chess960());
+
+                main_manager()->updates.onBestmove(
+                  UCIEngine::move(bookMove, rootPos.is_chess960()), ponder);
+                return;
+            }
+        }
+    }
 
     if (rootMoves.empty())
     {

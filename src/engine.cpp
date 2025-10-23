@@ -62,6 +62,8 @@ Engine::Engine(std::optional<std::string> path) :
         NN::NetworkSmall({EvalFileDefaultNameSmall, "None", ""}, NN::EmbeddedNNUEType::SMALL))) {
     pos.set(StartFEN, false, &states->back());
 
+    bookManager.set_binary_directory(binaryDirectory);
+
 
     options.add(  //
       "Debug Log File", Option("", [](const Option& o) {
@@ -116,6 +118,19 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add("UCI_ShowWDL", Option(false));
 
+    for (int i = 0; i < Book::BookManager::NumberOfBooks; ++i)
+    {
+        const auto bookIndex = i + 1;
+        options.add("CTG/BIN Book " + std::to_string(bookIndex) + " File",
+                    Option("", [this, i](const Option&) {
+                        init_book_manager(i);
+                        return std::nullopt;
+                    }));
+        options.add("Book " + std::to_string(bookIndex) + " Width", Option(1, 1, 20));
+        options.add("Book " + std::to_string(bookIndex) + " Depth", Option(255, 1, 255));
+        options.add("(CTG) Book " + std::to_string(bookIndex) + " Only Green", Option(true));
+    }
+
     options.add(  //
       "SyzygyPath", Option("", [](const Option& o) {
           Tablebases::init(o);
@@ -142,6 +157,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     load_networks();
     resize_threads();
+    bookManager.init(options);
 }
 
 std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
@@ -235,7 +251,8 @@ void Engine::set_numa_config_from_option(const std::string& o) {
 
 void Engine::resize_threads() {
     threads.wait_for_search_finished();
-    threads.set(numaContext.get_numa_config(), {options, threads, tt, networks}, updateContext);
+    threads.set(numaContext.get_numa_config(), {options, threads, tt, networks, bookManager},
+                updateContext);
 
     // Reallocate the hash with the new threadpool size
     set_tt_size(options["Hash"]);
@@ -285,6 +302,10 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
         networks_.small.save(files[1].first);
     });
 }
+
+void Engine::init_book_manager(int index) { bookManager.init(index, options); }
+
+void Engine::show_book_moves() const { bookManager.show_moves(pos, options); }
 
 // utility functions
 

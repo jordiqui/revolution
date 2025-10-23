@@ -54,6 +54,9 @@ enum NodeType {
 class TranspositionTable;
 class ThreadPool;
 class OptionsMap;
+namespace Book {
+class BookManager;
+}
 
 namespace Search {
 
@@ -137,16 +140,19 @@ struct SharedState {
     SharedState(const OptionsMap&                               optionsMap,
                 ThreadPool&                                     threadPool,
                 TranspositionTable&                             transpositionTable,
-                const LazyNumaReplicated<Eval::NNUE::Networks>& nets) :
+                const LazyNumaReplicated<Eval::NNUE::Networks>& nets,
+                Book::BookManager&                              bookManager) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
-        networks(nets) {}
+        networks(nets),
+        bookMan(bookManager) {}
 
     const OptionsMap&                               options;
     ThreadPool&                                     threads;
     TranspositionTable&                             tt;
     const LazyNumaReplicated<Eval::NNUE::Networks>& networks;
+    Book::BookManager&                              bookMan;
 };
 
 class Worker;
@@ -344,6 +350,7 @@ class Worker {
 
     // The main thread has a SearchManager, the others have a NullSearchManager
     std::unique_ptr<ISearchManager> manager;
+    Book::BookManager&              bookMan;
 
     Tablebases::Config tbConfig;
 
