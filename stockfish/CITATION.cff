@@ -2,17 +2,19 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: Stockfish
+title: Revolution 2.90-231025
 message: >-
   Please cite this software using the metadata from this
   file.
 type: software
 authors:
+  - family-names: Ruiz Centelles
+    given-names: Jorge
+  - name: codex IA
   - name: The Stockfish developers (see AUTHORS file)
 repository-code: 'https://github.com/official-stockfish/Stockfish'
-url: 'https://stockfishchess.org/'
 repository-artifact: 'https://stockfishchess.org/download/'
-abstract: Stockfish is a free and strong UCI chess engine.
+abstract: Revolution is a free and strong UCI chess engine derived from Stockfish 17.1 with codex IA optimisations.
 keywords:
   - chess
   - artificial intelligence (AI)

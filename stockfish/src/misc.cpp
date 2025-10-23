@@ -40,7 +40,18 @@ namespace Stockfish {
 namespace {
 
 // Version number or dev.
-constexpr std::string_view version = "17.1";
+constexpr std::string_view engineName    = "revolution-2.90-231025";
+constexpr std::string_view engineCredits =
+  "Jorge Ruiz Centelles and codex IA and the Stockfish developers (see AUTHORS file)";
+constexpr std::string_view version       = engineName;
+
+constexpr std::string_view RevolutionAsciiLogo =
+  " ____            _           _   _             \n"
+  "|  _ \\ ___  ___ | | ___  ___| |_(_) ___  _ __  \n"
+  "| |_) / _ \\/ _ \\| |/ _ \\/ __| __| |/ _ \\| '_ \\ \n"
+  "|  _ <  __/ (_) | |  __/ (__| |_| | (_) | | | |\n"
+  "|_| \\\\___|\\___/|_|\\___|\\___|\\__|_|\\___/|_| |_|\n"
+  "               Revolution Engine               ";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -126,7 +137,7 @@ class Logger {
 //      Stockfish version
 std::string engine_version_info() {
     std::stringstream ss;
-    ss << "Stockfish " << version << std::setfill('0');
+    ss << version << std::setfill('0');
 
     if constexpr (version == "dev")
     {
@@ -157,8 +168,11 @@ std::string engine_version_info() {
 }
 
 std::string engine_info(bool to_uci) {
-    return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "the Stockfish developers (see AUTHORS file)";
+    return engine_version_info() + (to_uci ? "\nid author " : " by ") + std::string(engineCredits);
+}
+
+std::string_view revolution_ascii_logo() {
+    return RevolutionAsciiLogo;
 }
 
 

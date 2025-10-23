@@ -1,33 +1,17 @@
 <div align="center">
 
-  [![Stockfish][stockfish128-logo]][website-link]
+  <img src="../assets/revolution-logo.svg" alt="Revolution logo" width="128" />
 
-  <h3>Stockfish</h3>
+  <h3>Revolution 2.90-231025</h3>
 
-  A free and strong UCI chess engine.
+  A strong UCI chess engine derived from Stockfish 17.1 with codex IA optimisations.
   <br>
-  <strong>[Explore Stockfish docs »][wiki-link]</strong>
-  <br>
-  <br>
-  [Report bug][issue-link]
-  ·
-  [Open a discussion][discussions-link]
-  ·
-  [Discord][discord-link]
-  ·
-  [Blog][website-blog-link]
-
-  [![Build][build-badge]][build-link]
-  [![License][license-badge]][license-link]
-  <br>
-  [![Release][release-badge]][release-link]
-  [![Commits][commits-badge]][commits-link]
-  <br>
-  [![Website][website-badge]][website-link]
-  [![Fishtest][fishtest-badge]][fishtest-link]
-  [![Discord][discord-badge]][discord-link]
+  Crafted by Jorge Ruiz Centelles and codex IA, building upon the work of the Stockfish developers.
 
 </div>
+
+> The upstream Stockfish documentation is retained below for reference. All build
+> instructions and technical notes continue to apply to Revolution.
 
 ## Overview
 
