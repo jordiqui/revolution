@@ -36,6 +36,7 @@
 #include "thread.h"
 #include "tt.h"
 #include "ucioption.h"
+#include "book/book_manager.h"
 
 namespace Stockfish {
 
@@ -89,6 +90,9 @@ class Engine {
     void load_small_network(const std::string& file);
     void save_network(const std::pair<std::optional<std::string>, std::string> files[2]);
 
+    void init_book_manager(int index);
+    void show_book_moves() const;
+
     // utility functions
 
     void trace_eval() const;
@@ -119,6 +123,7 @@ class Engine {
     ThreadPool                               threads;
     TranspositionTable                       tt;
     LazyNumaReplicated<Eval::NNUE::Networks> networks;
+    Book::BookManager                        bookManager;
 
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;

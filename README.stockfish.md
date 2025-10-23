@@ -26,6 +26,15 @@ Stockfish with it.
 
 See also the Stockfish [documentation][wiki-usage-link] for further usage help.
 
+## Book support
+
+Revolution adds native opening book handling for both Polyglot (`.bin`) and ChessBase
+(`.ctg/.cto/.ctb`) formats. Two independent book slots can be configured via the UCI options
+`CTG/BIN Book 1/2 File`, `Book 1/2 Width`, `Book 1/2 Depth`, and `(CTG) Book 1/2 Only Green`.
+Use the custom `book` command to list the available moves for the current position. CTG parsing
+is based on the reverse-engineered specification used in BrainLearn; many thanks to **amchess**
+and Khalid Omar for making their work public.
+
 ## Files
 
 This distribution of Stockfish consists of the following files:
