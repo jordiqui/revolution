@@ -59,7 +59,9 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[us] == 0)
         return;
 
-    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
+    TimePoint moveOverhead       = TimePoint(options["Move Overhead"]);
+    TimePoint minimumThinkingTime = TimePoint(options["Minimum Thinking Time"]);
+    const int  slowMoverPercent   = options["Slow Mover"];
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
@@ -79,6 +81,7 @@ void TimeManagement::init(Search::LimitsType& limits,
         limits.inc[us] *= npmsec;
         limits.npmsec = npmsec;
         moveOverhead *= npmsec;
+        minimumThinkingTime *= npmsec;
     }
 
     // These numbers are used where multiplications, divisions or comparisons
@@ -101,6 +104,8 @@ void TimeManagement::init(Search::LimitsType& limits,
       std::max(TimePoint(1),
                limits.time[us]
                  + (limits.inc[us] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
+
+    timeLeft = std::max(TimePoint(1), TimePoint(timeLeft * slowMoverPercent / 100));
 
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
@@ -135,6 +140,10 @@ void TimeManagement::init(Search::LimitsType& limits,
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
       TimePoint(std::min(0.825179 * limits.time[us] - moveOverhead, maxScale * optimumTime)) - 10;
+
+    optimumTime = std::max(optimumTime, minimumThinkingTime);
+    maximumTime = std::max(maximumTime, minimumThinkingTime);
+    maximumTime = std::max(maximumTime, optimumTime);
 
     if (options["Ponder"])
         optimumTime += optimumTime / 4;
