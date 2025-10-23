@@ -51,9 +51,19 @@ bool Eval::use_smallnet(const Position& pos) {
 
     int nonPawnCount = pos.count<KNIGHT>() + pos.count<BISHOP>() + pos.count<ROOK>()
                      + pos.count<QUEEN>();
+    int queenCount   = pos.count<QUEEN>();
     int pawnCount    = pos.count<PAWN>();
     int phase        = std::clamp(14 - nonPawnCount, 0, 14);
     int fiftyCount   = pos.rule50_count();
+
+    // The small network is accurate in simplified technical endings, but in the
+    // regression games DEV often entered complex winning or defending scenarios
+    // (multiple major pieces on board) where relying on the faster network lead
+    // to serious misjudgements and over-optimistic play.  Restrict its usage to
+    // positions with few remaining non-pawn pieces and no queens so we keep the
+    // full-size network for the sharp conversions highlighted in the matches.
+    if (queenCount > 0 || nonPawnCount > 6)
+        return false;
 
     int dryFactor      = std::max(0, 8 - pawnCount / 2) + std::max(0, phase - 4);
     int fiftyAdjustment = fiftyCount * (4 + dryFactor) / 16;
