@@ -183,11 +183,11 @@ Search::Worker::Worker(SharedState&                    sharedState,
     numaAccessToken(token),
     manager(std::move(sm)),
     bookMan(sharedState.bookMan),
+    experience(sharedState.experience),
     options(sharedState.options),
     threads(sharedState.threads),
     tt(sharedState.tt),
     networks(sharedState.networks),
-    experience(sharedState.experience),
     refreshTable(networks[token]) {
     clear();
 }

@@ -430,10 +430,12 @@ void Manager::load_file(const std::filesystem::path& path) {
 
     std::lock_guard<std::mutex> lk(mutex);
 
-    for (const auto& [key, data] : parsed)
+    for (const auto& entry : parsed)
     {
-        auto& bucket = table[key];
-        auto  it     = std::find_if(bucket.begin(), bucket.end(), [&](const MoveData& existing) {
+        const Key        key  = entry.first;
+        const MoveData&  data = entry.second;
+        auto&            bucket = table[key];
+        auto             it     = std::find_if(bucket.begin(), bucket.end(), [&](const MoveData& existing) {
             return existing.move == data.move;
         });
 
