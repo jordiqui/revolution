@@ -12,14 +12,26 @@ trap 'error ${LINENO}' ERR
 
 echo "perft testing started"
 
+ENGINE_BIN="./stockfish"
+if [ ! -x "$ENGINE_BIN" ]; then
+  if [ -x "./revolution" ]; then
+    ENGINE_BIN="./revolution"
+  elif [ -x "./src/revolution" ]; then
+    ENGINE_BIN="./src/revolution"
+  else
+    echo "perft testing failed: engine binary not found"
+    exit 1
+  fi
+fi
+
 EXPECT_SCRIPT=$(mktemp)
 
 cat << 'EOF' > $EXPECT_SCRIPT
 #!/usr/bin/expect -f
 set timeout 30
-lassign [lrange $argv 0 4] pos depth result chess960 logfile
+lassign [lrange $argv 0 5] pos depth result chess960 logfile engine
 log_file -noappend $logfile
-spawn ./stockfish
+spawn $engine
 if {$chess960 == "true"} {
   send "setoption name UCI_Chess960 value true\n"
 }
@@ -44,7 +56,7 @@ run_test() {
 
   echo -n "Testing depth $depth: ${pos:0:40}... "
 
-  if $EXPECT_SCRIPT "$pos" "$depth" "$expected" "$chess960" "$tmp_file" > /dev/null 2>&1; then
+  if $EXPECT_SCRIPT "$pos" "$depth" "$expected" "$chess960" "$tmp_file" "$ENGINE_BIN" > /dev/null 2>&1; then
     echo "OK"
     rm -f "$tmp_file"
   else
