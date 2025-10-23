@@ -35,6 +35,7 @@
 #include <utility>
 
 #include "evaluate.h"
+#include "experience.h"
 #include "history.h"
 #include "misc.h"
 #include "movegen.h"
@@ -186,6 +187,7 @@ Search::Worker::Worker(SharedState&                    sharedState,
     threads(sharedState.threads),
     tt(sharedState.tt),
     networks(sharedState.networks),
+    experience(sharedState.experience),
     refreshTable(networks[token]) {
     clear();
 }
@@ -205,6 +207,24 @@ void Search::Worker::start_searching() {
     {
         iterative_deepening();
         return;
+        if (bookMove == Move::none())
+        {
+            if (auto suggestion = experience.best_book_move(rootPos); suggestion.has_value())
+            {
+                std::string ponder;
+                auto        candidate = std::find(rootMoves.begin(), rootMoves.end(), suggestion->move);
+
+                if (candidate != rootMoves.end() && candidate->pv.size() > 1)
+                    ponder = UCIEngine::move(candidate->pv[1], rootPos.is_chess960());
+
+                if (!suggestion->info.empty())
+                    sync_cout << "info string " << suggestion->info << sync_endl;
+
+                main_manager()->updates.onBestmove(
+                  UCIEngine::move(suggestion->move, rootPos.is_chess960()), ponder);
+                return;
+            }
+        }
     }
 
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
@@ -231,6 +251,21 @@ void Search::Worker::start_searching() {
                   UCIEngine::move(bookMove, rootPos.is_chess960()), ponder);
                 return;
             }
+        }
+        else if (auto suggestion = experience.best_book_move(rootPos); suggestion.has_value())
+        {
+            std::string ponder;
+            auto        candidate = std::find(rootMoves.begin(), rootMoves.end(), suggestion->move);
+
+            if (candidate != rootMoves.end() && candidate->pv.size() > 1)
+                ponder = UCIEngine::move(candidate->pv[1], rootPos.is_chess960());
+
+            if (!suggestion->info.empty())
+                sync_cout << "info string " << suggestion->info << sync_endl;
+
+            main_manager()->updates.onBestmove(
+              UCIEngine::move(suggestion->move, rootPos.is_chess960()), ponder);
+            return;
         }
     }
 
@@ -287,6 +322,8 @@ void Search::Worker::start_searching() {
     if (bestThread->rootMoves[0].pv.size() > 1
         || bestThread->rootMoves[0].extract_ponder_from_tt(tt, rootPos))
         ponder = UCIEngine::move(bestThread->rootMoves[0].pv[1], rootPos.is_chess960());
+
+    experience.record_result(rootPos, bestThread->rootMoves[0], bestThread->completedDepth);
 
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
     main_manager()->updates.onBestmove(bestmove, ponder);

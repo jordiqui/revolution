@@ -50,6 +50,11 @@ constexpr auto StartFEN   = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq 
 constexpr int  MaxHashMB  = Is64Bit ? 33554432 : 2048;
 int            MaxThreads = std::max(1024, 4 * int(get_hardware_concurrency()));
 
+Engine::~Engine() {
+    wait_for_search_finished();
+    experienceManager.flush();
+}
+
 Engine::Engine(std::optional<std::string> path) :
     binaryDirectory(path ? CommandLine::get_binary_directory(*path) : ""),
     numaContext(NumaConfig::from_system()),
@@ -63,6 +68,7 @@ Engine::Engine(std::optional<std::string> path) :
     pos.set(StartFEN, false, &states->back());
 
     bookManager.set_binary_directory(binaryDirectory);
+    experienceManager.set_binary_directory(binaryDirectory);
 
 
     options.add(  //
@@ -155,9 +161,12 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
+    experienceManager.init_options(options);
+
     load_networks();
     resize_threads();
     bookManager.init(options);
+    experienceManager.load();
 }
 
 std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
@@ -179,6 +188,8 @@ void Engine::search_clear() {
 
     tt.clear(threads);
     threads.clear();
+
+    experienceManager.on_new_game();
 
     // @TODO wont work with multiple instances
     Tablebases::init(options["SyzygyPath"]);  // Free mapped files
@@ -251,8 +262,8 @@ void Engine::set_numa_config_from_option(const std::string& o) {
 
 void Engine::resize_threads() {
     threads.wait_for_search_finished();
-    threads.set(numaContext.get_numa_config(), {options, threads, tt, networks, bookManager},
-                updateContext);
+    threads.set(numaContext.get_numa_config(),
+                {options, threads, tt, networks, bookManager, experienceManager}, updateContext);
 
     // Reallocate the hash with the new threadpool size
     set_tt_size(options["Hash"]);
@@ -306,6 +317,10 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
 void Engine::init_book_manager(int index) { bookManager.init(index, options); }
 
 void Engine::show_book_moves() const { bookManager.show_moves(pos, options); }
+
+std::string Engine::describe_experience() const { return experienceManager.describe_position(pos); }
+
+std::string Engine::quickresetexp() { return experienceManager.quick_reset(); }
 
 // utility functions
 

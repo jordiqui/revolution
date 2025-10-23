@@ -58,6 +58,10 @@ namespace Book {
 class BookManager;
 }
 
+namespace Experience {
+class Manager;
+}
+
 namespace Search {
 
 // Stack struct keeps track of the information we need to remember from nodes
@@ -141,18 +145,21 @@ struct SharedState {
                 ThreadPool&                                     threadPool,
                 TranspositionTable&                             transpositionTable,
                 const LazyNumaReplicated<Eval::NNUE::Networks>& nets,
-                Book::BookManager&                              bookManager) :
+                Book::BookManager&                              bookManager,
+                Experience::Manager&                            experienceManager) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
         networks(nets),
-        bookMan(bookManager) {}
+        bookMan(bookManager),
+        experience(experienceManager) {}
 
     const OptionsMap&                               options;
     ThreadPool&                                     threads;
     TranspositionTable&                             tt;
     const LazyNumaReplicated<Eval::NNUE::Networks>& networks;
     Book::BookManager&                              bookMan;
+    Experience::Manager&                            experience;
 };
 
 class Worker;
@@ -351,6 +358,7 @@ class Worker {
     // The main thread has a SearchManager, the others have a NullSearchManager
     std::unique_ptr<ISearchManager> manager;
     Book::BookManager&              bookMan;
+    Experience::Manager&            experience;
 
     Tablebases::Config tbConfig;
 
