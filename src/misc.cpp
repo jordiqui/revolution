@@ -50,7 +50,7 @@ constexpr std::string_view RevolutionAsciiLogo =
   "|  _ \\ ___  ___ | | ___  ___| |_(_) ___  _ __  \n"
   "| |_) / _ \\/ _ \\| |/ _ \\/ __| __| |/ _ \\| '_ \\ \n"
   "|  _ <  __/ (_) | |  __/ (__| |_| | (_) | | | |\n"
-  "|_| \\\\___|\\___/|_|\\___|\\___|\\__|_|\\___/|_| |_|\n"
+  "|_| \\_\\___|\\___/|_|\\___|\\___|\\__|_|\\___/|_| |_|\n"
   "               Revolution Engine               ";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and

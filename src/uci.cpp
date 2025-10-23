@@ -145,10 +145,14 @@ void UCIEngine::loop() {
             engine.flip();
         else if (token == "book")
             engine.show_book_moves();
+        else if (token == "showexp")
+            print_info_string(engine.describe_experience());
         else if (token == "bench")
             bench(is);
         else if (token == BenchmarkCommand)
             benchmark(is);
+        else if (token == "quickresetexp")
+            print_info_string(engine.quickresetexp());
         else if (token == "d")
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")

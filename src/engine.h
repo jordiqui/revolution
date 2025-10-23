@@ -28,6 +28,7 @@
 #include <utility>
 #include <vector>
 
+#include "experience.h"
 #include "nnue/network.h"
 #include "numa.h"
 #include "position.h"
@@ -54,7 +55,7 @@ class Engine {
     Engine& operator=(const Engine&) = delete;
     Engine& operator=(Engine&&)      = delete;
 
-    ~Engine() { wait_for_search_finished(); }
+    ~Engine();
 
     std::uint64_t perft(const std::string& fen, Depth depth, bool isChess960);
 
@@ -92,6 +93,8 @@ class Engine {
 
     void init_book_manager(int index);
     void show_book_moves() const;
+    std::string describe_experience() const;
+    std::string quickresetexp();
 
     // utility functions
 
@@ -124,6 +127,7 @@ class Engine {
     TranspositionTable                       tt;
     LazyNumaReplicated<Eval::NNUE::Networks> networks;
     Book::BookManager                        bookManager;
+    Experience::Manager                      experienceManager;
 
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;
