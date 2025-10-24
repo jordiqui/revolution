@@ -67,7 +67,19 @@ bool starts_with_ignore_case(const std::string& value, std::string_view prefix) 
 
 Manager::Manager() : session_id(generate_session_id()) {}
 
-void Manager::set_binary_directory(std::string path) { binary_directory = std::move(path); }
+void Manager::set_binary_directory(std::string path)
+{
+    namespace fs = std::filesystem;
+
+    if (path.empty())
+    {
+        binary_directory.clear();
+        return;
+    }
+
+    fs::path normalized(path);
+    binary_directory = normalized.lexically_normal().string();
+}
 
 void Manager::init_options(OptionsMap& options) {
     options.add("Read only learning", Option(false, [this](const Option& opt) {
