@@ -1,13 +1,13 @@
 /*
-  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
+  Revolution, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Pullfish is free software: you can redistribute it and/or modify
+  Revolution is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Pullfish is distributed in the hope that it will be useful,
+  Revolution is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -50,7 +50,7 @@ constexpr auto BenchmarkCommand = "speedtest";
 
 namespace {
 
-constexpr std::string_view PullfishLogoUtf8 =
+constexpr std::string_view RevolutionLogoUtf8 =
   R"(██████╗ ██╗   ██╗██╗     ██╗     ███████╗██╗███████╗██╗  ██╗
 ██╔══██╗██║   ██║██║     ██║     ██╔════╝██║██╔════╝██║ ██╔╝
 ██████╔╝██║   ██║██║     ██║     █████╗  ██║█████╗  █████╔╝
@@ -59,7 +59,7 @@ constexpr std::string_view PullfishLogoUtf8 =
 ╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
 )";
 
-constexpr std::string_view PullfishLogoAscii =
+constexpr std::string_view RevolutionLogoAscii =
   R"( ____        _ _ _     _     _
 |  _ \ _   _| | (_)___| |__ (_)_ __   ___
 | |_) | | | | | | / __| '_ \| | '_ \ / _ \
@@ -83,7 +83,7 @@ bool has_utf8_hint(std::string_view value) {
 }
 
 std::string_view select_logo_from_environment() {
-    if (const char* style_env = std::getenv("PULLFISH_LOGO_STYLE"))
+    if (const char* style_env = std::getenv("REVOLUTION_LOGO_STYLE"))
     {
         const auto style = to_lower_ascii(style_env);
 
@@ -91,24 +91,24 @@ std::string_view select_logo_from_environment() {
             return std::string_view();
 
         if (style == "ascii" || style == "plain")
-            return PullfishLogoAscii;
+            return RevolutionLogoAscii;
 
         if (style == "utf8" || style == "utf-8" || style == "utf")
-            return PullfishLogoUtf8;
+            return RevolutionLogoUtf8;
     }
 
 #if defined(_WIN32)
     // Windows consoles often default to non-UTF-8 code pages. Unless the user opts in
     // through the environment variable above, prefer the ASCII logo to avoid mojibake.
-    return PullfishLogoAscii;
+    return RevolutionLogoAscii;
 #else
     constexpr const char* kLocaleVars[] = {"LC_ALL", "LC_CTYPE", "LANG"};
 
     for (const char* var : kLocaleVars)
         if (const char* value = std::getenv(var); value && has_utf8_hint(value))
-            return PullfishLogoUtf8;
+            return RevolutionLogoUtf8;
 
-    return PullfishLogoAscii;
+    return RevolutionLogoAscii;
 #endif
 }
 
@@ -282,12 +282,12 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nPullfish is a powerful chess engine for playing and analyzing games of chess."
+              << "\nRevolution is a powerful chess engine for playing and analyzing games of chess."
                  "\nIt is a derivative of Stockfish 17.1 maintained by Jorge Ruiz with credits to ChatGPT"
                  "\nand is released as free software licensed under the GNU GPLv3 License."
-                 "\nPullfish is normally used with a graphical user interface (GUI) and implements"
+                 "\nRevolution is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
-                 "\nFor further information, visit https://github.com/jorgeruiz/pullfish"
+                 "\nFor further information, visit https://github.com/jorgeruiz/revolution"
                  "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
               << sync_endl;
         else if (!token.empty() && token[0] != '#')

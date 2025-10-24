@@ -19,7 +19,7 @@ cat << 'EOF' > $EXPECT_SCRIPT
 set timeout 30
 lassign [lrange $argv 0 4] pos depth result chess960 logfile
 log_file -noappend $logfile
-spawn ./pullfish
+spawn ./revolution-2.90-241025
 if {$chess960 == "true"} {
   send "setoption name UCI_Chess960 value true\n"
 }
@@ -27,7 +27,7 @@ send "position $pos\ngo perft $depth\n"
 expect {
   "Nodes searched: $result" {}
   timeout {puts "TIMEOUT: Expected $result nodes"; exit 1}
-  eof {puts "EOF: Pullfish crashed"; exit 2}
+  eof {puts "EOF: Revolution crashed"; exit 2}
 }
 send "quit\n"
 expect eof

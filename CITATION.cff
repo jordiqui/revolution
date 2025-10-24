@@ -2,9 +2,9 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: Pullfish 1.0 171025
+title: Revolution 2.90 241025
 message: >-
-  Please cite Pullfish 1.0 171025 as a derivative of Stockfish 17.1 using the
+  Please cite Revolution 2.90 241025 as a derivative of Stockfish 17.1 using the
   metadata from this file.
 type: software
 authors:
@@ -12,11 +12,11 @@ authors:
     given-names: Jorge
   - name: ChatGPT
   - name: The Stockfish developers (see AUTHORS file)
-repository-code: 'https://github.com/jorgeruiz/pullfish'
-url: 'https://github.com/jorgeruiz/pullfish'
-repository-artifact: 'https://github.com/jorgeruiz/pullfish/releases'
+repository-code: 'https://github.com/jorgeruiz/revolution'
+url: 'https://github.com/jorgeruiz/revolution'
+repository-artifact: 'https://github.com/jorgeruiz/revolution/releases'
 abstract: >-
-  Pullfish 1.0 171025 is a free and strong UCI chess engine derived from
+  Revolution 2.90 241025 is a free and strong UCI chess engine derived from
   Stockfish 17.1, co-authored by Jorge Ruiz and ChatGPT with full credit to the
   Stockfish developers.
 keywords:

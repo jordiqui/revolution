@@ -1,12 +1,12 @@
-# Contributing to Pullfish
+# Contributing to Revolution
 
-Welcome to the Pullfish project! We are excited that you are interested in
+Welcome to the Revolution project! We are excited that you are interested in
 contributing. This document outlines the guidelines and steps to follow when
-making contributions to Pullfish 1.0 171025, a derivative of Stockfish 17.1.
+making contributions to Revolution 2.90 241025, a derivative of Stockfish 17.1.
 
 ## Table of Contents
 
-- [Building Pullfish](#building-pullfish)
+- [Building Revolution](#building-revolution)
 - [Making Contributions](#making-contributions)
   - [Reporting Issues](#reporting-issues)
   - [Submitting Pull Requests](#submitting-pull-requests)
@@ -14,7 +14,7 @@ making contributions to Pullfish 1.0 171025, a derivative of Stockfish 17.1.
 - [Community and Communication](#community-and-communication)
 - [License](#license)
 
-## Building Pullfish
+## Building Revolution
 
 In case you do not have a C++ compiler installed, you can follow the
 instructions from our wiki.
@@ -32,7 +32,7 @@ If you find a bug, please open an issue on the
 like your operating system, build environment, and a detailed description of the
 problem.
 
-_Please note that Pullfish development follows the upstream Stockfish policy of
+_Please note that Revolution development follows the upstream Stockfish policy of
 not focusing on new features. Thus any issue regarding missing features will
 potentially be closed without further discussion._
 
@@ -51,13 +51,13 @@ potentially be closed without further discussion._
 
 _First time contributors should add their name to [AUTHORS](./AUTHORS)._ 
 
-_Pullfish's development is not focused on adding new features, mirroring
+_Revolution's development is not focused on adding new features, mirroring
 Stockfish. Thus any pull request introducing new features will potentially be
 closed without further discussion._
 
 ## Code Style
 
-Changes to Pullfish C++ code should respect our coding style defined by
+Changes to Revolution C++ code should respect our coding style defined by
 [.clang-format](.clang-format). You can format your changes by running
 `make format`. This requires clang-format version 18 to be installed on your system.
 
@@ -80,11 +80,11 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 ## License
 
-By contributing to Pullfish, you agree that your contributions will be licensed
+By contributing to Revolution, you agree that your contributions will be licensed
 under the GNU General Public License v3.0. See [Copying.txt][copying-link] for
 more details.
 
-Thank you for contributing to Pullfish and helping us make it even better!
+Thank you for contributing to Revolution and helping us make it even better!
 
 [copying-link]:           https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt
 [discord-link]:           https://discord.gg/GWDRS3kU6R
