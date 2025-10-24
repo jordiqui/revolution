@@ -52,8 +52,13 @@ bool starts_with_ignore_case(const std::string& value, std::string_view prefix) 
         return false;
 
     for (size_t i = 0; i < prefix.size(); ++i)
-        if (std::tolower(value[i]) != std::tolower(prefix[i]))
+    {
+        const auto lhs = static_cast<unsigned char>(value[i]);
+        const auto rhs = static_cast<unsigned char>(prefix[i]);
+
+        if (std::tolower(lhs) != std::tolower(rhs))
             return false;
+    }
 
     return true;
 }

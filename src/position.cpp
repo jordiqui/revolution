@@ -189,9 +189,10 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     ss >> std::noskipws;
 
     // 1. Piece placement
-    while ((ss >> token) && !isspace(token))
+    while ((ss >> token)
+           && !std::isspace(static_cast<unsigned char>(token)))
     {
-        if (isdigit(token))
+        if (std::isdigit(static_cast<unsigned char>(token)))
             sq += (token - '0') * EAST;  // Advance the given number of files
 
         else if (token == '/')
@@ -206,7 +207,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
 
     // 2. Active color
     ss >> token;
-    sideToMove = (token == 'w' ? WHITE : BLACK);
+    sideToMove = (std::tolower(static_cast<unsigned char>(token)) == 'w' ? WHITE : BLACK);
     ss >> token;
 
     // 3. Castling availability. Compatible with 3 standards: Normal FEN standard,
@@ -214,13 +215,14 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     // the game instead of KQkq and also X-FEN standard that, in case of Chess960,
     // if an inner rook is associated with the castling right, the castling tag is
     // replaced by the file letter of the involved rook, as for the Shredder-FEN.
-    while ((ss >> token) && !isspace(token))
+    while ((ss >> token)
+           && !std::isspace(static_cast<unsigned char>(token)))
     {
         Square rsq;
-        Color  c    = islower(token) ? BLACK : WHITE;
+        Color  c = std::islower(static_cast<unsigned char>(token)) ? BLACK : WHITE;
         Piece  rook = make_piece(c, ROOK);
 
-        token = char(toupper(token));
+        token = char(std::toupper(static_cast<unsigned char>(token)));
 
         if (token == 'K')
             for (rsq = relative_square(c, SQ_H1); piece_on(rsq) != rook; --rsq)
@@ -243,10 +245,13 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     // Ignore if square is invalid or not on side to move relative rank 6.
     bool enpassant = false;
 
-    if (((ss >> col) && (col >= 'a' && col <= 'h'))
-        && ((ss >> row) && (row == (sideToMove == WHITE ? '6' : '3'))))
+    if (((ss >> col) && (std::tolower(static_cast<unsigned char>(col)) >= 'a'
+                         && std::tolower(static_cast<unsigned char>(col)) <= 'h'))
+        && ((ss >> row)
+            && (row == (sideToMove == WHITE ? '6' : '3'))))
     {
-        st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
+        st->epSquare = make_square(
+          File(std::tolower(static_cast<unsigned char>(col)) - 'a'), Rank(row - '1'));
 
         // En passant square will be considered only if
         // a) side to move have a pawn threatening epSquare
@@ -375,7 +380,9 @@ Position& Position::set(const string& code, Color c, StateInfo* si) {
     assert(sides[0].length() > 0 && sides[0].length() < 8);
     assert(sides[1].length() > 0 && sides[1].length() < 8);
 
-    std::transform(sides[c].begin(), sides[c].end(), sides[c].begin(), tolower);
+    std::transform(sides[c].begin(), sides[c].end(), sides[c].begin(), [](char ch) {
+        return char(std::tolower(static_cast<unsigned char>(ch)));
+    });
 
     string fenStr = "8/" + sides[0] + char(8 - sides[0].length() + '0') + "/8/8/8/8/" + sides[1]
                   + char(8 - sides[1].length() + '0') + "/8 w - - 0 10";
@@ -1237,7 +1244,11 @@ void Position::flip() {
     f += token + " ";
 
     std::transform(f.begin(), f.end(), f.begin(),
-                   [](char c) { return char(islower(c) ? toupper(c) : tolower(c)); });
+                   [](char c) {
+                       const auto ch = static_cast<unsigned char>(c);
+                       return char(
+                         std::islower(ch) ? std::toupper(ch) : std::tolower(ch));
+                   });
 
     ss >> token;  // En passant square
     f += (token == "-" ? token : token.replace(1, 1, token[1] == '3' ? "6" : "3"));
