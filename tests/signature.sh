@@ -11,7 +11,9 @@ trap 'error ${LINENO}' ERR
 
 # obtain
 
-signature=`eval "$WINE_PATH ./revolution-2.90-241025 bench 2>&1" | grep "Nodes searched  : " | awk '{print $4}'`
+ENGINE_PATH="$(cd "$(dirname "$0")/.." && pwd)/src/revolution-PVS"
+
+signature=`eval "$WINE_PATH $ENGINE_PATH bench 2>&1" | grep "Nodes searched  : " | awk '{print $4}'`
 
 if [ $# -gt 0 ]; then
    # compare to given reference

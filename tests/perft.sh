@@ -17,9 +17,9 @@ EXPECT_SCRIPT=$(mktemp)
 cat << 'EOF' > $EXPECT_SCRIPT
 #!/usr/bin/expect -f
 set timeout 30
-lassign [lrange $argv 0 4] pos depth result chess960 logfile
+lassign [lrange $argv 0 5] engine pos depth result chess960 logfile
 log_file -noappend $logfile
-spawn ./revolution-2.90-241025
+spawn $engine
 if {$chess960 == "true"} {
   send "setoption name UCI_Chess960 value true\n"
 }
@@ -35,6 +35,8 @@ EOF
 
 chmod +x $EXPECT_SCRIPT
 
+ENGINE_PATH="$(cd "$(dirname "$0")/.." && pwd)/src/revolution-PVS"
+
 run_test() {
   local pos="$1"
   local depth="$2"
@@ -44,7 +46,7 @@ run_test() {
 
   echo -n "Testing depth $depth: ${pos:0:40}... "
 
-  if $EXPECT_SCRIPT "$pos" "$depth" "$expected" "$chess960" "$tmp_file" > /dev/null 2>&1; then
+  if $EXPECT_SCRIPT "$ENGINE_PATH" "$pos" "$depth" "$expected" "$chess960" "$tmp_file" > /dev/null 2>&1; then
     echo "OK"
     rm -f "$tmp_file"
   else
