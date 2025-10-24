@@ -77,10 +77,12 @@ std::string to_lower_ascii(std::string_view input) {
     return lowered;
 }
 
+#if !defined(_WIN32)
 bool has_utf8_hint(std::string_view value) {
     const auto lowered = to_lower_ascii(value);
     return lowered.find("utf-8") != std::string::npos || lowered.find("utf8") != std::string::npos;
 }
+#endif
 
 std::string_view select_logo_from_environment() {
     if (const char* style_env = std::getenv("REVOLUTION_LOGO_STYLE"))
