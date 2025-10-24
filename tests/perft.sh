@@ -19,11 +19,7 @@ cat << 'EOF' > $EXPECT_SCRIPT
 set timeout 30
 lassign [lrange $argv 0 5] engine pos depth result chess960 logfile
 log_file -noappend $logfile
- codex/implement-dynamic-pvs-reductions-a7uw5q
 spawn $engine
-=======
-spawn ./revolution-PVS
- eval_cur-−-eval_prev
 if {$chess960 == "true"} {
   send "setoption name UCI_Chess960 value true\n"
 }
