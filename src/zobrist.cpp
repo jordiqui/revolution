@@ -44,8 +44,8 @@ void Zobrist::init() {
         for (Square s = SQ_A1; s <= SQ_H8; s = Square(s + 1))
             psq[pc][s] = rng.rand<Key>();
 
-    std::fill_n(psq[W_PAWN] + SQ_A8, 8, 0);
-    std::fill_n(psq[B_PAWN], 8, 0);
+    std::fill_n(psq[W_PAWN], 8, 0);
+    std::fill_n(psq[B_PAWN] + SQ_A8, 8, 0);
 
     for (File f = FILE_A; f <= FILE_H; f = File(f + 1))
         enpassant[f] = rng.rand<Key>();
