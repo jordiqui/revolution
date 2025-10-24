@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -22,11 +22,11 @@
 #include <cassert>
 #include <deque>
 #include <memory>
+#include <new>
 #include <string>
 #include <unordered_map>
 #include <utility>
 
-#include "memory.h"
 #include "movegen.h"
 #include "search.h"
 #include "syzygy/tbprobe.h"
@@ -49,13 +49,16 @@ Thread::Thread(Search::SharedState&                    sharedState,
 
     wait_for_search_finished();
 
-    run_custom_job([this, &binder, &sharedState, &sm, n]() {
+    Search::ISearchManager* smRaw = sm.release();
+
+    run_custom_job([this, &binder, &sharedState, smRaw, n]() {
+        std::unique_ptr<Search::ISearchManager> localManager(smRaw);
         // Use the binder to [maybe] bind the threads to a NUMA node before doing
         // the Worker allocation. Ideally we would also allocate the SearchManager
         // here, but that's minor.
         this->numaAccessToken = binder();
-        this->worker = make_unique_large_page<Search::Worker>(sharedState, std::move(sm), n,
-                                                             this->numaAccessToken);
+        this->worker = make_unique_large_page<Search::Worker>(
+          sharedState, std::move(localManager), n, this->numaAccessToken);
     });
 
     wait_for_search_finished();
@@ -273,10 +276,6 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
 
     if (states.get())
         setupStates = std::move(states);  // Ownership transfer, states is now empty
-
-    const StateInfo* previousState =
-      setupStates && !setupStates->empty() ? setupStates->back().previous : nullptr;
-    limits.capSq = previousState ? previousState->captureSquare : SQ_NONE;
 
     // We use Position::set() to set root position across threads. But there are
     // some StateInfo fields (previous, pliesFromNull, capturedPiece) that cannot

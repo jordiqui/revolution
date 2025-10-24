@@ -5,15 +5,9 @@
 #include <cstdint>
 #include <string>
 
-namespace Stockfish {
-namespace Book {
+namespace Stockfish::Book {
 
 class FileMapping {
-   private:
-    std::uint64_t mapping;
-    void*         baseAddress;
-    std::size_t   dataSize;
-
    public:
     FileMapping();
     ~FileMapping();
@@ -21,12 +15,16 @@ class FileMapping {
     bool map(const std::string& f, bool verbose);
     void unmap();
 
-    bool                 has_data() const;
-    const unsigned char* data() const;
-    std::size_t          data_size() const;
+    bool                  has_data() const;
+    const unsigned char*  data() const;
+    size_t                data_size() const;
+
+   private:
+    std::uint64_t mapping;
+    void*         baseAddress;
+    size_t        dataSize;
 };
 
-}  // namespace Book
-}  // namespace Stockfish
+}  // namespace Stockfish::Book
 
-#endif  // FILEMAPPING_H_INCLUDED
+#endif  // #ifndef FILEMAPPING_H_INCLUDED

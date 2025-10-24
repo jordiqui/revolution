@@ -1,31 +1,29 @@
-#include "../misc.h"
-#include "../uci.h"
-#include "polyglot/polyglot.h"
-#include "ctg/ctg.h"
-#include "book.h"
+#include "book/book.h"
 
 #include <algorithm>
 #include <cctype>
 
-namespace Stockfish {
-namespace Book {
+#include "book/ctg/ctg.h"
+#include "book/polyglot/polyglot.h"
 
-/*static*/ Book* Book::create_book(const std::string& filename) {
-    const size_t extIndex = filename.find_last_of('.');
+namespace Stockfish::Book {
+
+Book* Book::create_book(const std::string& filename) {
+
+    const auto extIndex = filename.find_last_of('.');
     if (extIndex == std::string::npos)
         return nullptr;
 
-    std::string ext = filename.substr(extIndex + 1);
-    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
+    auto ext = filename.substr(extIndex + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return char(std::tolower(c)); });
 
     if (ext == "ctg" || ext == "cto" || ext == "ctb")
         return new CTG::CtgBook();
+
     if (ext == "bin")
         return new Polyglot::PolyglotBook();
+
     return nullptr;
 }
 
-}  // namespace Book
-}  // namespace Stockfish
+}  // namespace Stockfish::Book

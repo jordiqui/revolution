@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -33,16 +33,15 @@
 #include <ratio>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "evaluate.h"
-#include "experience.h"
 #include "history.h"
 #include "misc.h"
 #include "movegen.h"
 #include "movepick.h"
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"
-#include "book/book_manager.h"
 #include "position.h"
 #include "syzygy/tbprobe.h"
 #include "thread.h"
@@ -50,10 +49,35 @@
 #include "tt.h"
 #include "uci.h"
 #include "ucioption.h"
+#include "learn/learn.h"
+#include "wdl/win_probability.h"
 
 namespace Stockfish {
 
 namespace TB = Tablebases;
+
+namespace {
+
+constexpr Value DecidedGameEvalThreshold = PawnValue * 5;
+constexpr int   DecidedGameMaxPly        = 150;
+constexpr int   DecidedGameMaxPieceCount = 5;
+
+inline bool is_game_decided(const Position& pos, Value lastScore) {
+    if (is_valid(lastScore) && std::abs(lastScore) > DecidedGameEvalThreshold)
+        return true;
+
+    if (pos.game_ply() > DecidedGameMaxPly)
+        return true;
+
+    if (pos.count<ALL_PIECES>() < DecidedGameMaxPieceCount)
+        return true;
+
+    return false;
+}
+
+thread_local std::vector<QLearningMove> qLearningTrajectory;
+
+}  // namespace
 
 void syzygy_extend_pv(const OptionsMap&            options,
                       const Search::LimitsType&    limits,
@@ -72,35 +96,16 @@ namespace {
 // tests at these types of time controls.
 
 // Futility margin
-Value futility_margin(Depth d,
-                      bool   noTtCutNode,
-                      bool   improving,
-                      bool   oppWorsening,
-                      int    correctionAbs,
-                      int    historyPenalty) {
+Value futility_margin(Depth d, bool noTtCutNode, bool improving, bool oppWorsening) {
     Value futilityMult       = 110 - 25 * noTtCutNode;
     Value improvingDeduction = improving * futilityMult * 2;
     Value worseningDeduction = oppWorsening * futilityMult / 3;
 
-    Value base = futilityMult * d - improvingDeduction - worseningDeduction;
-
-    Value correctionReduction =
-      Value(std::min(correctionAbs / 2048, 4 * int(futilityMult)));
-    Value historyReduction =
-      Value(std::min(historyPenalty / 64, 3 * int(futilityMult)));
-
-    base -= correctionReduction;
-    base -= historyReduction;
-
-    return std::max<Value>(0, base);
+    return futilityMult * d - improvingDeduction - worseningDeduction;
 }
 
-int futility_move_count(bool improving, Depth depth, int historyPenalty, int complexityHint) {
-    int base = (3 + depth * depth) / (2 - improving);
-    base += historyPenalty / 2048;
-    base += std::max(0, complexityHint - 24) / 6;
-
-    return base;
+constexpr int futility_move_count(bool improving, Depth depth) {
+    return (3 + depth * depth) / (2 - improving);
 }
 
 int correction_value(const Worker& w, const Position& pos, const Stack* const ss) {
@@ -117,7 +122,7 @@ int correction_value(const Worker& w, const Position& pos, const Stack* const ss
     return 7685 * pcv + 7495 * micv + 9144 * (wnpcv + bnpcv) + 6469 * cntcv;
 }
 
-int risk_tolerance(const Position& pos, Value v, Depth depth, Value window) {
+int risk_tolerance(const Position& pos, Value v) {
     // Returns (some constant of) second derivative of sigmoid.
     static constexpr auto sigmoid_d2 = [](int x, int y) {
         return 644800 * x / ((x * x + 3 * y * y) * y);
@@ -141,14 +146,7 @@ int risk_tolerance(const Position& pos, Value v, Depth depth, Value window) {
     int winning_risk = sigmoid_d2(v - a, b);
     int losing_risk  = sigmoid_d2(v + a, b);
 
-    int base = -(winning_risk + losing_risk) * 32;
-
-    int depthInt    = std::max<int>(depth, 0);
-    int depthScale  = std::max(24, 64 - 3 * std::min(depthInt, 12));
-    int windowWidth = std::max(0, int(window));
-    int windowScale = std::clamp(96 - windowWidth / 16, 48, 128);
-
-    return base * depthScale * windowScale / (64 * 96);
+    return -(winning_risk + losing_risk) * 32;
 }
 
 // Add correctionHistory value to raw staticEval and guarantee evaluation
@@ -181,16 +179,6 @@ void update_correction_history(const Position& pos,
 
 // Add a small random component to draw evaluations to avoid 3-fold blindness
 Value value_draw(size_t nodes) { return VALUE_DRAW - 1 + Value(nodes & 0x2); }
-
-Value draw_bias(Value context) {
-    if (context <= VALUE_DRAW)
-        return VALUE_ZERO;
-
-    Value margin = std::clamp<Value>((context - VALUE_DRAW) / 32, VALUE_ZERO, Value(4));
-    return Value(8) + margin;
-}
-
-Value biased_draw(size_t nodes, Value context) { return value_draw(nodes) - draw_bias(context); }
 Value value_to_tt(Value v, int ply);
 Value value_from_tt(Value v, int ply, int r50c);
 void  update_pv(Move* pv, Move move, const Move* childPv);
@@ -218,8 +206,6 @@ Search::Worker::Worker(SharedState&                    sharedState,
     threadIdx(threadId),
     numaAccessToken(token),
     manager(std::move(sm)),
-    bookMan(sharedState.bookMan),
-    experience(sharedState.experience),
     options(sharedState.options),
     threads(sharedState.threads),
     tt(sharedState.tt),
@@ -248,44 +234,6 @@ void Search::Worker::start_searching() {
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
                             main_manager()->originalTimeAdjust);
     tt.new_search();
-
-    Move bookMove = Move::none();
-    if (!rootMoves.empty() && !limits.infinite && !limits.depth && !limits.mate
-        && !limits.nodes && !limits.perft && !main_manager()->ponder)
-    {
-        bookMove = bookMan.probe(rootPos, options);
-
-        if (bookMove != Move::none())
-        {
-            auto it = std::find(rootMoves.begin(), rootMoves.end(), bookMove);
-
-            if (it != rootMoves.end())
-            {
-                std::string ponder;
-                if (it->pv.size() > 1)
-                    ponder = UCIEngine::move(it->pv[1], rootPos.is_chess960());
-
-                main_manager()->updates.onBestmove(
-                  UCIEngine::move(bookMove, rootPos.is_chess960()), ponder);
-                return;
-            }
-        }
-        else if (auto suggestion = experience.best_book_move(rootPos); suggestion.has_value())
-        {
-            std::string ponder;
-            auto        candidate = std::find(rootMoves.begin(), rootMoves.end(), suggestion->move);
-
-            if (candidate != rootMoves.end() && candidate->pv.size() > 1)
-                ponder = UCIEngine::move(candidate->pv[1], rootPos.is_chess960());
-
-            if (!suggestion->info.empty())
-                sync_cout << "info string " << suggestion->info << sync_endl;
-
-            main_manager()->updates.onBestmove(
-              UCIEngine::move(suggestion->move, rootPos.is_chess960()), ponder);
-            return;
-        }
-    }
 
     if (rootMoves.empty())
     {
@@ -328,6 +276,38 @@ void Search::Worker::start_searching() {
         && rootMoves[0].pv[0] != Move::none())
         bestThread = threads.get_best_thread()->worker.get();
 
+    if (bestThread->rootMoves[0].pv[0] != Move::none())
+    {
+        const bool shouldLearn = LD.is_enabled() && !LD.is_paused()
+                                 && (rootPos.game_ply() == 0 || rootPos.count<ALL_PIECES>() <= 8);
+
+        if (shouldLearn && bestThread->completedDepth > Depth(4))
+        {
+            PersistedLearningMove plm;
+            plm.key                = rootPos.key();
+            plm.learningMove.depth = bestThread->completedDepth;
+            plm.learningMove.move  = bestThread->rootMoves[0].pv[0];
+            plm.learningMove.score = bestThread->rootMoves[0].score;
+            plm.learningMove.performance = WDLModel::get_win_probability(plm.learningMove.score, rootPos);
+
+            if (LD.learning_mode() == LearningMode::Self)
+            {
+                if (const LearningMove* existing = LD.probe_move(plm.key, plm.learningMove.move))
+                    plm.learningMove.score = existing->score;
+
+                QLearningMove qMove;
+                qMove.persistedLearningMove = plm;
+                const int material = rootPos.count<PAWN>() + 3 * rootPos.count<KNIGHT>()
+                                     + 3 * rootPos.count<BISHOP>() + 5 * rootPos.count<ROOK>()
+                                     + 9 * rootPos.count<QUEEN>();
+                qMove.materialClamp = std::clamp(material, 17, 78);
+                qLearningTrajectory.push_back(qMove);
+            }
+            else
+                LD.add_new_learning(plm.key, plm.learningMove);
+        }
+    }
+
     main_manager()->bestPreviousScore        = bestThread->rootMoves[0].score;
     main_manager()->bestPreviousAverageScore = bestThread->rootMoves[0].averageScore;
 
@@ -341,10 +321,20 @@ void Search::Worker::start_searching() {
         || bestThread->rootMoves[0].extract_ponder_from_tt(tt, rootPos))
         ponder = UCIEngine::move(bestThread->rootMoves[0].pv[1], rootPos.is_chess960());
 
-    experience.record_result(rootPos, bestThread->rootMoves[0], bestThread->completedDepth);
-
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
     main_manager()->updates.onBestmove(bestmove, ponder);
+
+    if (LD.is_enabled() && !LD.is_paused()
+        && is_game_decided(rootPos, bestThread->rootMoves[0].score))
+    {
+        if (LD.learning_mode() == LearningMode::Self)
+            putQLearningTrajectoryIntoLearningTable();
+
+        if (!LD.is_readonly())
+            LD.persist(options);
+
+        LD.pause();
+    }
 }
 
 // Main iterative deepening loop. It calls search()
@@ -445,16 +435,8 @@ void Search::Worker::iterative_deepening() {
             selDepth = 0;
 
             // Reset aspiration window starting size
-            RootMove& currentRoot = rootMoves[pvIdx];
-            delta = 5 + std::abs(currentRoot.meanSquaredScore) / 11834;
-
-            if (currentRoot.aspirationHitStreak > 1)
-                delta = std::max(3, delta - currentRoot.aspirationHitStreak);
-            if (currentRoot.aspirationMissStreak != 0)
-                delta += std::abs(currentRoot.aspirationMissStreak)
-                         * std::max(2, delta / 4);
-
-            Value avg = currentRoot.averageScore;
+            delta     = 5 + std::abs(rootMoves[pvIdx].meanSquaredScore) / 11834;
+            Value avg = rootMoves[pvIdx].averageScore;
             alpha     = std::max(avg - delta, -VALUE_INFINITE);
             beta      = std::min(avg + delta, VALUE_INFINITE);
 
@@ -466,25 +448,6 @@ void Search::Worker::iterative_deepening() {
             // high/low, re-search with a bigger window until we don't fail
             // high/low anymore.
             int failedHighCnt = 0;
-            int localHitStreak = currentRoot.aspirationHitStreak;
-            int localMissStreak = currentRoot.aspirationMissStreak;
-            auto widen_window = [](int currentDelta, int streak) {
-                int baseGrow   = std::max(4, currentDelta / 4);
-                int streakGrow = std::abs(streak) * std::max(2, currentDelta / 8);
-                return currentDelta + baseGrow + streakGrow;
-            };
-            bool autoExpanded    = false;
-            bool pvFallbackUsed  = false;
-            auto apply_auto_expand = [&](Value center) {
-                delta = widen_window(delta, localMissStreak);
-                Value newAlpha = std::max(center - delta, -VALUE_INFINITE);
-                Value newBeta  = std::min(center + delta, VALUE_INFINITE);
-                if (newBeta <= newAlpha)
-                    newBeta = std::min<Value>(VALUE_INFINITE, newAlpha + 1);
-                alpha        = newAlpha;
-                beta         = newBeta;
-                autoExpanded = true;
-            };
             while (true)
             {
                 // Adjust the effective depth searched, but ensure at least one
@@ -519,71 +482,24 @@ void Search::Worker::iterative_deepening() {
                 // otherwise exit the loop.
                 if (bestValue <= alpha)
                 {
+                    beta  = (alpha + beta) / 2;
+                    alpha = std::max(bestValue - delta, -VALUE_INFINITE);
+
                     failedHighCnt = 0;
                     if (mainThread)
                         mainThread->stopOnPonderhit = false;
-
-                    localHitStreak  = 0;
-                    localMissStreak = localMissStreak < 0 ? localMissStreak - 1 : -1;
-
-                    if (!autoExpanded)
-                        apply_auto_expand(bestValue);
-                    else if (!pvFallbackUsed)
-                    {
-                        alpha           = -VALUE_INFINITE;
-                        beta            = VALUE_INFINITE;
-                        pvFallbackUsed  = true;
-                    }
-                    else
-                        break;
-
-                    assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
-                    continue;
                 }
                 else if (bestValue >= beta)
                 {
+                    beta = std::min(bestValue + delta, VALUE_INFINITE);
                     ++failedHighCnt;
-
-                    localHitStreak  = 0;
-                    localMissStreak = localMissStreak > 0 ? localMissStreak + 1 : 1;
-
-                    if (!autoExpanded)
-                        apply_auto_expand(bestValue);
-                    else if (!pvFallbackUsed)
-                    {
-                        alpha           = -VALUE_INFINITE;
-                        beta            = VALUE_INFINITE;
-                        pvFallbackUsed  = true;
-                        failedHighCnt   = 0;
-                    }
-                    else
-                        break;
-
-                    assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
-                    continue;
                 }
                 else
                     break;
-            }
 
-            if (!threads.stop)
-            {
-                bool succeeded = bestValue > alpha && bestValue < beta;
-                if (succeeded)
-                {
-                    localHitStreak = std::min(localHitStreak + 1, 6);
-                    if (localMissStreak > 0)
-                        localMissStreak = std::max(localMissStreak - 1, 0);
-                    else if (localMissStreak < 0)
-                        localMissStreak = std::min(localMissStreak + 1, 0);
-                }
-                else
-                    localHitStreak = 0;
+                delta += delta / 3;
 
-                localMissStreak = std::clamp(localMissStreak, -6, 6);
-
-                currentRoot.aspirationHitStreak  = localHitStreak;
-                currentRoot.aspirationMissStreak = localMissStreak;
+                assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
 
             // Sort the PV lines searched so far and update the GUI
@@ -650,21 +566,22 @@ void Search::Worker::iterative_deepening() {
         // Do we have time for the next iteration? Can we stop searching now?
         if (limits.use_time_management() && !threads.stop && !mainThread->stopOnPonderhit)
         {
-            int nodesEffort = rootMoves[0].effort * 100 / std::max(size_t(1), size_t(nodes));
+            int nodesEffort = rootMoves[0].effort * 100000 / std::max(size_t(1), size_t(nodes));
 
-            double fallingEval = (1067 + 223 * (mainThread->bestPreviousAverageScore - bestValue)
-                                  + 97 * (mainThread->iterValue[iterIdx] - bestValue))
-                                 / 10000.0;
-            fallingEval = std::clamp(fallingEval, 0.580, 1.667);
+            double fallingEval =
+              (11.396 + 2.035 * (mainThread->bestPreviousAverageScore - bestValue)
+               + 0.968 * (mainThread->iterValue[iterIdx] - bestValue))
+              / 100.0;
+            fallingEval = std::clamp(fallingEval, 0.5786, 1.6752);
 
             // If the bestMove is stable over several iterations, reduce time accordingly
-            timeReduction    = lastBestMoveDepth + 8 < completedDepth ? 1.495 : 0.687;
-            double reduction = (1.48 + mainThread->previousTimeReduction) / (2.17 * timeReduction);
-            double bestMoveInstability = 1 + 1.88 * totBestMoveChanges / threads.size();
-            double recapture           = limits.capSq == rootMoves[0].pv[0].to_sq() ? 0.955 : 1.005;
+            timeReduction = lastBestMoveDepth + 8 < completedDepth ? 1.4857 : 0.7046;
+            double reduction =
+              (1.4540 + mainThread->previousTimeReduction) / (2.1593 * timeReduction);
+            double bestMoveInstability = 0.9929 + 1.8519 * totBestMoveChanges / threads.size();
 
-            double totalTime = mainThread->tm.optimum() * fallingEval * reduction
-                               * bestMoveInstability * recapture;
+            double totalTime =
+              mainThread->tm.optimum() * fallingEval * reduction * bestMoveInstability;
 
             // Cap used time in case of a single legal move for a better viewer experience
             if (rootMoves.size() == 1)
@@ -672,12 +589,12 @@ void Search::Worker::iterative_deepening() {
 
             auto elapsedTime = elapsed();
 
-            if (completedDepth >= 10 && nodesEffort >= 97 && elapsedTime > totalTime * 0.739
+            if (completedDepth >= 10 && nodesEffort >= 97056 && elapsedTime > totalTime * 0.6540
                 && !mainThread->ponder)
                 threads.stop = true;
 
             // Stop the search if we have exceeded the totalTime or maximum
-            if (elapsedTime > totalTime)
+            if (elapsedTime > std::min(totalTime, double(mainThread->tm.maximum())))
             {
                 // If we are allowed to ponder do not stop the search now but
                 // keep pondering until the GUI sends "ponderhit" or "stop".
@@ -687,7 +604,7 @@ void Search::Worker::iterative_deepening() {
                     threads.stop = true;
             }
             else
-                threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.506;
+                threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.5138;
         }
 
         mainThread->iterValue[iterIdx] = bestValue;
@@ -773,11 +690,9 @@ Value Search::Worker::search(
     depth = std::min(depth, MAX_PLY - 1);
 
     // Check if we have an upcoming move that draws by repetition
-    if (!rootNode && pos.upcoming_repetition(ss->ply))
+    if (!rootNode && alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
     {
-        Value repetitionScore = biased_draw(this->nodes, alpha);
-        if (repetitionScore > alpha)
-            alpha = repetitionScore;
+        alpha = value_draw(this->nodes);
         if (alpha >= beta)
             return alpha;
     }
@@ -799,7 +714,6 @@ Value Search::Worker::search(
     int   priorReduction = (ss - 1)->reduction;
     (ss - 1)->reduction  = 0;
     Piece movedPiece;
-    int   kingDanger = 0;
 
     ValueList<Move, 32> capturesSearched;
     ValueList<Move, 32> quietsSearched;
@@ -826,12 +740,8 @@ Value Search::Worker::search(
         // Step 2. Check for aborted search and immediate draw
         if (threads.stop.load(std::memory_order_relaxed) || pos.is_draw(ss->ply)
             || ss->ply >= MAX_PLY)
-        {
-            if (ss->ply >= MAX_PLY && !ss->inCheck)
-                return evaluate(pos);
-
-            return biased_draw(this->nodes, alpha);
-        }
+            return (ss->ply >= MAX_PLY && !ss->inCheck) ? evaluate(pos)
+                                                        : value_draw(thisThread->nodes);
 
         // Step 3. Mate distance pruning. Even if we mate at the next move our score
         // would be at best mate_in(ss->ply + 1), but if alpha is already bigger because
@@ -950,15 +860,11 @@ Value Search::Worker::search(
     // Step 6. Static evaluation of the position
     Value      unadjustedStaticEval = VALUE_NONE;
     const auto correctionValue      = correction_value(*thisThread, pos, ss);
-    int correctionAbs  = 0;
-    int historyPenalty = 0;
-
     if (ss->inCheck)
     {
         // Skip early pruning when in check
         ss->staticEval = eval = (ss - 2)->staticEval;
         improving             = false;
-        kingDanger            = Eval::king_danger(pos, us);
         goto moves_loop;
     }
     else if (excludedMove)
@@ -1008,12 +914,6 @@ Value Search::Worker::search(
 
     opponentWorsening = ss->staticEval > -(ss - 1)->staticEval;
 
-    correctionAbs  = std::abs(correctionValue);
-    historyPenalty = std::max(0, -(ss - 1)->statScore);
-    historyPenalty += correctionAbs / 256;
-
-    kingDanger = Eval::king_danger(pos, us);
-
     if (priorReduction >= 3 && !opponentWorsening)
         depth++;
     if (priorReduction >= 1 && depth >= 2 && ss->staticEval + (ss - 1)->staticEval > 188)
@@ -1028,9 +928,8 @@ Value Search::Worker::search(
     // Step 8. Futility pruning: child node
     // The depth condition is important for mate finding.
     if (!ss->ttPv && depth < 14
-        && eval - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening,
-                                  correctionAbs, historyPenalty)
-               - (ss - 1)->statScore / 301 + 37 - correctionAbs / 139878
+        && eval - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening)
+               - (ss - 1)->statScore / 301 + 37 - std::abs(correctionValue) / 139878
              >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
@@ -1043,7 +942,7 @@ Value Search::Worker::search(
         assert(eval - beta >= 0);
 
         // Null move dynamic reduction based on depth and eval
-        Depth R = std::min(int(eval - beta) / 232, 6) + depth / 3 + 5;
+        Depth R = std::min(int(eval - beta) / 232, 6) + depth / 3 + 5 + improving;
 
         ss->currentMove                   = Move::null();
         ss->continuationHistory           = &thisThread->continuationHistory[0][0][NO_PIECE][0];
@@ -1223,11 +1122,7 @@ moves_loop:  // When in check, search starts here
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
             // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
-            int complexityHint = pos.count<PAWN>() + pos.count<KNIGHT>()
-                                + pos.count<BISHOP>() + pos.count<ROOK>()
-                                + pos.count<QUEEN>();
-            if (moveCount
-                >= futility_move_count(improving, depth, historyPenalty, complexityHint))
+            if (moveCount >= futility_move_count(improving, depth))
                 mp.skip_quiet_moves();
 
             // Reduced depth of the next LMR search
@@ -1386,7 +1281,7 @@ moves_loop:  // When in check, search starts here
         r -= std::abs(correctionValue) / 29696;
 
         if (PvNode && std::abs(bestValue) <= 2000)
-            r -= risk_tolerance(pos, bestValue, depth, Value(delta));
+            r -= risk_tolerance(pos, bestValue);
 
         // Increase reduction for cut nodes
         if (cutNode)
@@ -1419,22 +1314,6 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 1582 / 16384;
-
-        int reductionCap = 6144;
-        if (PvNode)
-            reductionCap = std::min(reductionCap, 4096);
-        if (ss->inCheck)
-            reductionCap = std::min(reductionCap, 3072);
-        if (capture || givesCheck)
-            reductionCap = std::min(reductionCap, 3584);
-        if (kingDanger > 40)
-        {
-            int dangerExcess = std::min(kingDanger - 40, 80);
-            int dangerCap    = 4096 - dangerExcess * 16;
-            reductionCap     = std::min(reductionCap, std::max(2048, dangerCap));
-        }
-
-        r = std::min<Depth>(r, reductionCap);
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
@@ -1714,11 +1593,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     assert(PvNode || (alpha == beta - 1));
 
     // Check if we have an upcoming move that draws by repetition
-    if (pos.upcoming_repetition(ss->ply))
+    if (alpha < VALUE_DRAW && pos.upcoming_repetition(ss->ply))
     {
-        Value repetitionScore = biased_draw(this->nodes, alpha);
-        if (repetitionScore > alpha)
-            alpha = repetitionScore;
+        alpha = value_draw(this->nodes);
         if (alpha >= beta)
             return alpha;
     }
@@ -1871,8 +1748,12 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 }
             }
 
-            // Skip non-captures (always)
-            if (!capture)
+            // Continuation history based pruning
+            if (!capture
+                && (*contHist[0])[pos.moved_piece(move)][move.to_sq()]
+                       + thisThread->pawnHistory[pawn_structure_index(pos)][pos.moved_piece(move)]
+                                                [move.to_sq()]
+                     <= 6290)
                 continue;
 
             // Do not search moves with bad enough SEE values
@@ -2405,5 +2286,35 @@ bool RootMove::extract_ponder_from_tt(const TranspositionTable& tt, Position& po
     return pv.size() > 1;
 }
 
+
+void putQLearningTrajectoryIntoLearningTable() {
+    constexpr double learning_rate = 0.5;
+    constexpr double gamma         = 0.99;
+
+    if (qLearningTrajectory.size() <= 1)
+        return;
+
+    for (std::size_t index = qLearningTrajectory.size() - 1; index > 0; --index)
+    {
+        LearningMove prev = qLearningTrajectory[index - 1].persistedLearningMove.learningMove;
+        const LearningMove current = qLearningTrajectory[index].persistedLearningMove.learningMove;
+
+        const double updatedScore = prev.score * (1.0 - learning_rate)
+                                    + learning_rate * (gamma * current.score);
+        prev.score = Value(std::lround(updatedScore));
+
+        prev.performance = WDLModel::get_win_probability_by_material(
+          prev.score, qLearningTrajectory[index - 1].materialClamp);
+
+        LD.add_new_learning(qLearningTrajectory[index - 1].persistedLearningMove.key, prev);
+    }
+
+    qLearningTrajectory.clear();
+}
+
+void setStartPoint() {
+    LD.resume();
+    qLearningTrajectory.clear();
+}
 
 }  // namespace Stockfish

@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -28,7 +28,7 @@
 #include <utility>
 #include <vector>
 
-#include "experience.h"
+#include "book/book_manager.h"
 #include "nnue/network.h"
 #include "numa.h"
 #include "position.h"
@@ -37,7 +37,6 @@
 #include "thread.h"
 #include "tt.h"
 #include "ucioption.h"
-#include "book/book_manager.h"
 
 namespace Stockfish {
 
@@ -55,7 +54,7 @@ class Engine {
     Engine& operator=(const Engine&) = delete;
     Engine& operator=(Engine&&)      = delete;
 
-    ~Engine();
+    ~Engine() { wait_for_search_finished(); }
 
     std::uint64_t perft(const std::string& fen, Depth depth, bool isChess960);
 
@@ -91,11 +90,6 @@ class Engine {
     void load_small_network(const std::string& file);
     void save_network(const std::pair<std::optional<std::string>, std::string> files[2]);
 
-    void init_book_manager(int index);
-    void show_book_moves() const;
-    std::string describe_experience() const;
-    std::string quickresetexp();
-
     // utility functions
 
     void trace_eval() const;
@@ -126,8 +120,7 @@ class Engine {
     ThreadPool                               threads;
     TranspositionTable                       tt;
     LazyNumaReplicated<Eval::NNUE::Networks> networks;
-    Book::BookManager                        bookManager;
-    Experience::Manager                      experienceManager;
+    BookManager                              bookManager;
 
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;

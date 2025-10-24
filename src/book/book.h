@@ -1,29 +1,34 @@
 #ifndef BOOK_H_INCLUDED
 #define BOOK_H_INCLUDED
+
 #include <cassert>
+#include <cstdint>
 #include <cstring>
+#include <string>
 #include <type_traits>
 
-#include "../movegen.h"
+#include "position.h"
+#include "types.h"
 
 namespace Stockfish {
-namespace Book {
 
 class BookManager;
-namespace {
-static const union {
-    uint32_t i;
-    char     c[4];
-} Le                          = {0x01020304};
-static const bool IsBigEndian = (Le.c[0] == 1);
+
+namespace Book {
+
+namespace Detail {
+    inline bool IsBigEndian() {
+        const std::uint32_t value = 0x01020304u;
+        return reinterpret_cast<const unsigned char*>(&value)[0] == 0x01;
+    }
 }
 
 class BookUtil {
    public:
     template<typename IntType>
     static IntType read_big_endian(const unsigned char* buffer, size_t& offset, size_t bufferLen) {
-        IntType          result;
-        constexpr size_t typeSize = sizeof(IntType);
+        IntType        result;
+        constexpr auto typeSize = sizeof(IntType);
 
         if (offset + typeSize > bufferLen)
         {
@@ -31,19 +36,18 @@ class BookUtil {
             return IntType();
         }
 
-        //Read the integer type and convert (if needed)
-        memcpy(&result, buffer + offset, typeSize);
+        std::memcpy(&result, buffer + offset, typeSize);
 
-        if (!IsBigEndian)
+        if (!Detail::IsBigEndian())
         {
-            unsigned char                              u[typeSize];
-            typename std::make_unsigned<IntType>::type v = 0;
+            unsigned char                                          u[typeSize];
+            typename std::make_unsigned<IntType>::type             v = 0;
 
-            memcpy(&u, &result, typeSize);
+            std::memcpy(&u, &result, typeSize);
             for (size_t i = 0; i < typeSize; ++i)
                 v = (v << 8) | u[i];
 
-            memcpy(&result, &v, typeSize);
+            std::memcpy(&result, &v, typeSize);
         }
 
         offset += typeSize;
@@ -58,14 +62,14 @@ class BookUtil {
 };
 
 class Book {
-    friend class BookManager;
+    friend class ::Stockfish::BookManager;
 
    private:
-    static Book* create_book(const std::string& filename);
+   static Book* create_book(const std::string& filename);
 
    public:
-    Book() {}
-    virtual ~Book() {}
+    Book()                    = default;
+    virtual ~Book() = default;
 
     Book(const Book&)            = delete;
     Book& operator=(const Book&) = delete;
@@ -73,12 +77,14 @@ class Book {
     virtual std::string type() const = 0;
 
     virtual bool open(const std::string& filename) = 0;
-    virtual void close()                           = 0;
+    virtual void close()                            = 0;
 
     virtual Move probe(const Position& pos, size_t width, bool onlyGreen) const = 0;
     virtual void show_moves(const Position& pos) const                          = 0;
 };
+
 }  // namespace Book
+
 }  // namespace Stockfish
 
-#endif  // #ifndef BOOK_H_INCLUDED
+#endif

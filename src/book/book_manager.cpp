@@ -1,36 +1,44 @@
-#include "book_manager.h"
+#include "book/book_manager.h"
 
-#include <cassert>
+#include <algorithm>
+#include <cctype>
+#include <cstdio>
 #include <filesystem>
 #include <iostream>
-#include <sstream>
 #include <utility>
 
-#include "book.h"
-#include "ctg/ctg.h"
-#include "polyglot/polyglot.h"
-#include "../misc.h"
-#include "../position.h"
-#include "../ucioption.h"
+#include "book/book.h"
+#include "misc.h"
 
 namespace Stockfish {
-namespace Book {
+
+namespace {
+
+constexpr std::string_view EmptyToken = "<empty>";
+
+std::string unquote(std::string value) {
+    if (value.size() >= 2
+        && ((value.front() == '\"' && value.back() == '\"')
+            || (value.front() == '\'' && value.back() == '\'')))
+        value = value.substr(1, value.size() - 2);
+
+    return value;
+}
+
+bool equals_ignore_case(std::string_view lhs, std::string_view rhs) {
+    return lhs.size() == rhs.size()
+           && std::equal(lhs.begin(), lhs.end(), rhs.begin(), [](char a, char b) {
+                  return std::tolower(static_cast<unsigned char>(a))
+                      == std::tolower(static_cast<unsigned char>(b));
+              });
+}
+
+}  // namespace
 
 BookManager::BookManager() = default;
 BookManager::~BookManager() = default;
 
-void BookManager::set_binary_directory(std::string directory) {
-    namespace fs = std::filesystem;
-
-    if (directory.empty())
-    {
-        binaryDirectory.clear();
-        return;
-    }
-
-    fs::path path(directory);
-    binaryDirectory = path.lexically_normal().string();
-}
+void BookManager::set_base_directory(std::string baseDir) { baseDirectory = std::move(baseDir); }
 
 void BookManager::init(const OptionsMap& options) {
     for (int i = 0; i < NumberOfBooks; ++i)
@@ -38,29 +46,32 @@ void BookManager::init(const OptionsMap& options) {
 }
 
 void BookManager::init(int index, const OptionsMap& options) {
-    assert(index >= 0 && index < NumberOfBooks);
+    assert(index < NumberOfBooks);
 
-    books[index].reset();
+    books[index].book.reset();
+    books[index].resolvedPath.clear();
 
-    const std::string fileOption = "CTG/BIN Book " + std::to_string(index + 1) + " File";
-    std::string       filename   = std::string(options[fileOption]);
+    const auto optionName = format_option_name("CTG/BIN Book %d File", index + 1);
+    auto       filename   = std::string(options[optionName]);
 
-    if (filename.empty())
+    filename = unquote(filename);
+    if (filename.empty() || equals_ignore_case(filename, EmptyToken))
         return;
 
-    const std::string resolved = resolve_book_path(filename);
+    auto resolved = resolve_path(filename);
+    auto bookPtr  = std::unique_ptr<Book::Book>(Book::Book::create_book(resolved));
 
-    std::unique_ptr<Book> book(Book::create_book(resolved));
-    if (!book)
+    if (!bookPtr)
     {
         sync_cout << "info string Unknown book type: " << filename << sync_endl;
         return;
     }
 
-    if (!book->open(resolved))
+    if (!bookPtr->open(resolved))
         return;
 
-    books[index] = std::move(book);
+    books[index].resolvedPath = std::move(resolved);
+    books[index].book         = std::move(bookPtr);
 }
 
 Move BookManager::probe(const Position& pos, const OptionsMap& options) const {
@@ -68,58 +79,73 @@ Move BookManager::probe(const Position& pos, const OptionsMap& options) const {
 
     for (int i = 0; i < NumberOfBooks; ++i)
     {
-        if (!books[i])
+        const auto& slot = books[i];
+
+        if (!slot.book)
             continue;
 
-        const std::string depthOption = "Book " + std::to_string(i + 1) + " Depth";
+        const auto depthOption = format_option_name("Book %d Depth", i + 1);
         if (int(options[depthOption]) < moveNumber)
             continue;
 
-        const std::string widthOption = "Book " + std::to_string(i + 1) + " Width";
-        const std::string greenOption = "(CTG) Book " + std::to_string(i + 1) + " Only Green";
+        const auto widthOption = format_option_name("Book %d Width", i + 1);
+        const auto greenOption = format_option_name("(CTG) Book %d Only Green", i + 1);
 
-        const size_t width     = static_cast<size_t>(int(options[widthOption]));
-        const bool   onlyGreen = bool(options[greenOption]);
+        const auto width = std::max(1, int(options[widthOption]));
+        const auto move  = slot.book->probe(pos, size_t(width), options[greenOption]);
 
-        if (Move bookMove = books[i]->probe(pos, width, onlyGreen); bookMove != Move::none())
-            return bookMove;
+        if (move != Move::none())
+            return move;
     }
 
     return Move::none();
 }
 
 void BookManager::show_moves(const Position& pos, const OptionsMap& options) const {
-    std::cout << pos << std::endl << std::endl;
+    std::cout << pos << "\n\n";
 
     for (int i = 0; i < NumberOfBooks; ++i)
     {
-        if (!books[i])
+        const auto& slot       = books[i];
+        const auto  fileOption = format_option_name("CTG/BIN Book %d File", i + 1);
+        const auto  fileName   = std::string(options[fileOption]);
+
+        if (!slot.book)
         {
             std::cout << "Book " << i + 1 << ": No book loaded" << std::endl;
             continue;
         }
 
-        const std::string fileOption = "CTG/BIN Book " + std::to_string(i + 1) + " File";
-        std::cout << "Book " << i + 1 << " (" << books[i]->type() << "): "
-                  << std::string(options[fileOption]) << std::endl;
-        books[i]->show_moves(pos);
+        std::cout << "Book " << i + 1 << " (" << slot.book->type() << "): " << fileName << std::endl;
+        slot.book->show_moves(pos);
     }
 }
 
-std::string BookManager::resolve_book_path(const std::string& filename) const {
+std::string BookManager::format_option_name(const char* fmt, int index) {
+    char buffer[64];
+    std::snprintf(buffer, sizeof(buffer), fmt, index);
+    return buffer;
+}
+
+std::string BookManager::resolve_path(std::string filename) const {
     namespace fs = std::filesystem;
 
-    fs::path path(filename);
-    if (!path.is_absolute())
+    fs::path p = fs::u8path(filename);
+
+    if (!p.is_absolute())
     {
-        if (!binaryDirectory.empty())
-            path = fs::path(binaryDirectory) / path;
+        if (!baseDirectory.empty())
+            p = fs::u8path(baseDirectory) / p;
         else
-            path = fs::current_path() / path;
+            p = fs::current_path() / p;
     }
 
-    return path.lexically_normal().string();
+    std::error_code ec;
+    auto            normal = fs::weakly_canonical(p, ec);
+    if (!ec)
+        return normal.u8string();
+
+    return fs::absolute(p).lexically_normal().u8string();
 }
 
-}  // namespace Book
 }  // namespace Stockfish

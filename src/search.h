@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -54,13 +54,6 @@ enum NodeType {
 class TranspositionTable;
 class ThreadPool;
 class OptionsMap;
-namespace Book {
-class BookManager;
-}
-
-namespace Experience {
-class Manager;
-}
 
 namespace Search {
 
@@ -111,8 +104,6 @@ struct RootMove {
     int               selDepth         = 0;
     int               tbRank           = 0;
     Value             tbScore;
-    int               aspirationHitStreak  = 0;
-    int               aspirationMissStreak = 0;
     std::vector<Move> pv;
 };
 
@@ -128,7 +119,6 @@ struct LimitsType {
         movestogo = depth = mate = perft = infinite = 0;
         nodes                                       = 0;
         ponderMode                                  = false;
-        capSq                                      = SQ_NONE;
     }
 
     bool use_time_management() const { return time[WHITE] || time[BLACK]; }
@@ -138,7 +128,6 @@ struct LimitsType {
     int                      movestogo, depth, mate, perft, infinite;
     uint64_t                 nodes;
     bool                     ponderMode;
-    Square                   capSq;
 };
 
 
@@ -148,22 +137,16 @@ struct SharedState {
     SharedState(const OptionsMap&                               optionsMap,
                 ThreadPool&                                     threadPool,
                 TranspositionTable&                             transpositionTable,
-                const LazyNumaReplicated<Eval::NNUE::Networks>& nets,
-                Book::BookManager&                              bookManager,
-                Experience::Manager&                            experienceManager) :
+                const LazyNumaReplicated<Eval::NNUE::Networks>& nets) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
-        networks(nets),
-        bookMan(bookManager),
-        experience(experienceManager) {}
+        networks(nets) {}
 
     const OptionsMap&                               options;
     ThreadPool&                                     threads;
     TranspositionTable&                             tt;
     const LazyNumaReplicated<Eval::NNUE::Networks>& networks;
-    Book::BookManager&                              bookMan;
-    Experience::Manager&                            experience;
 };
 
 class Worker;
@@ -361,8 +344,6 @@ class Worker {
 
     // The main thread has a SearchManager, the others have a NullSearchManager
     std::unique_ptr<ISearchManager> manager;
-    Book::BookManager&              bookMan;
-    Experience::Manager&            experience;
 
     Tablebases::Config tbConfig;
 

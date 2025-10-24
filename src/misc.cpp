@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -40,18 +40,10 @@ namespace Stockfish {
 namespace {
 
 // Version number or dev.
-constexpr std::string_view engineName    = "revolution-2.90-231025";
-constexpr std::string_view engineCredits =
-  "Jorge Ruiz Centelles and codex IA and the Stockfish developers (see AUTHORS file)";
-constexpr std::string_view version       = engineName;
-
-constexpr std::string_view RevolutionAsciiLogo =
-  " ____            _           _   _             \n"
-  "|  _ \\ ___  ___ | | ___  ___| |_(_) ___  _ __  \n"
-  "| |_) / _ \\/ _ \\| |/ _ \\/ __| __| |/ _ \\| '_ \\ \n"
-  "|  _ <  __/ (_) | |  __/ (__| |_| | (_) | | | |\n"
-  "|_| \\_\\___|\\___/|_|\\___|\\___|\\__|_|\\___/|_| |_|\n"
-  "               Revolution Engine               ";
+// Keep this in sync with the README and build scripts so every artifact reports
+// the same Pullfish 1.0 171025 release branding.
+constexpr std::string_view engine_name = "Pullfish 1.0 171025";
+constexpr std::string_view version     = "release";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -124,20 +116,22 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Stockfish version.
+// Returns the full name of the current Pullfish version.
 //
 // For local dev compiles we try to append the commit SHA and
 // commit date from git. If that fails only the local compilation
 // date is set and "nogit" is specified:
-//      Stockfish dev-YYYYMMDD-SHA
+//      Pullfish dev-YYYYMMDD-SHA
 //      or
-//      Stockfish dev-YYYYMMDD-nogit
+//      Pullfish dev-YYYYMMDD-nogit
 //
-// For releases (non-dev builds) we only include the version number:
-//      Stockfish version
+// For releases (non-dev builds) we use the fixed branded name.
 std::string engine_version_info() {
     std::stringstream ss;
-    ss << version << std::setfill('0');
+    ss << engine_name;
+
+    if constexpr (version != "dev" && version != "release")
+        ss << ' ' << version;
 
     if constexpr (version == "dev")
     {
@@ -168,11 +162,8 @@ std::string engine_version_info() {
 }
 
 std::string engine_info(bool to_uci) {
-    return engine_version_info() + (to_uci ? "\nid author " : " by ") + std::string(engineCredits);
-}
-
-std::string_view revolution_ascii_logo() {
-    return RevolutionAsciiLogo;
+    return engine_version_info() + (to_uci ? "\nid author " : " by ")
+         + "Jorge Ruiz with credits to ChatGPT, the Stockfish authors, and the Pullfish development community (see AUTHORS file)";
 }
 
 
@@ -483,16 +474,11 @@ std::optional<std::string> read_file_to_string(const std::string& path) {
 }
 
 void remove_whitespace(std::string& s) {
-    s.erase(std::remove_if(s.begin(), s.end(), [](char c) {
-                return std::isspace(static_cast<unsigned char>(c));
-            }),
-            s.end());
+    s.erase(std::remove_if(s.begin(), s.end(), [](char c) { return std::isspace(c); }), s.end());
 }
 
 bool is_whitespace(std::string_view s) {
-    return std::all_of(s.begin(), s.end(), [](char c) {
-        return std::isspace(static_cast<unsigned char>(c));
-    });
+    return std::all_of(s.begin(), s.end(), [](char c) { return std::isspace(c); });
 }
 
 std::string CommandLine::get_binary_directory(std::string argv0) {
