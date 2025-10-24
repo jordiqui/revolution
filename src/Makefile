@@ -1132,7 +1132,12 @@ icx-profile-use:
 	all
 
 .depend: $(SRCS)
-	-@$(CXX) $(DEPENDFLAGS) -MM $(SRCS) > $@ 2> /dev/null
+	@echo "Generating dependency file"
+	@if $(CXX) $(DEPENDFLAGS) -MM $(SRCS) > $@ 2> /dev/null; then \
+		true; \
+	else \
+		echo "# dependency generation failed; continuing without generated deps" > $@; \
+	fi
 
 ifeq (, $(filter $(MAKECMDGOALS), help strip install clean net objclean profileclean config-sanity))
 -include .depend
