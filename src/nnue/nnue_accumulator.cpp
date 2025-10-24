@@ -670,8 +670,6 @@ void update_accumulator_refresh_cache(
           &featureTransformer.psqtWeights[PSQTBuckets * added[static_cast<int>(idx)]];
     }
 
-    auto& accumulator = accumulatorState.*accPtr;
-
     if (removedCount == 0 && addedCount == 0)
     {
         std::memcpy(accumulator.accumulation[Perspective], entry.accumulation,
