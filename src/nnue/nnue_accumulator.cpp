@@ -456,7 +456,9 @@ void update_accumulator_incremental(
             apply_psqt_deltas_sse2(destPsqt, basePsqt, removedPsqtColumns, removedCount,
                                    addedPsqtColumns, addedCount);
         }
-#elif defined(VECTOR)
+#endif
+#else  // defined(VECTOR) && (defined(USE_AVX2) || defined(USE_SSE2))
+#if defined(VECTOR)
         auto* accIn =
           reinterpret_cast<const vec_t*>(&(computed.*accPtr).accumulation[Perspective][0]);
         auto* accOut =
@@ -602,6 +604,7 @@ void update_accumulator_incremental(
                   featureTransformer.psqtWeights[index * PSQTBuckets + i];
         }
 #endif
+#endif
     }
 
     (target_state.*accPtr).computed[Perspective] = true;
@@ -698,7 +701,9 @@ void update_accumulator_refresh_cache(
             apply_psqt_deltas_sse2(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
                                    removedPsqtColumns, removedCount, addedPsqtColumns, addedCount);
         }
-#elif defined(VECTOR)
+#endif
+#else  // defined(VECTOR) && (defined(USE_AVX2) || defined(USE_SSE2))
+#if defined(VECTOR)
     const bool combineLast3 =
       std::abs((int) removed.size() - (int) added.size()) == 1 && removed.size() + added.size() > 2;
     vec_t      acc[Tiling::NumRegs];
