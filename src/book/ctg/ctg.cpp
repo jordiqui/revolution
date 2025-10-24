@@ -1,3 +1,4 @@
+#include <cctype>
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
@@ -477,10 +478,12 @@ void CtgBook::invert_board(CtgPositionData& positionData) const {
             if (p == ' ')
                 continue;
 
-            if (p == toupper(p))
-                p = tolower(p);
+            const auto ch = static_cast<unsigned char>(p);
+
+            if (std::isupper(ch))
+                p = static_cast<char>(std::tolower(ch));
             else
-                p = toupper(p);
+                p = static_cast<char>(std::toupper(ch));
         }
     }
 }
