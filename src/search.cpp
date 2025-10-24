@@ -177,6 +177,49 @@ void update_correction_history(const Position& pos,
           << bonus * 143 / 128;
 }
 
+int adaptive_lmr_adjustment(const Stack* ss, int priorReduction, bool cutNode, bool improving)
+{
+    if (ss->ply < 2)
+        return 0;
+
+    const Stack& current = *ss;
+    const Stack& parent  = *(ss - 1);
+    const Stack& grand   = *(ss - 2);
+
+    int evalSwing = 0;
+
+    if (is_valid(current.staticEval) && is_valid(parent.staticEval))
+        evalSwing = std::abs(current.staticEval - parent.staticEval);
+
+    if (is_valid(parent.staticEval) && is_valid(grand.staticEval))
+        evalSwing = std::max(evalSwing, std::abs(parent.staticEval - grand.staticEval) / 2);
+
+    if (!evalSwing)
+        return 0;
+
+    evalSwing = std::min(evalSwing, 3 * int(PawnValue));
+
+    int stackWeight = 4;
+
+    stackWeight += std::min(current.cutoffCnt, 2);
+    stackWeight += std::min(parent.cutoffCnt, 3);
+    stackWeight += cutNode ? 2 : 0;
+    stackWeight += current.inCheck ? 1 : 0;
+    stackWeight += !improving ? 1 : 0;
+
+    stackWeight -= std::min(3, parent.moveCount / 2);
+
+    if (priorReduction > 0)
+        stackWeight -= std::min(2, priorReduction);
+    stackWeight -= parent.isTTMove ? 1 : 0;
+
+    stackWeight = std::clamp(stackWeight, 0, 12);
+
+    int adjustment = evalSwing * stackWeight / 8;
+
+    return std::min(adjustment, 896);
+}
+
 // Add a small random component to draw evaluations to avoid 3-fold blindness
 Value value_draw(size_t nodes) { return VALUE_DRAW - 1 + Value(nodes & 0x2); }
 Value value_to_tt(Value v, int ply);
@@ -1314,6 +1357,11 @@ moves_loop:  // When in check, search starts here
 
         // Decrease/increase reduction for moves with a good/bad history
         r -= ss->statScore * 1582 / 16384;
+
+        int adaptiveReduction = adaptive_lmr_adjustment(ss, priorReduction, cutNode, improving);
+
+        if (adaptiveReduction > 0)
+            r -= adaptiveReduction;
 
         // Step 17. Late moves reduction / extension (LMR)
         if (depth >= 2 && moveCount > 1)
