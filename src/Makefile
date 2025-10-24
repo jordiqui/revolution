@@ -1,12 +1,12 @@
-# Pullfish, a UCI chess playing engine derived from Stockfish 17.1
+# Revolution, a UCI chess playing engine derived from Stockfish 17.1
 # Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 #
-# Pullfish is free software: you can redistribute it and/or modify
+# Revolution is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
 # the Free Software Foundation, either version 3 of the License, or
 # (at your option) any later version.
 #
-# Pullfish is distributed in the hope that it will be useful,
+# Revolution is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
@@ -38,12 +38,15 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
-RELEASE_BIN = pullfish-1.0-171025
+RELEASE_BIN   = revolution-2.90-241025
+BRANDED_NAME  = revolution 2.90 241025
 
 ifeq ($(target_windows),yes)
-        EXE = $(RELEASE_BIN).exe
+        EXE          = $(RELEASE_BIN).exe
+        BRANDED_EXE  = $(BRANDED_NAME).exe
 else
-        EXE = $(RELEASE_BIN)
+        EXE          = $(RELEASE_BIN)
+        BRANDED_EXE  = $(BRANDED_NAME)
 endif
 
 ### Installation dir definitions
@@ -861,7 +864,7 @@ endif
 
 help:
 	@echo "" && \
-	echo "To compile pullfish, type: " && \
+	echo "To compile revolution, type: " && \
 	echo "" && \
 	echo "make -j target [ARCH=arch] [COMP=compiler] [COMPCXX=cxx]" && \
 	echo "" && \
@@ -936,11 +939,11 @@ endif
 
 
 .PHONY: help analyze build profile-build strip install clean net \
-	objclean profileclean config-sanity \
-	icx-profile-use icx-profile-make \
-	gcc-profile-use gcc-profile-make \
-	clang-profile-use clang-profile-make FORCE \
-	format analyze
+        objclean profileclean config-sanity \
+        icx-profile-use icx-profile-make \
+        gcc-profile-use gcc-profile-make \
+        clang-profile-use clang-profile-make FORCE \
+        format analyze brand
 
 analyze: net config-sanity objclean
 	$(MAKE) -k ARCH=$(ARCH) COMP=$(COMP) $(OBJS)
@@ -964,13 +967,18 @@ profile-build: net config-sanity objclean profileclean
 	@echo "Step 4/4. Deleting profile data ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profileclean
 
-strip:
+strip: $(EXE) brand
 	$(STRIP) $(EXE)
+	$(STRIP) "$(BRANDED_EXE)"
 
-install:
+brand: $(EXE)
+	@rm -f "$(BRANDED_EXE)"
+	@cp $(EXE) "$(BRANDED_EXE)"
+
+install: all
 	-mkdir -p -m 755 $(BINDIR)
-	-cp $(EXE) $(BINDIR)
-	$(STRIP) $(BINDIR)/$(EXE)
+	-cp "$(BRANDED_EXE)" $(BINDIR)
+	$(STRIP) "$(BINDIR)/$(BRANDED_EXE)"
 
 # clean all
 clean: objclean profileclean
@@ -978,16 +986,16 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f pullfish pullfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f $(RELEASE_BIN) $(RELEASE_BIN).exe "$(BRANDED_NAME)" "$(BRANDED_NAME).exe" *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
 
 # clean auxiliary profiling files
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
-	@rm -f pullfish.profdata *.profraw
-	@rm -f pullfish.*args*
-	@rm -f pullfish.*lt*
-	@rm -f pullfish.res
+	@rm -f $(RELEASE_BIN).profdata *.profraw
+	@rm -f $(RELEASE_BIN).*args*
+	@rm -f $(RELEASE_BIN).*lt*
+	@rm -f "$(BRANDED_NAME).res" "$(RELEASE_BIN).res"
 	@rm -f ./-lstdc++.res
 
 # evaluation network (nnue)
@@ -1005,7 +1013,7 @@ default:
 ### Section 5. Private Targets
 ### ==========================================================================
 
-all: $(EXE) .depend
+all: $(EXE) brand .depend
 
 config-sanity: net
 	@echo ""
@@ -1089,9 +1097,9 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) llvm-profdata merge -output=pullfish.profdata *.profraw
+	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-use=pullfish.profdata' \
+	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
 	all
 
@@ -1117,9 +1125,9 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) llvm-profdata merge -output=pullfish.profdata *.profraw
+	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-use=pullfish.profdata' \
+	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
 	all
 

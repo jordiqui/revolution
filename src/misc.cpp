@@ -1,13 +1,13 @@
 /*
-  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
+  Revolution, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Pullfish is free software: you can redistribute it and/or modify
+  Revolution is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Pullfish is distributed in the hope that it will be useful,
+  Revolution is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -41,8 +41,8 @@ namespace {
 
 // Version number or dev.
 // Keep this in sync with the README and build scripts so every artifact reports
-// the same Pullfish 1.0 171025 release branding.
-constexpr std::string_view engine_name = "Pullfish 1.0 171025";
+// the same Revolution 2.90 241025 release branding.
+constexpr std::string_view engine_name = "Revolution 2.90 241025";
 constexpr std::string_view version     = "release";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
@@ -116,14 +116,14 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Pullfish version.
+// Returns the full name of the current Revolution version.
 //
 // For local dev compiles we try to append the commit SHA and
 // commit date from git. If that fails only the local compilation
 // date is set and "nogit" is specified:
-//      Pullfish dev-YYYYMMDD-SHA
+//      Revolution dev-YYYYMMDD-SHA
 //      or
-//      Pullfish dev-YYYYMMDD-nogit
+//      Revolution dev-YYYYMMDD-nogit
 //
 // For releases (non-dev builds) we use the fixed branded name.
 std::string engine_version_info() {
@@ -163,7 +163,7 @@ std::string engine_version_info() {
 
 std::string engine_info(bool to_uci) {
     return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "Jorge Ruiz with credits to ChatGPT, the Stockfish authors, and the Pullfish development community (see AUTHORS file)";
+         + "Jorge Ruiz with credits to ChatGPT, the Stockfish authors, and the Revolution development community (see AUTHORS file)";
 }
 
 
