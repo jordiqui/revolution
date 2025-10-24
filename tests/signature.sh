@@ -11,9 +11,13 @@ trap 'error ${LINENO}' ERR
 
 # obtain
 
+codex/implement-dynamic-pvs-reductions-a7uw5q
 ENGINE_PATH="$(cd "$(dirname "$0")/.." && pwd)/src/revolution-PVS"
 
 signature=`eval "$WINE_PATH $ENGINE_PATH bench 2>&1" | grep "Nodes searched  : " | awk '{print $4}'`
+=======
+signature=`eval "$WINE_PATH ./revolution-PVS bench 2>&1" | grep "Nodes searched  : " | awk '{print $4}'`
+ eval_cur-−-eval_prev
 
 if [ $# -gt 0 ]; then
    # compare to given reference
