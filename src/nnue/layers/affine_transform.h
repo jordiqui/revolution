@@ -74,8 +74,8 @@ static void affine_transform_non_ssse3(std::int32_t*       output,
         const auto row   = reinterpret_cast<const __m128i*>(&weights[offset]);
         for (IndexType j = 0; j < NumChunks; ++j)
         {
-            __m128i row_j           = _mm_load_si128(&row[j]);
-            __m128i input_j         = _mm_load_si128(&inputVector[j]);
+            __m128i row_j           = _mm_loadu_si128(&row[j]);
+            __m128i input_j         = _mm_loadu_si128(&inputVector[j]);
             __m128i extendedRowLo   = _mm_srai_epi16(_mm_unpacklo_epi8(row_j, row_j), 8);
             __m128i extendedRowHi   = _mm_srai_epi16(_mm_unpackhi_epi8(row_j, row_j), 8);
             __m128i extendedInputLo = _mm_unpacklo_epi8(input_j, Zeros);
