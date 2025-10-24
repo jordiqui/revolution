@@ -70,7 +70,7 @@ Manager::Manager() : session_id(generate_session_id()) {}
 void Manager::set_binary_directory(std::string path) { binary_directory = std::move(path); }
 
 void Manager::init_options(OptionsMap& options) {
-    options.add("Read Only learning", Option(false, [this](const Option& opt) {
+    options.add("Read only learning", Option(false, [this](const Option& opt) {
                     read_only = int(opt);
                     return std::nullopt;
                 }));
@@ -80,17 +80,17 @@ void Manager::init_options(OptionsMap& options) {
                     return std::nullopt;
                 }));
 
-    options.add("Experience Book", Option(true, [this](const Option& opt) {
+    options.add("Experience Book", Option(false, [this](const Option& opt) {
                     experience_book = int(opt);
                     return std::nullopt;
                 }));
 
-    options.add("Experience Book Max Moves", Option(100, 1, 1000, [this](const Option& opt) {
+    options.add("Experience Book Max Moves", Option(100, 1, 100, [this](const Option& opt) {
                     book_max_moves = int(opt);
                     return std::nullopt;
                 }));
 
-    options.add("Experience Book Min Depth", Option(4, 0, 255, [this](const Option& opt) {
+    options.add("Experience Book Min Depth", Option(4, 1, 255, [this](const Option& opt) {
                     book_min_depth = int(opt);
                     return std::nullopt;
                 }));
@@ -105,7 +105,7 @@ void Manager::init_options(OptionsMap& options) {
                     return std::nullopt;
                 }));
 
-    read_only       = int(options["Read Only learning"]);
+    read_only       = int(options["Read only learning"]);
     self_q_learning = int(options["Self Q-learning"]);
     experience_book = int(options["Experience Book"]);
     book_max_moves  = int(options["Experience Book Max Moves"]);
