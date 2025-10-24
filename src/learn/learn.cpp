@@ -10,6 +10,7 @@
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <system_error>
 #include <optional>
 #include <sstream>
 
@@ -336,8 +337,54 @@ void LearningData::persist(const OptionsMap& options) {
     }
     outputFile.close();
 
-    std::remove(experienceFilename.c_str());
-    std::rename(tempExperienceFilename.c_str(), experienceFilename.c_str());
+    std::filesystem::path experiencePath(experienceFilename);
+    std::filesystem::path tempExperiencePath(tempExperienceFilename);
+    std::filesystem::path backupPath = experiencePath;
+    backupPath += ".bak";
+
+    std::error_code ec;
+    std::filesystem::remove(backupPath, ec);
+
+    ec.clear();
+    if (std::filesystem::exists(experiencePath, ec))
+    {
+        std::filesystem::rename(experiencePath, backupPath, ec);
+        if (ec)
+        {
+            std::cerr << "info string Failed to create backup for experience file <" << experienceFilename
+                      << ">: " << ec.message() << std::endl;
+            std::error_code cleanupEc;
+            std::filesystem::remove(tempExperiencePath, cleanupEc);
+            if (cleanupEc)
+                std::cerr << "info string Failed to remove temporary experience file <" << tempExperienceFilename
+                          << ">: " << cleanupEc.message() << std::endl;
+            return;
+        }
+    }
+
+    ec.clear();
+    std::filesystem::rename(tempExperiencePath, experiencePath, ec);
+    if (ec)
+    {
+        std::cerr << "info string Failed to replace experience file <" << experienceFilename << "> with <"
+                  << tempExperienceFilename << ">: " << ec.message() << std::endl;
+
+        if (std::filesystem::exists(backupPath))
+        {
+            std::error_code restoreEc;
+            std::filesystem::rename(backupPath, experiencePath, restoreEc);
+            if (restoreEc)
+                std::cerr << "info string Failed to restore experience file from backup <" << backupPath.string()
+                          << ">: " << restoreEc.message() << std::endl;
+        }
+        return;
+    }
+
+    std::error_code removeBackupEc;
+    std::filesystem::remove(backupPath, removeBackupEc);
+    if (removeBackupEc)
+        std::cerr << "info string Failed to remove experience backup <" << backupPath.string()
+                  << ">: " << removeBackupEc.message() << std::endl;
 
     needPersisting = false;
 }
