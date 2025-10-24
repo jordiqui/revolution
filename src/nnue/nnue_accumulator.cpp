@@ -18,6 +18,7 @@
 
 #include "nnue_accumulator.h"
 
+#include <array>
 #include <cassert>
 #include <initializer_list>
 #include <memory>
@@ -45,6 +46,147 @@ namespace Stockfish::Eval::NNUE {
 #endif
 
 namespace {
+
+#if defined(USE_AVX2) || defined(USE_SSE2)
+
+template<typename T>
+using ColumnPtrPair = std::array<const T*, 2>;
+
+#if defined(USE_AVX2)
+
+inline void apply_accumulator_deltas_avx2(std::int16_t*                      dest,
+                                          const std::int16_t*                base,
+                                          const ColumnPtrPair<WeightType>&   removedCols,
+                                          std::size_t                        removedCount,
+                                          const ColumnPtrPair<WeightType>&   addedCols,
+                                          std::size_t                        addedCount,
+                                          IndexType                          dimensions) {
+
+    const auto* baseVec = reinterpret_cast<const __m256i*>(base);
+    auto*       destVec = reinterpret_cast<__m256i*>(dest);
+    const std::size_t vecCount = (dimensions * sizeof(std::int16_t)) / sizeof(__m256i);
+
+    for (std::size_t i = 0; i < vecCount; ++i)
+    {
+        __m256i acc = _mm256_load_si256(baseVec + i);
+
+        for (std::size_t r = 0; r < removedCount; ++r)
+        {
+            const auto* colVec = reinterpret_cast<const __m256i*>(removedCols[r]) + i;
+            acc                = _mm256_sub_epi16(acc, _mm256_load_si256(colVec));
+        }
+
+        for (std::size_t a = 0; a < addedCount; ++a)
+        {
+            const auto* colVec = reinterpret_cast<const __m256i*>(addedCols[a]) + i;
+            acc                = _mm256_add_epi16(acc, _mm256_load_si256(colVec));
+        }
+
+        _mm256_store_si256(destVec + i, acc);
+    }
+}
+
+inline void apply_psqt_deltas_avx2(std::int32_t*                            dest,
+                                   const std::int32_t*                      base,
+                                   const ColumnPtrPair<PSQTWeightType>&     removedCols,
+                                   std::size_t                              removedCount,
+                                   const ColumnPtrPair<PSQTWeightType>&     addedCols,
+                                   std::size_t                              addedCount) {
+
+    const auto* baseVec = reinterpret_cast<const __m256i*>(base);
+    auto*       destVec = reinterpret_cast<__m256i*>(dest);
+    constexpr std::size_t vecCount = (PSQTBuckets * sizeof(std::int32_t)) / sizeof(__m256i);
+
+    for (std::size_t i = 0; i < vecCount; ++i)
+    {
+        __m256i acc = _mm256_load_si256(baseVec + i);
+
+        for (std::size_t r = 0; r < removedCount; ++r)
+        {
+            const auto* colVec = reinterpret_cast<const __m256i*>(removedCols[r]) + i;
+            acc                = _mm256_sub_epi32(acc, _mm256_load_si256(colVec));
+        }
+
+        for (std::size_t a = 0; a < addedCount; ++a)
+        {
+            const auto* colVec = reinterpret_cast<const __m256i*>(addedCols[a]) + i;
+            acc                = _mm256_add_epi32(acc, _mm256_load_si256(colVec));
+        }
+
+        _mm256_store_si256(destVec + i, acc);
+    }
+}
+
+#endif  // defined(USE_AVX2)
+
+#if defined(USE_SSE2)
+
+inline void apply_accumulator_deltas_sse2(std::int16_t*                      dest,
+                                          const std::int16_t*                base,
+                                          const ColumnPtrPair<WeightType>&   removedCols,
+                                          std::size_t                        removedCount,
+                                          const ColumnPtrPair<WeightType>&   addedCols,
+                                          std::size_t                        addedCount,
+                                          IndexType                          dimensions) {
+
+    const auto* baseVec = reinterpret_cast<const __m128i*>(base);
+    auto*       destVec = reinterpret_cast<__m128i*>(dest);
+    const std::size_t vecCount = (dimensions * sizeof(std::int16_t)) / sizeof(__m128i);
+
+    for (std::size_t i = 0; i < vecCount; ++i)
+    {
+        __m128i acc = _mm_load_si128(baseVec + i);
+
+        for (std::size_t r = 0; r < removedCount; ++r)
+        {
+            const auto* colVec = reinterpret_cast<const __m128i*>(removedCols[r]) + i;
+            acc                = _mm_sub_epi16(acc, _mm_load_si128(colVec));
+        }
+
+        for (std::size_t a = 0; a < addedCount; ++a)
+        {
+            const auto* colVec = reinterpret_cast<const __m128i*>(addedCols[a]) + i;
+            acc                = _mm_add_epi16(acc, _mm_load_si128(colVec));
+        }
+
+        _mm_store_si128(destVec + i, acc);
+    }
+}
+
+inline void apply_psqt_deltas_sse2(std::int32_t*                            dest,
+                                   const std::int32_t*                      base,
+                                   const ColumnPtrPair<PSQTWeightType>&     removedCols,
+                                   std::size_t                              removedCount,
+                                   const ColumnPtrPair<PSQTWeightType>&     addedCols,
+                                   std::size_t                              addedCount) {
+
+    const auto* baseVec = reinterpret_cast<const __m128i*>(base);
+    auto*       destVec = reinterpret_cast<__m128i*>(dest);
+    constexpr std::size_t vecCount = (PSQTBuckets * sizeof(std::int32_t)) / sizeof(__m128i);
+
+    for (std::size_t i = 0; i < vecCount; ++i)
+    {
+        __m128i acc = _mm_load_si128(baseVec + i);
+
+        for (std::size_t r = 0; r < removedCount; ++r)
+        {
+            const auto* colVec = reinterpret_cast<const __m128i*>(removedCols[r]) + i;
+            acc                = _mm_sub_epi32(acc, _mm_load_si128(colVec));
+        }
+
+        for (std::size_t a = 0; a < addedCount; ++a)
+        {
+            const auto* colVec = reinterpret_cast<const __m128i*>(addedCols[a]) + i;
+            acc                = _mm_add_epi32(acc, _mm_load_si128(colVec));
+        }
+
+        _mm_store_si128(destVec + i, acc);
+    }
+}
+
+#endif  // defined(USE_SSE2)
+
+#endif  // defined(USE_AVX2) || defined(USE_SSE2)
 
 template<Color                                     Perspective,
          IncUpdateDirection                        Direction = FORWARD,
@@ -263,7 +405,58 @@ void update_accumulator_incremental(
         sf_assume(added.size() == 1 || added.size() == 2);
         sf_assume(removed.size() == 1 || removed.size() == 2);
 
-#ifdef VECTOR
+#if defined(VECTOR) && (defined(USE_AVX2) || defined(USE_SSE2))
+        const auto removedCount = static_cast<std::size_t>(removed.size());
+        const auto addedCount   = static_cast<std::size_t>(added.size());
+
+        ColumnPtrPair<WeightType> removedColumns{};
+        ColumnPtrPair<WeightType> addedColumns{};
+        ColumnPtrPair<PSQTWeightType> removedPsqtColumns{};
+        ColumnPtrPair<PSQTWeightType> addedPsqtColumns{};
+
+        for (std::size_t idx = 0; idx < removedCount; ++idx)
+        {
+            const IndexType offset =
+              TransformedFeatureDimensions * removed[static_cast<int>(idx)];
+            removedColumns[idx]    = &featureTransformer.weights[offset];
+            removedPsqtColumns[idx] =
+              &featureTransformer.psqtWeights[PSQTBuckets
+                                              * removed[static_cast<int>(idx)]];
+        }
+
+        for (std::size_t idx = 0; idx < addedCount; ++idx)
+        {
+            const IndexType offset =
+              TransformedFeatureDimensions * added[static_cast<int>(idx)];
+            addedColumns[idx]      = &featureTransformer.weights[offset];
+            addedPsqtColumns[idx]  =
+              &featureTransformer.psqtWeights[PSQTBuckets
+                                              * added[static_cast<int>(idx)]];
+        }
+
+        auto* destAccum = (target_state.*accPtr).accumulation[Perspective];
+        auto* baseAccum = (computed.*accPtr).accumulation[Perspective];
+        auto* destPsqt  = (target_state.*accPtr).psqtAccumulation[Perspective];
+        auto* basePsqt  = (computed.*accPtr).psqtAccumulation[Perspective];
+
+#if defined(USE_AVX2)
+        if (use_avx2())
+        {
+            apply_accumulator_deltas_avx2(destAccum, baseAccum, removedColumns, removedCount,
+                                          addedColumns, addedCount, TransformedFeatureDimensions);
+            apply_psqt_deltas_avx2(destPsqt, basePsqt, removedPsqtColumns, removedCount,
+                                   addedPsqtColumns, addedCount);
+        }
+        else
+#endif
+#if defined(USE_SSE2)
+        {
+            apply_accumulator_deltas_sse2(destAccum, baseAccum, removedColumns, removedCount,
+                                          addedColumns, addedCount, TransformedFeatureDimensions);
+            apply_psqt_deltas_sse2(destPsqt, basePsqt, removedPsqtColumns, removedCount,
+                                   addedPsqtColumns, addedCount);
+        }
+#elif defined(VECTOR)
         auto* accIn =
           reinterpret_cast<const vec_t*>(&(computed.*accPtr).accumulation[Perspective][0]);
         auto* accOut =
@@ -374,6 +567,7 @@ void update_accumulator_incremental(
                   accPsqtIn[i], vec_sub_psqt_32(vec_add_psqt_32(columnPsqtA0[i], columnPsqtA1[i]),
                                                 vec_add_psqt_32(columnPsqtR0[i], columnPsqtR1[i])));
         }
+
 #else
         std::memcpy((target_state.*accPtr).accumulation[Perspective],
                     (computed.*accPtr).accumulation[Perspective],
@@ -451,7 +645,62 @@ void update_accumulator_refresh_cache(
     auto& accumulator                 = accumulatorState.*accPtr;
     accumulator.computed[Perspective] = true;
 
-#ifdef VECTOR
+#if defined(VECTOR) && (defined(USE_AVX2) || defined(USE_SSE2))
+    const auto removedCount = static_cast<std::size_t>(removed.size());
+    const auto addedCount   = static_cast<std::size_t>(added.size());
+
+    ColumnPtrPair<WeightType> removedColumns{};
+    ColumnPtrPair<WeightType> addedColumns{};
+    ColumnPtrPair<PSQTWeightType> removedPsqtColumns{};
+    ColumnPtrPair<PSQTWeightType> addedPsqtColumns{};
+
+    for (std::size_t idx = 0; idx < removedCount; ++idx)
+    {
+        const IndexType offset = Dimensions * removed[static_cast<int>(idx)];
+        removedColumns[idx]    = &featureTransformer.weights[offset];
+        removedPsqtColumns[idx] =
+          &featureTransformer.psqtWeights[PSQTBuckets * removed[static_cast<int>(idx)]];
+    }
+
+    for (std::size_t idx = 0; idx < addedCount; ++idx)
+    {
+        const IndexType offset = Dimensions * added[static_cast<int>(idx)];
+        addedColumns[idx]      = &featureTransformer.weights[offset];
+        addedPsqtColumns[idx]  =
+          &featureTransformer.psqtWeights[PSQTBuckets * added[static_cast<int>(idx)]];
+    }
+
+    auto& accumulator = accumulatorState.*accPtr;
+
+    if (removedCount == 0 && addedCount == 0)
+    {
+        std::memcpy(accumulator.accumulation[Perspective], entry.accumulation,
+                    sizeof(BiasType) * Dimensions);
+        std::memcpy(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
+                    sizeof(PSQTWeightType) * PSQTBuckets);
+    }
+    else
+    {
+#if defined(USE_AVX2)
+        if (use_avx2())
+        {
+            apply_accumulator_deltas_avx2(accumulator.accumulation[Perspective], entry.accumulation,
+                                          removedColumns, removedCount, addedColumns, addedCount,
+                                          Dimensions);
+            apply_psqt_deltas_avx2(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
+                                   removedPsqtColumns, removedCount, addedPsqtColumns, addedCount);
+        }
+        else
+#endif
+#if defined(USE_SSE2)
+        {
+            apply_accumulator_deltas_sse2(accumulator.accumulation[Perspective], entry.accumulation,
+                                          removedColumns, removedCount, addedColumns, addedCount,
+                                          Dimensions);
+            apply_psqt_deltas_sse2(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
+                                   removedPsqtColumns, removedCount, addedPsqtColumns, addedCount);
+        }
+#elif defined(VECTOR)
     const bool combineLast3 =
       std::abs((int) removed.size() - (int) added.size()) == 1 && removed.size() + added.size() > 2;
     vec_t      acc[Tiling::NumRegs];
@@ -574,6 +823,43 @@ void update_accumulator_refresh_cache(
             vec_store_psqt(&entryTilePsqt[k], psqt[k]);
         for (std::size_t k = 0; k < Tiling::NumPsqtRegs; ++k)
             vec_store_psqt(&accTilePsqt[k], psqt[k]);
+    }
+
+#else
+        std::memcpy(accumulator.accumulation[Perspective], entry.accumulation,
+                    sizeof(BiasType) * Dimensions);
+        std::memcpy(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
+                    sizeof(PSQTWeightType) * PSQTBuckets);
+
+        for (const auto index : removed)
+        {
+            const IndexType offset = Dimensions * index;
+            for (IndexType j = 0; j < Dimensions; ++j)
+                accumulator.accumulation[Perspective][j] -=
+                  featureTransformer.weights[offset + j];
+
+            for (std::size_t k = 0; k < PSQTBuckets; ++k)
+                accumulator.psqtAccumulation[Perspective][k] -=
+                  featureTransformer.psqtWeights[index * PSQTBuckets + k];
+        }
+
+        for (const auto index : added)
+        {
+            const IndexType offset = Dimensions * index;
+            for (IndexType j = 0; j < Dimensions; ++j)
+                accumulator.accumulation[Perspective][j] +=
+                  featureTransformer.weights[offset + j];
+
+            for (std::size_t k = 0; k < PSQTBuckets; ++k)
+                accumulator.psqtAccumulation[Perspective][k] +=
+                  featureTransformer.psqtWeights[index * PSQTBuckets + k];
+        }
+#endif
+
+        std::memcpy(entry.accumulation, accumulator.accumulation[Perspective],
+                    sizeof(BiasType) * Dimensions);
+        std::memcpy(entry.psqtAccumulation, accumulator.psqtAccumulation[Perspective],
+                    sizeof(PSQTWeightType) * PSQTBuckets);
     }
 
 #else
