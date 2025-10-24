@@ -148,7 +148,7 @@ endif
 # the user can override with `make ARCH=x86-32-vnni256 SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
                  x86-64-vnni512 x86-64-vnni256 x86-64-avx512 x86-64-avxvnni x86-64-bmi2 \
-                 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
+                 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
                  x86-64 x86-32-sse41-popcnt x86-32-sse2 x86-32 ppc-64 ppc-64-altivec ppc-64-vsx ppc-32 e2k \
                  armv7 armv7-neon armv8 armv8-dotprod apple-silicon general-64 general-32 riscv64 \
                  loongarch64 loongarch64-lsx loongarch64-lasx))
@@ -244,15 +244,6 @@ ifeq ($(findstring -modern,$(ARCH)),-modern)
 	sse2 = yes
 	ssse3 = yes
 	sse41 = yes
-endif
-
-ifeq ($(findstring -avx2,$(ARCH)),-avx2)
-	popcnt = yes
-	sse = yes
-	sse2 = yes
-	ssse3 = yes
-	sse41 = yes
-	avx2 = yes
 endif
 
 ifeq ($(findstring -avxvnni,$(ARCH)),-avxvnni)
@@ -897,7 +888,6 @@ help:
 	echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
 	echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
 	echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
-	echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
 	echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
 	echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
 	echo "x86-64-ssse3            > x86 64-bit with ssse3 support" && \
@@ -933,7 +923,6 @@ help:
 	echo "" && \
 	echo "Simple examples. If you don't know what to do, you likely want to run one of: " && \
 	echo "" && \
-	echo "make -j profile-build ARCH=x86-64-avx2    # typically a fast compile for common systems " && \
 	echo "make -j profile-build ARCH=x86-64-sse41-popcnt  # A more portable compile for 64-bit systems " && \
 	echo "make -j profile-build ARCH=x86-64         # A portable compile for 64-bit systems " && \
 	echo "" && \
