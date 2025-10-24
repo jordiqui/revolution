@@ -17,13 +17,8 @@ ENGINE_PATH="$(cd "$(dirname "$0")/.." && pwd)/src/revolution-PVS"
 # the same node count for each iteration.
 cat << EOF > repeat.exp
  set timeout 10
- codex/implement-dynamic-pvs-reductions-a7uw5q
  lassign \$argv engine nodes
  spawn \$engine
-=======
-  spawn ./revolution-PVS
- lassign \$argv nodes
- eval_cur-−-eval_prev
 
  send "uci\n"
  expect "uciok"
