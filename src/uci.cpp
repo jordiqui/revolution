@@ -77,13 +77,6 @@ std::string to_lower_ascii(std::string_view input) {
     return lowered;
 }
 
-#if !defined(_WIN32)
-bool has_utf8_hint(std::string_view value) {
-    const auto lowered = to_lower_ascii(value);
-    return lowered.find("utf-8") != std::string::npos || lowered.find("utf8") != std::string::npos;
-}
-#endif
-
 std::string_view select_logo_from_environment() {
     if (const char* style_env = std::getenv("REVOLUTION_LOGO_STYLE"))
     {
@@ -99,19 +92,9 @@ std::string_view select_logo_from_environment() {
             return RevolutionLogoUtf8;
     }
 
-#if defined(_WIN32)
-    // Windows consoles often default to non-UTF-8 code pages. Unless the user opts in
-    // through the environment variable above, prefer the ASCII logo to avoid mojibake.
-    return RevolutionLogoAscii;
-#else
-    constexpr const char* kLocaleVars[] = {"LC_ALL", "LC_CTYPE", "LANG"};
-
-    for (const char* var : kLocaleVars)
-        if (const char* value = std::getenv(var); value && has_utf8_hint(value))
-            return RevolutionLogoUtf8;
-
-    return RevolutionLogoAscii;
-#endif
+    // By default, do not emit a logo so UCI GUIs aren't cluttered. Users can
+    // still opt in via the REVOLUTION_LOGO_STYLE environment variable.
+    return std::string_view();
 }
 
 }  // namespace
