@@ -128,6 +128,7 @@ struct LimitsType {
         movestogo = depth = mate = perft = infinite = 0;
         nodes                                       = 0;
         ponderMode                                  = false;
+        capSq                                      = SQ_NONE;
     }
 
     bool use_time_management() const { return time[WHITE] || time[BLACK]; }
@@ -137,6 +138,7 @@ struct LimitsType {
     int                      movestogo, depth, mate, perft, infinite;
     uint64_t                 nodes;
     bool                     ponderMode;
+    Square                   capSq;
 };
 
 

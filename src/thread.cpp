@@ -273,6 +273,10 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     if (states.get())
         setupStates = std::move(states);  // Ownership transfer, states is now empty
 
+    const StateInfo* previousState =
+      setupStates && !setupStates->empty() ? setupStates->back().previous : nullptr;
+    limits.capSq = previousState ? previousState->captureSquare : SQ_NONE;
+
     // We use Position::set() to set root position across threads. But there are
     // some StateInfo fields (previous, pliesFromNull, capturedPiece) that cannot
     // be deduced from a fen string, so set() clears them and they are set from

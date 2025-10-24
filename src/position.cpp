@@ -180,6 +180,11 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     std::memset(this, 0, sizeof(Position));
     std::memset(si, 0, sizeof(StateInfo));
     st = si;
+    st->epSquare      = SQ_NONE;
+    st->captureSquare = SQ_NONE;
+    st->capturedPiece = NO_PIECE;
+    st->repetition    = 0;
+    st->previous = st->next = nullptr;
 
     ss >> std::noskipws;
 
@@ -693,6 +698,7 @@ DirtyPiece Position::do_move(Move                      m,
     Square to       = m.to_sq();
     Piece  pc       = piece_on(from);
     Piece  captured = m.type_of() == EN_PASSANT ? make_piece(them, PAWN) : piece_on(to);
+    Square captureSquare = SQ_NONE;
 
     assert(color_of(pc) == us);
     assert(captured == NO_PIECE || color_of(captured) == (m.type_of() != CASTLING ? them : us));
@@ -754,6 +760,8 @@ DirtyPiece Position::do_move(Move                      m,
 
         // Reset rule 50 counter
         st->rule50 = 0;
+
+        captureSquare = capsq;
     }
 
     // Update hash key
@@ -848,6 +856,7 @@ DirtyPiece Position::do_move(Move                      m,
 
     // Set capture piece
     st->capturedPiece = captured;
+    st->captureSquare = captureSquare;
 
     // Calculate checkers bitboard (if move gives check)
     st->checkersBB = givesCheck ? attackers_to(square<KING>(them)) & pieces(us) : 0;
@@ -991,6 +1000,8 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
     newSt.previous = st;
     st->next       = &newSt;
     st             = &newSt;
+
+    st->captureSquare = SQ_NONE;
 
     if (st->epSquare != SQ_NONE)
     {
