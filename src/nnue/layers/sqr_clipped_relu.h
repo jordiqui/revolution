@@ -70,9 +70,9 @@ class SqrClippedReLU {
         for (IndexType i = 0; i < NumChunks; ++i)
         {
             __m128i words0 =
-              _mm_packs_epi32(_mm_load_si128(&in[i * 4 + 0]), _mm_load_si128(&in[i * 4 + 1]));
+              _mm_packs_epi32(_mm_loadu_si128(&in[i * 4 + 0]), _mm_loadu_si128(&in[i * 4 + 1]));
             __m128i words1 =
-              _mm_packs_epi32(_mm_load_si128(&in[i * 4 + 2]), _mm_load_si128(&in[i * 4 + 3]));
+              _mm_packs_epi32(_mm_loadu_si128(&in[i * 4 + 2]), _mm_loadu_si128(&in[i * 4 + 3]));
 
             // We shift by WeightScaleBits * 2 = 12 and divide by 128
             // which is an additional shift-right of 7, meaning 19 in total.
@@ -80,7 +80,7 @@ class SqrClippedReLU {
             words0 = _mm_srli_epi16(_mm_mulhi_epi16(words0, words0), 3);
             words1 = _mm_srli_epi16(_mm_mulhi_epi16(words1, words1), 3);
 
-            _mm_store_si128(&out[i], _mm_packs_epi16(words0, words1));
+            _mm_storeu_si128(&out[i], _mm_packs_epi16(words0, words1));
         }
         constexpr IndexType Start = NumChunks * 16;
 

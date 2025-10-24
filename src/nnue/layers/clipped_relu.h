@@ -90,12 +90,12 @@ class ClippedReLU {
             for (IndexType i = 0; i < NumChunks; ++i)
             {
                 const __m128i words0 = _mm_srli_epi16(
-                  _mm_packus_epi32(_mm_load_si128(&in[i * 4 + 0]), _mm_load_si128(&in[i * 4 + 1])),
+                  _mm_packus_epi32(_mm_loadu_si128(&in[i * 4 + 0]), _mm_loadu_si128(&in[i * 4 + 1])),
                   WeightScaleBits);
                 const __m128i words1 = _mm_srli_epi16(
-                  _mm_packus_epi32(_mm_load_si128(&in[i * 4 + 2]), _mm_load_si128(&in[i * 4 + 3])),
+                  _mm_packus_epi32(_mm_loadu_si128(&in[i * 4 + 2]), _mm_loadu_si128(&in[i * 4 + 3])),
                   WeightScaleBits);
-                _mm_store_si128(&out[i], _mm_packs_epi16(words0, words1));
+                _mm_storeu_si128(&out[i], _mm_packs_epi16(words0, words1));
             }
         }
         constexpr IndexType Start = InputDimensions % SimdWidth == 0
@@ -115,21 +115,21 @@ class ClippedReLU {
         {
     #if defined(USE_SSE41)
             const __m128i words0 = _mm_srli_epi16(
-              _mm_packus_epi32(_mm_load_si128(&in[i * 4 + 0]), _mm_load_si128(&in[i * 4 + 1])),
+              _mm_packus_epi32(_mm_loadu_si128(&in[i * 4 + 0]), _mm_loadu_si128(&in[i * 4 + 1])),
               WeightScaleBits);
             const __m128i words1 = _mm_srli_epi16(
-              _mm_packus_epi32(_mm_load_si128(&in[i * 4 + 2]), _mm_load_si128(&in[i * 4 + 3])),
+              _mm_packus_epi32(_mm_loadu_si128(&in[i * 4 + 2]), _mm_loadu_si128(&in[i * 4 + 3])),
               WeightScaleBits);
-            _mm_store_si128(&out[i], _mm_packs_epi16(words0, words1));
+            _mm_storeu_si128(&out[i], _mm_packs_epi16(words0, words1));
     #else
             const __m128i words0 = _mm_srai_epi16(
-              _mm_packs_epi32(_mm_load_si128(&in[i * 4 + 0]), _mm_load_si128(&in[i * 4 + 1])),
+              _mm_packs_epi32(_mm_loadu_si128(&in[i * 4 + 0]), _mm_loadu_si128(&in[i * 4 + 1])),
               WeightScaleBits);
             const __m128i words1 = _mm_srai_epi16(
-              _mm_packs_epi32(_mm_load_si128(&in[i * 4 + 2]), _mm_load_si128(&in[i * 4 + 3])),
+              _mm_packs_epi32(_mm_loadu_si128(&in[i * 4 + 2]), _mm_loadu_si128(&in[i * 4 + 3])),
               WeightScaleBits);
             const __m128i packedbytes = _mm_packs_epi16(words0, words1);
-            _mm_store_si128(&out[i], _mm_subs_epi8(_mm_adds_epi8(packedbytes, k0x80s), k0x80s));
+            _mm_storeu_si128(&out[i], _mm_subs_epi8(_mm_adds_epi8(packedbytes, k0x80s), k0x80s));
     #endif
         }
         constexpr IndexType Start = NumChunks * SimdWidth;

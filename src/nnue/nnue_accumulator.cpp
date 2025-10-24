@@ -135,21 +135,21 @@ inline void apply_accumulator_deltas_sse2(std::int16_t*                      des
 
     for (std::size_t i = 0; i < vecCount; ++i)
     {
-        __m128i acc = _mm_load_si128(baseVec + i);
+        __m128i acc = _mm_loadu_si128(baseVec + i);
 
         for (std::size_t r = 0; r < removedCount; ++r)
         {
             const auto* colVec = reinterpret_cast<const __m128i*>(removedCols[r]) + i;
-            acc                = _mm_sub_epi16(acc, _mm_load_si128(colVec));
+            acc                = _mm_sub_epi16(acc, _mm_loadu_si128(colVec));
         }
 
         for (std::size_t a = 0; a < addedCount; ++a)
         {
             const auto* colVec = reinterpret_cast<const __m128i*>(addedCols[a]) + i;
-            acc                = _mm_add_epi16(acc, _mm_load_si128(colVec));
+            acc                = _mm_add_epi16(acc, _mm_loadu_si128(colVec));
         }
 
-        _mm_store_si128(destVec + i, acc);
+        _mm_storeu_si128(destVec + i, acc);
     }
 }
 
@@ -166,21 +166,21 @@ inline void apply_psqt_deltas_sse2(std::int32_t*                            dest
 
     for (std::size_t i = 0; i < vecCount; ++i)
     {
-        __m128i acc = _mm_load_si128(baseVec + i);
+        __m128i acc = _mm_loadu_si128(baseVec + i);
 
         for (std::size_t r = 0; r < removedCount; ++r)
         {
             const auto* colVec = reinterpret_cast<const __m128i*>(removedCols[r]) + i;
-            acc                = _mm_sub_epi32(acc, _mm_load_si128(colVec));
+            acc                = _mm_sub_epi32(acc, _mm_loadu_si128(colVec));
         }
 
         for (std::size_t a = 0; a < addedCount; ++a)
         {
             const auto* colVec = reinterpret_cast<const __m128i*>(addedCols[a]) + i;
-            acc                = _mm_add_epi32(acc, _mm_load_si128(colVec));
+            acc                = _mm_add_epi32(acc, _mm_loadu_si128(colVec));
         }
 
-        _mm_store_si128(destVec + i, acc);
+        _mm_storeu_si128(destVec + i, acc);
     }
 }
 

@@ -101,7 +101,7 @@ void find_nnz(const std::int32_t* input, std::uint16_t* out, IndexType& count_ou
         #if (USE_SSE41)
             #define vec128_load(a) _mm_cvtepu8_epi16(_mm_loadl_epi64(a))
         #else
-            #define vec128_load(a) _mm_load_si128(a)
+            #define vec128_load(a) _mm_loadu_si128(a)
         #endif
         #define vec128_storeu(a, b) _mm_storeu_si128(a, b)
         #define vec128_add(a, b) _mm_add_epi16(a, b)
