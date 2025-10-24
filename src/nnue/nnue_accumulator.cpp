@@ -648,12 +648,14 @@ void update_accumulator_refresh_cache(
     auto& accumulator                 = accumulatorState.*accPtr;
     accumulator.computed[Perspective] = true;
 
-#if defined(VECTOR) && (defined(USE_AVX2) || defined(USE_SSE2))
+#if defined(VECTOR)
+    // SIMD-enabled refresh path.
+#if defined(USE_AVX2) || defined(USE_SSE2)
     const auto removedCount = static_cast<std::size_t>(removed.size());
     const auto addedCount   = static_cast<std::size_t>(added.size());
 
-    ColumnPtrPair<WeightType> removedColumns{};
-    ColumnPtrPair<WeightType> addedColumns{};
+    ColumnPtrPair<WeightType>     removedColumns{};
+    ColumnPtrPair<WeightType>     addedColumns{};
     ColumnPtrPair<PSQTWeightType> removedPsqtColumns{};
     ColumnPtrPair<PSQTWeightType> addedPsqtColumns{};
 
@@ -702,8 +704,8 @@ void update_accumulator_refresh_cache(
                                    removedPsqtColumns, removedCount, addedPsqtColumns, addedCount);
         }
 #endif
-#else  // defined(VECTOR) && (defined(USE_AVX2) || defined(USE_SSE2))
-#if defined(VECTOR)
+    }
+#else  // defined(USE_AVX2) || defined(USE_SSE2)
     const bool combineLast3 =
       std::abs((int) removed.size() - (int) added.size()) == 1 && removed.size() + added.size() > 2;
     vec_t      acc[Tiling::NumRegs];
@@ -827,45 +829,9 @@ void update_accumulator_refresh_cache(
         for (std::size_t k = 0; k < Tiling::NumPsqtRegs; ++k)
             vec_store_psqt(&accTilePsqt[k], psqt[k]);
     }
+#endif  // defined(USE_AVX2) || defined(USE_SSE2)
 
-#else
-        std::memcpy(accumulator.accumulation[Perspective], entry.accumulation,
-                    sizeof(BiasType) * Dimensions);
-        std::memcpy(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
-                    sizeof(PSQTWeightType) * PSQTBuckets);
-
-        for (const auto index : removed)
-        {
-            const IndexType offset = Dimensions * index;
-            for (IndexType j = 0; j < Dimensions; ++j)
-                accumulator.accumulation[Perspective][j] -=
-                  featureTransformer.weights[offset + j];
-
-            for (std::size_t k = 0; k < PSQTBuckets; ++k)
-                accumulator.psqtAccumulation[Perspective][k] -=
-                  featureTransformer.psqtWeights[index * PSQTBuckets + k];
-        }
-
-        for (const auto index : added)
-        {
-            const IndexType offset = Dimensions * index;
-            for (IndexType j = 0; j < Dimensions; ++j)
-                accumulator.accumulation[Perspective][j] +=
-                  featureTransformer.weights[offset + j];
-
-            for (std::size_t k = 0; k < PSQTBuckets; ++k)
-                accumulator.psqtAccumulation[Perspective][k] +=
-                  featureTransformer.psqtWeights[index * PSQTBuckets + k];
-        }
-#endif
-
-        std::memcpy(entry.accumulation, accumulator.accumulation[Perspective],
-                    sizeof(BiasType) * Dimensions);
-        std::memcpy(entry.psqtAccumulation, accumulator.psqtAccumulation[Perspective],
-                    sizeof(PSQTWeightType) * PSQTBuckets);
-    }
-
-#else
+#else  // defined(VECTOR)
 
     for (const auto index : removed)
     {
@@ -893,8 +859,14 @@ void update_accumulator_refresh_cache(
                 sizeof(BiasType) * Dimensions);
 
     std::memcpy(accumulator.psqtAccumulation[Perspective], entry.psqtAccumulation,
-                sizeof(int32_t) * PSQTBuckets);
-#endif
+                sizeof(PSQTWeightType) * PSQTBuckets);
+#endif  // defined(VECTOR)
+
+    std::memcpy(entry.accumulation, accumulator.accumulation[Perspective],
+                sizeof(BiasType) * Dimensions);
+
+    std::memcpy(entry.psqtAccumulation, accumulator.psqtAccumulation[Perspective],
+                sizeof(PSQTWeightType) * PSQTBuckets);
 
     for (Color c : {WHITE, BLACK})
         entry.byColorBB[c] = pos.pieces(c);
