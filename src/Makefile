@@ -54,7 +54,18 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-PGOBENCH = $(WINE_PATH) ./$(EXE) bench
+ifeq ($(target_windows),yes)
+        ifeq ($(OS),Windows_NT)
+                PGOBENCH = ./$(EXE) bench
+        else
+                ifeq ($(WINE_PATH),)
+                        $(error profile-build for Windows targets requires Wine. Install Wine and set WINE_PATH or run the build on Windows.)
+                endif
+                PGOBENCH = $(WINE_PATH) ./$(EXE) bench
+        endif
+else
+        PGOBENCH = ./$(EXE) bench
+endif
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
