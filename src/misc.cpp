@@ -18,6 +18,8 @@
 
 #include "misc.h"
 
+#include "nnue/nnue_common.h"
+
 #include <array>
 #include <atomic>
 #include <cassert>
@@ -32,6 +34,14 @@
 #include <mutex>
 #include <sstream>
 #include <string_view>
+
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+    #else
+        #include <cpuid.h>
+    #endif
+#endif
 
 #include "types.h"
 
@@ -527,3 +537,91 @@ std::string CommandLine::get_working_directory() {
 
 
 }  // namespace Stockfish
+namespace Stockfish::CPU {
+
+namespace {
+
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
+
+bool os_supports_avx() {
+#    if defined(_MSC_VER)
+    int cpuInfo[4];
+    __cpuidex(cpuInfo, 1, 0);
+    const bool osUsesXSAVE = (cpuInfo[2] & (1 << 27)) != 0;
+    const bool cpuAVXSupport = (cpuInfo[2] & (1 << 28)) != 0;
+
+    if (!(osUsesXSAVE && cpuAVXSupport))
+        return false;
+
+    unsigned long long featureMask = _xgetbv(0);
+    return (featureMask & 0x6) == 0x6;
+#    else
+    unsigned int eax, ebx, ecx, edx;
+    if (!__get_cpuid_count(1, 0, &eax, &ebx, &ecx, &edx))
+        return false;
+
+    const bool osUsesXSAVE = (ecx & (1u << 27)) != 0;
+    const bool cpuAVXSupport = (ecx & (1u << 28)) != 0;
+
+    if (!(osUsesXSAVE && cpuAVXSupport))
+        return false;
+
+    unsigned int xcrLow, xcrHigh;
+    __asm__ __volatile__("xgetbv" : "=a"(xcrLow), "=d"(xcrHigh) : "c"(0));
+    unsigned long long featureMask = (static_cast<unsigned long long>(xcrHigh) << 32) | xcrLow;
+    return (featureMask & 0x6) == 0x6;
+#    endif
+}
+
+bool cpu_has_avx2() {
+#    if defined(_MSC_VER)
+    int cpuInfo[4];
+    __cpuidex(cpuInfo, 7, 0);
+    return (cpuInfo[1] & (1 << 5)) != 0;
+#    else
+    unsigned int eax, ebx, ecx, edx;
+    if (!__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx))
+        return false;
+    return (ebx & (1u << 5)) != 0;
+#    endif
+}
+
+#endif
+
+#if defined(USE_AVX2) || defined(USE_SSE2)
+bool HasAvx2Runtime = false;
+#endif
+
+}  // namespace
+
+void init() {
+#if defined(USE_AVX2) || defined(USE_SSE2)
+#    if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
+#        if defined(USE_AVX2)
+    HasAvx2Runtime = os_supports_avx() && cpu_has_avx2();
+    if (HasAvx2Runtime)
+        Eval::NNUE::set_simd_implementation(Eval::NNUE::SimdImplementation::AVX2);
+    else
+        Eval::NNUE::set_simd_implementation(Eval::NNUE::SimdImplementation::SSE2);
+#        else
+    Eval::NNUE::set_simd_implementation(Eval::NNUE::SimdImplementation::SSE2);
+    HasAvx2Runtime = false;
+#        endif
+#    else
+    Eval::NNUE::set_simd_implementation(Eval::NNUE::SimdImplementation::SSE2);
+    HasAvx2Runtime = false;
+#    endif
+#else
+    Eval::NNUE::set_simd_implementation(Eval::NNUE::SimdImplementation::None);
+#endif
+}
+
+bool has_avx2() {
+#if defined(USE_AVX2) || defined(USE_SSE2)
+    return HasAvx2Runtime;
+#else
+    return false;
+#endif
+}
+
+}  // namespace Stockfish::CPU

@@ -74,6 +74,33 @@ constexpr std::size_t SimdWidth = 16;
 
 constexpr std::size_t MaxSimdWidth = 32;
 
+enum class SimdImplementation : std::uint8_t {
+    None,
+    SSE2,
+    AVX2
+};
+
+#if defined(USE_AVX2) || defined(USE_SSE2)
+inline SimdImplementation ActiveSimdImplementation =
+#    if defined(USE_AVX2)
+  SimdImplementation::AVX2;
+#    elif defined(USE_SSE2)
+  SimdImplementation::SSE2;
+#    else
+  SimdImplementation::None;
+#    endif
+
+inline void set_simd_implementation(SimdImplementation impl) { ActiveSimdImplementation = impl; }
+inline SimdImplementation simd_implementation() { return ActiveSimdImplementation; }
+inline bool use_avx2() { return ActiveSimdImplementation == SimdImplementation::AVX2; }
+inline bool use_sse2_runtime() { return ActiveSimdImplementation == SimdImplementation::SSE2; }
+#else
+inline void set_simd_implementation(SimdImplementation) {}
+inline constexpr SimdImplementation simd_implementation() { return SimdImplementation::None; }
+inline constexpr bool use_avx2() { return false; }
+inline constexpr bool use_sse2_runtime() { return false; }
+#endif
+
 // Type of input feature after conversion
 using TransformedFeatureType = std::uint8_t;
 using IndexType              = std::uint32_t;
