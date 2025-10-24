@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -22,7 +22,6 @@
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
-#include <cstdint>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -38,115 +37,6 @@
 
 namespace Stockfish {
 
-namespace {
-
-int amplify_ten_percent(int base) {
-    return base + (base + 9) / 10;
-}
-
-int open_file_danger(const Position& pos, Color defender, Square ksq) {
-    Bitboard friendlyPawns = pos.pieces(defender, PAWN);
-    Bitboard enemyMajors   = pos.pieces(~defender, ROOK) | pos.pieces(~defender, QUEEN);
-
-    auto penalty_for_file = [&](File file, bool primary) {
-        Bitboard mask = file_bb(file);
-        if (friendlyPawns & mask)
-            return 0;
-
-        bool enemyPressure = enemyMajors & mask;
-        int  base          = primary ? 12 : 6;
-        if (enemyPressure)
-            base += primary ? 6 : 4;
-        return base;
-    };
-
-    File kingFile = file_of(ksq);
-    int  base     = penalty_for_file(kingFile, true);
-
-    if (kingFile > FILE_A)
-        base += penalty_for_file(File(kingFile - 1), false);
-    if (kingFile < FILE_H)
-        base += penalty_for_file(File(kingFile + 1), false);
-
-    return base;
-}
-
-int pawn_storm_danger(const Position& pos, Color defender, Square ksq) {
-    Bitboard enemyPawns = pos.pieces(~defender, PAWN);
-
-    auto penalty_for_file = [&](File file) {
-        Bitboard pawns = enemyPawns & file_bb(file);
-        int      total = 0;
-        while (pawns)
-        {
-            Square sq = pop_lsb(pawns);
-
-            if ((defender == WHITE && rank_of(sq) <= rank_of(ksq))
-                || (defender == BLACK && rank_of(sq) >= rank_of(ksq)))
-                continue;
-
-            int rankDist = distance<Rank>(sq, ksq);
-            if (rankDist > 3)
-                continue;
-
-            int closeness = 4 - rankDist;  // 1..3 when within range
-            int weight    = (file == file_of(ksq)) ? 5 : 3;
-            total += closeness * weight;
-        }
-        return total;
-    };
-
-    File kingFile = file_of(ksq);
-    int  base     = penalty_for_file(kingFile);
-
-    if (kingFile > FILE_A)
-        base += penalty_for_file(File(kingFile - 1));
-    if (kingFile < FILE_H)
-        base += penalty_for_file(File(kingFile + 1));
-
-    return base;
-}
-
-int rook_battery_danger(const Position& pos, Color defender, Square ksq) {
-    int        danger = 0;
-    Direction  forward = defender == WHITE ? NORTH : SOUTH;
-    Square     sq      = ksq + forward;
-    bool       firstHeavy = false;
-
-    while (is_ok(sq))
-    {
-        Piece pc = pos.piece_on(sq);
-
-        if (pc == NO_PIECE)
-        {
-            sq += forward;
-            continue;
-        }
-
-        if (color_of(pc) == defender)
-            break;
-
-        if (type_of(pc) == ROOK || type_of(pc) == QUEEN)
-        {
-            if (!firstHeavy)
-                firstHeavy = true;
-            else
-            {
-                danger += 18;
-                break;
-            }
-        }
-        else
-            break;
-
-        sq += forward;
-    }
-
-    return danger;
-}
-
-}  // namespace
-
 // Returns a static, purely materialistic evaluation of the position from
 // the point of view of the given color. It can be divided by PawnValue to get
 // an approximation of the material advantage on the board in terms of pawns.
@@ -157,29 +47,7 @@ int Eval::simple_eval(const Position& pos, Color c) {
 
 bool Eval::use_smallnet(const Position& pos) {
     int simpleEval = simple_eval(pos, pos.side_to_move());
-
-    int nonPawnCount = pos.count<KNIGHT>() + pos.count<BISHOP>() + pos.count<ROOK>()
-                     + pos.count<QUEEN>();
-    int queenCount   = pos.count<QUEEN>();
-    int pawnCount    = pos.count<PAWN>();
-    int phase        = std::clamp(14 - nonPawnCount, 0, 14);
-    int fiftyCount   = pos.rule50_count();
-
-    // The small network is accurate in simplified technical endings, but in the
-    // regression games DEV often entered complex winning or defending scenarios
-    // (multiple major pieces on board) where relying on the faster network lead
-    // to serious misjudgements and over-optimistic play.  Restrict its usage to
-    // positions with few remaining non-pawn pieces and no queens so we keep the
-    // full-size network for the sharp conversions highlighted in the matches.
-    if (queenCount > 0 || nonPawnCount > 6)
-        return false;
-
-    int dryFactor      = std::max(0, 8 - pawnCount / 2) + std::max(0, phase - 4);
-    int fiftyAdjustment = fiftyCount * (4 + dryFactor) / 16;
-    int threshold        = 880 + phase * 18 + fiftyAdjustment;
-    threshold            = std::clamp(threshold, 720, 1400);
-
-    return std::abs(simpleEval) > threshold;
+    return std::abs(simpleEval) > 962;
 }
 
 // Evaluate is the evaluator for the outer world. It returns a static evaluation
@@ -208,56 +76,19 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     // Blend optimism and eval with nnue complexity
     int nnueComplexity = std::abs(psqt - positional);
-    int compressedComplexity =
-      std::min(4096, int(std::sqrt(static_cast<double>(nnueComplexity))) * 64);
-    optimism += optimism * compressedComplexity / 2048;
-    nnue -= nnue * compressedComplexity / 28000;
+    optimism += optimism * nnueComplexity / 468;
+    nnue -= nnue * nnueComplexity / 18000;
 
     int material = 535 * pos.count<PAWN>() + pos.non_pawn_material();
     int v        = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
 
-    // Damp down the evaluation with sensitivity to piece count and remaining advantage
-    int rule50 = pos.rule50_count();
-    if (rule50)
-    {
-        int pieces = pos.count<PAWN>() + pos.count<KNIGHT>() + pos.count<BISHOP>()
-                   + pos.count<ROOK>() + pos.count<QUEEN>();
-        int dryness = std::max(0, 12 - pieces);
-        int advShield = std::clamp(std::abs(v) - 180, 0, 640);
-        int weight    = std::clamp(48 + dryness * 8 - advShield / 4, 12, 96);
-        int64_t damping = int64_t(v) * rule50 * weight / (212 * 64);
-        v -= Value(damping);
-    }
+    // Damp down the evaluation linearly when shuffling
+    v -= v * pos.rule50_count() / 212;
 
     // Guarantee evaluation does not hit the tablebase range
     v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 
-    Square wKing = pos.square<KING>(WHITE);
-    Square bKing = pos.square<KING>(BLACK);
-
-    int whiteDanger = amplify_ten_percent(open_file_danger(pos, WHITE, wKing))
-                    + amplify_ten_percent(pawn_storm_danger(pos, WHITE, wKing))
-                    + rook_battery_danger(pos, WHITE, wKing);
-
-    int blackDanger = amplify_ten_percent(open_file_danger(pos, BLACK, bKing))
-                    + amplify_ten_percent(pawn_storm_danger(pos, BLACK, bKing))
-                    + rook_battery_danger(pos, BLACK, bKing);
-
-    int  dangerDiff   = blackDanger - whiteDanger;
-    bool stmIsWhite   = pos.side_to_move() == WHITE;
-    Value safetyBonus = stmIsWhite ? Value(dangerDiff) : Value(-dangerDiff);
-    v += safetyBonus;
-
     return v;
-}
-
-int Eval::king_danger(const Position& pos, Color defender) {
-    Square kingSq = pos.square<KING>(defender);
-    int    open   = open_file_danger(pos, defender, kingSq);
-    int    storms = pawn_storm_danger(pos, defender, kingSq);
-    int    battery = rook_battery_danger(pos, defender, kingSq);
-
-    return amplify_ten_percent(open) + amplify_ten_percent(storms) + battery;
 }
 
 // Like evaluate(), but instead of returning a value, it returns

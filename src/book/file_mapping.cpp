@@ -1,26 +1,24 @@
-#include "file_mapping.h"
+#include "book/file_mapping.h"
 
-#include "../misc.h"
-
-#include <cassert>
-#include <cstdint>
-#include <iostream>
+#include "misc.h"
 
 #ifndef _WIN32
-    #include <fcntl.h>
-    #include <sys/mman.h>
-    #include <sys/stat.h>
-    #include <unistd.h>
+#    include <fcntl.h>
+#    include <sys/mman.h>
+#    include <sys/stat.h>
+#    include <unistd.h>
 #else
-    #define WIN32_LEAN_AND_MEAN
-    #ifndef NOMINMAX
-        #define NOMINMAX
-    #endif
-    #include <windows.h>
+#    define WIN32_LEAN_AND_MEAN
+#    ifndef NOMINMAX
+#        define NOMINMAX
+#    endif
+#    include <windows.h>
 #endif
 
-namespace Stockfish {
-namespace Book {
+#include <cassert>
+#include <iostream>
+
+namespace Stockfish::Book {
 
 FileMapping::FileMapping() : mapping(0), baseAddress(nullptr), dataSize(0) {}
 
@@ -30,14 +28,13 @@ bool FileMapping::map(const std::string& f, bool verbose) {
     unmap();
 
 #ifdef _WIN32
-    HANDLE fd = CreateFile(f.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
-                           FILE_FLAG_RANDOM_ACCESS, nullptr);
+    HANDLE fd = CreateFile(
+      f.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, FILE_FLAG_RANDOM_ACCESS, nullptr);
 
     if (fd == INVALID_HANDLE_VALUE)
     {
         if (verbose)
-            sync_cout << "info string CreateFile() failed for: " << f
-                      << ". Error code: " << GetLastError() << sync_endl;
+            sync_cout << "info string CreateFile() failed for: " << f << ". Error code: " << GetLastError() << sync_endl;
 
         return false;
     }
@@ -53,34 +50,33 @@ bool FileMapping::map(const std::string& f, bool verbose) {
         return false;
     }
 
-    HANDLE mmapHandle = CreateFileMapping(fd, nullptr, PAGE_READONLY, li.HighPart, li.LowPart, nullptr);
+    HANDLE mmap = CreateFileMapping(fd, nullptr, PAGE_READONLY, li.HighPart, li.LowPart, nullptr);
     CloseHandle(fd);
 
-    if (!mmapHandle)
+    if (!mmap)
     {
         if (verbose)
-            sync_cout << "info string CreateFileMapping() failed for: " << f
-                      << ". Error code: " << GetLastError() << sync_endl;
+            sync_cout << "info string CreateFileMapping() failed for: " << f << ". Error code: " << GetLastError()
+                      << sync_endl;
 
         return false;
     }
 
-    void* viewBase = MapViewOfFile(mmapHandle, FILE_MAP_READ, 0, 0, 0);
+    void* viewBase = MapViewOfFile(mmap, FILE_MAP_READ, 0, 0, 0);
     if (!viewBase)
     {
         if (verbose)
-            sync_cout << "info string MapViewOfFile() failed for: " << f
-                      << ". Error code: " << GetLastError() << sync_endl;
+            sync_cout << "info string MapViewOfFile() failed for: " << f << ". Error code: " << GetLastError() << sync_endl;
 
-        CloseHandle(mmapHandle);
+        CloseHandle(mmap);
         return false;
     }
 
-    mapping     = static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(mmapHandle));
+    mapping     = std::uint64_t(mmap);
     baseAddress = viewBase;
-    dataSize    = static_cast<std::size_t>(li.QuadPart);
+    dataSize    = size_t(li.QuadPart);
 #else
-    struct stat statbuf;
+    struct stat statbuf {};
     int         fd = ::open(f.c_str(), O_RDONLY);
 
     if (fd == -1)
@@ -91,7 +87,8 @@ bool FileMapping::map(const std::string& f, bool verbose) {
         return false;
     }
 
-    if (fstat(fd, &statbuf) == -1 || statbuf.st_size == 0)
+    fstat(fd, &statbuf);
+    if (statbuf.st_size == 0)
     {
         ::close(fd);
 
@@ -112,21 +109,21 @@ bool FileMapping::map(const std::string& f, bool verbose) {
         return false;
     }
 
-    #if defined(MADV_RANDOM)
+#    if defined(MADV_RANDOM)
     madvise(data, statbuf.st_size, MADV_RANDOM);
-    #endif
+#    endif
     ::close(fd);
 
-    mapping     = static_cast<std::uint64_t>(statbuf.st_size);
+    mapping     = statbuf.st_size;
     baseAddress = data;
-    dataSize    = static_cast<std::size_t>(statbuf.st_size);
+    dataSize    = statbuf.st_size;
 #endif
+
     return true;
 }
 
 void FileMapping::unmap() {
-    assert((mapping == 0) == (baseAddress == nullptr)
-           && (baseAddress == nullptr) == (dataSize == 0));
+    assert((mapping == 0) == (baseAddress == nullptr) && (baseAddress == nullptr) == (dataSize == 0));
 
 #ifdef _WIN32
     if (baseAddress)
@@ -138,15 +135,14 @@ void FileMapping::unmap() {
     if (baseAddress && mapping)
         munmap(baseAddress, mapping);
 #endif
+
     baseAddress = nullptr;
     mapping     = 0;
     dataSize    = 0;
 }
 
 bool FileMapping::has_data() const {
-    assert((mapping == 0) == (baseAddress == nullptr)
-           && (baseAddress == nullptr) == (dataSize == 0));
-
+    assert((mapping == 0) == (baseAddress == nullptr) && (baseAddress == nullptr) == (dataSize == 0));
     return baseAddress != nullptr && dataSize != 0;
 }
 
@@ -155,10 +151,9 @@ const unsigned char* FileMapping::data() const {
     return static_cast<const unsigned char*>(baseAddress);
 }
 
-std::size_t FileMapping::data_size() const {
+size_t FileMapping::data_size() const {
     assert(mapping != 0 && baseAddress != nullptr && dataSize != 0);
     return dataSize;
 }
 
-}  // namespace Book
-}  // namespace Stockfish
+}  // namespace Stockfish::Book

@@ -36,9 +36,10 @@ fetch_network() {
   if [ -f "$_filename" ]; then
     if validate_network "$_filename"; then
       echo "Existing $_filename validated, skipping download"
-      return
+      return 0
     else
       echo "Removing invalid NNUE file: $_filename"
+      rm -f "$_filename"
     fi
   fi
 
@@ -52,24 +53,26 @@ fetch_network() {
     "https://tests.stockfishchess.org/api/nn/$_filename" \
     "https://github.com/official-stockfish/networks/raw/master/$_filename"; do
     echo "Downloading from $url ..."
-    if $wget_or_curl "$url" > "$_filename"; then
+    tmp_file="$_filename.tmp"
+    rm -f "$tmp_file"
+    if $wget_or_curl "$url" > "$tmp_file"; then
+      mv "$tmp_file" "$_filename"
       if validate_network "$_filename"; then
         echo "Successfully validated $_filename"
+        return 0
       else
         echo "Downloaded $_filename is invalid"
-        continue
+        rm -f "$_filename"
       fi
     else
       echo "Failed to download from $url"
-    fi
-    if [ -f "$_filename" ]; then
-      return
+      rm -f "$tmp_file"
     fi
   done
 
-  # Download was not successful in the loop, return false.
+  # Download was not successful in the loop, warn the user but don't fail hard.
   >&2 echo "Failed to download $_filename"
-  return 1
+  return 0
 }
 
 fetch_network EvalFileDefaultNameBig && \

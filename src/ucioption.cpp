@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -34,9 +34,8 @@ bool CaseInsensitiveLess::operator()(const std::string& s1, const std::string& s
 
     return std::lexicographical_compare(
       s1.begin(), s1.end(), s2.begin(), s2.end(), [](char c1, char c2) {
-          const auto lhs = static_cast<unsigned char>(c1);
-          const auto rhs = static_cast<unsigned char>(c2);
-          return std::tolower(lhs) < std::tolower(rhs);
+          return std::tolower(static_cast<unsigned char>(c1))
+               < std::tolower(static_cast<unsigned char>(c2));
       });
 }
 
@@ -55,8 +54,19 @@ void OptionsMap::setoption(std::istringstream& is) {
     while (is >> token)
         value += (value.empty() ? "" : " ") + token;
 
+    auto equals_ic = [](const std::string& lhs, const std::string& rhs) {
+        return !CaseInsensitiveLess()(lhs, rhs) && !CaseInsensitiveLess()(rhs, lhs);
+    };
+
     if (options_map.count(name))
+    {
         options_map[name] = value;
+
+        if (equals_ic(name, "MultiPV") && options_map.count("Analysis Lines"))
+            options_map["Analysis Lines"] = value;
+        else if (equals_ic(name, "Analysis Lines") && options_map.count("MultiPV"))
+            options_map["MultiPV"] = value;
+    }
     else
         sync_cout << "No such option: " << name << sync_endl;
 }
@@ -148,6 +158,22 @@ bool Option::operator==(const char* s) const {
 bool Option::operator!=(const char* s) const { return !(*this == s); }
 
 
+Option Option::with_info(std::string description) const {
+    Option copy(*this);
+    copy.infoText = std::move(description);
+    return copy;
+}
+
+Option& Option::set_info(std::string description) {
+    infoText = std::move(description);
+    return *this;
+}
+
+const std::string& Option::info() const { return infoText; }
+
+bool Option::has_info() const { return !infoText.empty(); }
+
+
 // Updates currentValue and triggers on_change() action. It's up to
 // the GUI to check for option's limits, but we could receive the new value
 // from the user by console window, so let's check the bounds anyway.
@@ -212,5 +238,16 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
             }
 
     return os;
+}
+
+std::vector<std::pair<std::string, std::string>> OptionsMap::info_entries() const {
+    std::vector<std::pair<std::string, std::string>> entries;
+
+    for (size_t idx = 0; idx < options_map.size(); ++idx)
+        for (const auto& it : options_map)
+            if (it.second.idx == idx && it.second.has_info())
+                entries.emplace_back(it.first, it.second.info());
+
+    return entries;
 }
 }

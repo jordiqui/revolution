@@ -1,13 +1,13 @@
 /*
-  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
+  Pullfish, a UCI chess playing engine derived from Stockfish 17.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Stockfish is free software: you can redistribute it and/or modify
+  Pullfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Stockfish is distributed in the hope that it will be useful,
+  Pullfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -180,19 +180,13 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     std::memset(this, 0, sizeof(Position));
     std::memset(si, 0, sizeof(StateInfo));
     st = si;
-    st->epSquare      = SQ_NONE;
-    st->captureSquare = SQ_NONE;
-    st->capturedPiece = NO_PIECE;
-    st->repetition    = 0;
-    st->previous = st->next = nullptr;
 
     ss >> std::noskipws;
 
     // 1. Piece placement
-    while ((ss >> token)
-           && !std::isspace(static_cast<unsigned char>(token)))
+    while ((ss >> token) && !isspace(token))
     {
-        if (std::isdigit(static_cast<unsigned char>(token)))
+        if (isdigit(token))
             sq += (token - '0') * EAST;  // Advance the given number of files
 
         else if (token == '/')
@@ -207,7 +201,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
 
     // 2. Active color
     ss >> token;
-    sideToMove = (std::tolower(static_cast<unsigned char>(token)) == 'w' ? WHITE : BLACK);
+    sideToMove = (token == 'w' ? WHITE : BLACK);
     ss >> token;
 
     // 3. Castling availability. Compatible with 3 standards: Normal FEN standard,
@@ -215,14 +209,13 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     // the game instead of KQkq and also X-FEN standard that, in case of Chess960,
     // if an inner rook is associated with the castling right, the castling tag is
     // replaced by the file letter of the involved rook, as for the Shredder-FEN.
-    while ((ss >> token)
-           && !std::isspace(static_cast<unsigned char>(token)))
+    while ((ss >> token) && !isspace(token))
     {
         Square rsq;
-        Color  c = std::islower(static_cast<unsigned char>(token)) ? BLACK : WHITE;
+        Color  c    = islower(token) ? BLACK : WHITE;
         Piece  rook = make_piece(c, ROOK);
 
-        token = char(std::toupper(static_cast<unsigned char>(token)));
+        token = char(toupper(token));
 
         if (token == 'K')
             for (rsq = relative_square(c, SQ_H1); piece_on(rsq) != rook; --rsq)
@@ -245,13 +238,10 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
     // Ignore if square is invalid or not on side to move relative rank 6.
     bool enpassant = false;
 
-    if (((ss >> col) && (std::tolower(static_cast<unsigned char>(col)) >= 'a'
-                         && std::tolower(static_cast<unsigned char>(col)) <= 'h'))
-        && ((ss >> row)
-            && (row == (sideToMove == WHITE ? '6' : '3'))))
+    if (((ss >> col) && (col >= 'a' && col <= 'h'))
+        && ((ss >> row) && (row == (sideToMove == WHITE ? '6' : '3'))))
     {
-        st->epSquare = make_square(
-          File(std::tolower(static_cast<unsigned char>(col)) - 'a'), Rank(row - '1'));
+        st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
 
         // En passant square will be considered only if
         // a) side to move have a pawn threatening epSquare
@@ -380,8 +370,8 @@ Position& Position::set(const string& code, Color c, StateInfo* si) {
     assert(sides[0].length() > 0 && sides[0].length() < 8);
     assert(sides[1].length() > 0 && sides[1].length() < 8);
 
-    std::transform(sides[c].begin(), sides[c].end(), sides[c].begin(), [](char ch) {
-        return char(std::tolower(static_cast<unsigned char>(ch)));
+    std::transform(sides[c].begin(), sides[c].end(), sides[c].begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
     });
 
     string fenStr = "8/" + sides[0] + char(8 - sides[0].length() + '0') + "/8/8/8/8/" + sides[1]
@@ -705,7 +695,6 @@ DirtyPiece Position::do_move(Move                      m,
     Square to       = m.to_sq();
     Piece  pc       = piece_on(from);
     Piece  captured = m.type_of() == EN_PASSANT ? make_piece(them, PAWN) : piece_on(to);
-    Square captureSquare = SQ_NONE;
 
     assert(color_of(pc) == us);
     assert(captured == NO_PIECE || color_of(captured) == (m.type_of() != CASTLING ? them : us));
@@ -767,8 +756,6 @@ DirtyPiece Position::do_move(Move                      m,
 
         // Reset rule 50 counter
         st->rule50 = 0;
-
-        captureSquare = capsq;
     }
 
     // Update hash key
@@ -863,7 +850,6 @@ DirtyPiece Position::do_move(Move                      m,
 
     // Set capture piece
     st->capturedPiece = captured;
-    st->captureSquare = captureSquare;
 
     // Calculate checkers bitboard (if move gives check)
     st->checkersBB = givesCheck ? attackers_to(square<KING>(them)) & pieces(us) : 0;
@@ -1007,8 +993,6 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
     newSt.previous = st;
     st->next       = &newSt;
     st             = &newSt;
-
-    st->captureSquare = SQ_NONE;
 
     if (st->epSquare != SQ_NONE)
     {
@@ -1243,12 +1227,9 @@ void Position::flip() {
     ss >> token;  // Castling availability
     f += token + " ";
 
-    std::transform(f.begin(), f.end(), f.begin(),
-                   [](char c) {
-                       const auto ch = static_cast<unsigned char>(c);
-                       return char(
-                         std::islower(ch) ? std::toupper(ch) : std::tolower(ch));
-                   });
+    std::transform(f.begin(), f.end(), f.begin(), [](unsigned char c) {
+        return static_cast<char>(std::islower(c) ? std::toupper(c) : std::tolower(c));
+    });
 
     ss >> token;  // En passant square
     f += (token == "-" ? token : token.replace(1, 1, token[1] == '3' ? "6" : "3"));

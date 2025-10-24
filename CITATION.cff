@@ -2,19 +2,23 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: Revolution 2.90-231025
+title: Pullfish 1.0 171025
 message: >-
-  Please cite this software using the metadata from this
-  file.
+  Please cite Pullfish 1.0 171025 as a derivative of Stockfish 17.1 using the
+  metadata from this file.
 type: software
 authors:
-  - family-names: Ruiz Centelles
+  - family-names: Ruiz
     given-names: Jorge
-  - name: codex IA
+  - name: ChatGPT
   - name: The Stockfish developers (see AUTHORS file)
-repository-code: 'https://github.com/official-stockfish/Stockfish'
-repository-artifact: 'https://stockfishchess.org/download/'
-abstract: Revolution is a free and strong UCI chess engine derived from Stockfish 17.1 with codex IA optimisations.
+repository-code: 'https://github.com/jorgeruiz/pullfish'
+url: 'https://github.com/jorgeruiz/pullfish'
+repository-artifact: 'https://github.com/jorgeruiz/pullfish/releases'
+abstract: >-
+  Pullfish 1.0 171025 is a free and strong UCI chess engine derived from
+  Stockfish 17.1, co-authored by Jorge Ruiz and ChatGPT with full credit to the
+  Stockfish developers.
 keywords:
   - chess
   - artificial intelligence (AI)
