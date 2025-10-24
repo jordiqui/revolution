@@ -112,8 +112,8 @@ class ExperienceAndZobristIntegrationTest(unittest.TestCase):
             uci_lines = engine.read_until(lambda line: line == "uciok", timeout=10.0)
 
             self.assertTrue(
-                any("option name Read Only learning" in line for line in uci_lines),
-                "Read Only learning option missing from UCI output",
+                any("option name Read only learning" in line for line in uci_lines),
+                "Read only learning option missing from UCI output",
             )
             self.assertTrue(
                 any("option name Experience Book" in line for line in uci_lines),
