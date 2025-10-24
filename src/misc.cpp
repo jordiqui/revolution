@@ -543,8 +543,10 @@ namespace {
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386) || defined(_M_IX86)
 
+#    if defined(USE_AVX2)
+
 bool os_supports_avx() {
-#    if defined(_MSC_VER)
+#        if defined(_MSC_VER)
     int cpuInfo[4];
     __cpuidex(cpuInfo, 1, 0);
     const bool osUsesXSAVE = (cpuInfo[2] & (1 << 27)) != 0;
@@ -555,7 +557,7 @@ bool os_supports_avx() {
 
     unsigned long long featureMask = _xgetbv(0);
     return (featureMask & 0x6) == 0x6;
-#    else
+#        else
     unsigned int eax, ebx, ecx, edx;
     if (!__get_cpuid_count(1, 0, &eax, &ebx, &ecx, &edx))
         return false;
@@ -570,21 +572,23 @@ bool os_supports_avx() {
     __asm__ __volatile__("xgetbv" : "=a"(xcrLow), "=d"(xcrHigh) : "c"(0));
     unsigned long long featureMask = (static_cast<unsigned long long>(xcrHigh) << 32) | xcrLow;
     return (featureMask & 0x6) == 0x6;
-#    endif
+#        endif
 }
 
 bool cpu_has_avx2() {
-#    if defined(_MSC_VER)
+#        if defined(_MSC_VER)
     int cpuInfo[4];
     __cpuidex(cpuInfo, 7, 0);
     return (cpuInfo[1] & (1 << 5)) != 0;
-#    else
+#        else
     unsigned int eax, ebx, ecx, edx;
     if (!__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx))
         return false;
     return (ebx & (1u << 5)) != 0;
-#    endif
+#        endif
 }
+
+#    endif
 
 #endif
 
