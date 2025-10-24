@@ -38,8 +38,8 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
-RELEASE_BIN   = revolution-2.90-241025
-BRANDED_NAME  = revolution 2.90 241025
+RELEASE_BIN   = revolution-SSE2-fallback-2.90-241025
+BRANDED_NAME  = revolution-SSE2-fallback 2.90 241025
 
 ifeq ($(target_windows),yes)
         EXE          = $(RELEASE_BIN).exe
