@@ -208,12 +208,18 @@ int adaptive_lmr_adjustment(const Stack* ss, int priorReduction, bool cutNode, b
     stackWeight += !improving ? 1 : 0;
 
     stackWeight -= std::min(3, parent.moveCount / 2);
+ codex/implement-dynamic-pvs-reductions-a7uw5q
+
+    if (priorReduction > 0)
+        stackWeight -= std::min(2, priorReduction);
+=======
 codex/implement-dynamic-pvs-reductions-d9h7vw
 
     if (priorReduction > 0)
         stackWeight -= std::min(2, priorReduction);
 =======
     stackWeight -= std::min(2, std::abs(priorReduction) / 512);
+ eval_cur-−-eval_prev
  eval_cur-−-eval_prev
     stackWeight -= parent.isTTMove ? 1 : 0;
 

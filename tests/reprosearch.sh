@@ -10,13 +10,20 @@ trap 'error ${LINENO}' ERR
 
 echo "reprosearch testing started"
 
+ENGINE_PATH="$(cd "$(dirname "$0")/.." && pwd)/src/revolution-PVS"
+
 # repeat two short games, separated by ucinewgame.
 # with go nodes $nodes they should result in exactly
 # the same node count for each iteration.
 cat << EOF > repeat.exp
  set timeout 10
+ codex/implement-dynamic-pvs-reductions-a7uw5q
+ lassign \$argv engine nodes
+ spawn \$engine
+=======
   spawn ./revolution-PVS
  lassign \$argv nodes
+ eval_cur-−-eval_prev
 
  send "uci\n"
  expect "uciok"
@@ -52,7 +59,7 @@ do
   echo "reprosearch testing with $nodes nodes"
 
   # each line should appear exactly an even number of times
-  expect repeat.exp $nodes 2>&1 | grep -o "nodes [0-9]*" | sort | uniq -c | awk '{if ($1%2!=0) exit(1)}'
+  expect repeat.exp "$ENGINE_PATH" $nodes 2>&1 | grep -o "nodes [0-9]*" | sort | uniq -c | awk '{if ($1%2!=0) exit(1)}'
 
 done
 
