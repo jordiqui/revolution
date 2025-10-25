@@ -155,6 +155,31 @@ Value to_corrected_static_eval(const Value v, const int cv) {
     return std::clamp(v + cv / 131072, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 }
 
+void update_killers(Stack* ss, Move move) {
+
+    if (!move.is_ok() || move == Move::null())
+        return;
+
+    auto& killers = ss->killers;
+
+    if (killers[0] == move)
+        return;
+
+    if (killers[1] == move)
+        std::swap(killers[0], killers[1]);
+    else
+    {
+        killers[1] = killers[0];
+        killers[0] = move;
+    }
+
+    save_killer_to_cache(ss->ply, move);
+
+#ifndef NDEBUG
+    assert(!killers[0].is_ok() || killers[0] != killers[1]);
+#endif
+}
+
 void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
@@ -361,6 +386,16 @@ void Search::Worker::iterative_deepening() {
     // (ss + 2) is needed for initialization of cutOffCnt.
     Stack  stack[MAX_PLY + 10] = {};
     Stack* ss                  = stack + 7;
+
+    clear_killer_cache();
+
+    for (Stack& s : stack)
+        s.killers = {Move::none(), Move::none()};
+
+#ifndef NDEBUG
+    for (const Stack& s : stack)
+        assert(!s.killers[0].is_ok() && !s.killers[1].is_ok());
+#endif
 
     for (int i = 7; i > 0; --i)
     {
@@ -973,6 +1008,8 @@ Value Search::Worker::search(
             if (v >= beta)
                 return nullValue;
         }
+
+        clear_killer_cache_from_ply(ss->ply + 1);
     }
 
     improving |= ss->staticEval >= beta + 94;
@@ -1058,9 +1095,12 @@ moves_loop:  // When in check, search starts here
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
 
+    ss->killers = load_killers_from_cache(ss->ply);
+
 
     MovePicker mp(pos, ttData.move, depth, &thisThread->mainHistory, &thisThread->lowPlyHistory,
-                  &thisThread->captureHistory, contHist, &thisThread->pawnHistory, ss->ply);
+                  &thisThread->captureHistory, contHist, &thisThread->pawnHistory, ss->ply,
+                  &ss->killers);
 
     value = bestValue;
 
@@ -1465,6 +1505,8 @@ moves_loop:  // When in check, search starts here
                 {
                     // (* Scaler) Especially if they make cutoffCnt increment more often.
                     ss->cutoffCnt += (extension < 2) || PvNode;
+                    if (!capture && move.type_of() != PROMOTION)
+                        update_killers(ss, move);
                     assert(value >= beta);  // Fail high
                     break;
                 }

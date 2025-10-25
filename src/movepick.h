@@ -19,6 +19,8 @@
 #ifndef MOVEPICK_H_INCLUDED
 #define MOVEPICK_H_INCLUDED
 
+#include <array>
+
 #include "history.h"
 #include "movegen.h"
 #include "types.h"
@@ -46,8 +48,13 @@ class MovePicker {
                const CapturePieceToHistory*,
                const PieceToHistory**,
                const PawnHistory*,
-               int);
-    MovePicker(const Position&, Move, int, const CapturePieceToHistory*);
+               int,
+               const std::array<Move, 2>* killers = nullptr);
+    MovePicker(const Position&,
+               Move,
+               int,
+               const CapturePieceToHistory*,
+               const std::array<Move, 2>* killers = nullptr);
     Move next_move();
     void skip_quiet_moves();
 
@@ -72,8 +79,14 @@ class MovePicker {
     Depth                        depth;
     int                          ply;
     bool                         skipQuiets = false;
+    const std::array<Move, 2>*   killers;
     ExtMove                      moves[MAX_MOVES];
 };
+
+std::array<Move, 2> load_killers_from_cache(int ply);
+void                save_killer_to_cache(int ply, Move move);
+void                clear_killer_cache();
+void                clear_killer_cache_from_ply(int ply);
 
 }  // namespace Stockfish
 

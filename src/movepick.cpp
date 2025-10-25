@@ -18,6 +18,8 @@
 
 #include "movepick.h"
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <limits>
 
@@ -70,6 +72,13 @@ void partial_insertion_sort(ExtMove* begin, ExtMove* end, int limit) {
         }
 }
 
+constexpr int KillerCacheDepth = 64;
+
+thread_local std::array<std::array<Move, 2>, KillerCacheDepth> killerCache{};
+
+constexpr int KillerPrimaryBonus   = 1 << 26;
+constexpr int KillerSecondaryBonus = KillerPrimaryBonus - (1 << 10);
+
 }  // namespace
 
 
@@ -86,7 +95,8 @@ MovePicker::MovePicker(const Position&              p,
                        const CapturePieceToHistory* cph,
                        const PieceToHistory**       ch,
                        const PawnHistory*           ph,
-                       int                          pl) :
+                       int                          pl,
+                       const std::array<Move, 2>*   killersPtr) :
     pos(p),
     mainHistory(mh),
     lowPlyHistory(lph),
@@ -95,7 +105,8 @@ MovePicker::MovePicker(const Position&              p,
     pawnHistory(ph),
     ttMove(ttm),
     depth(d),
-    ply(pl) {
+    ply(pl),
+    killers(killersPtr) {
 
     if (pos.checkers())
         stage = EVASION_TT + !(ttm && pos.pseudo_legal(ttm));
@@ -106,11 +117,16 @@ MovePicker::MovePicker(const Position&              p,
 
 // MovePicker constructor for ProbCut: we generate captures with Static Exchange
 // Evaluation (SEE) greater than or equal to the given threshold.
-MovePicker::MovePicker(const Position& p, Move ttm, int th, const CapturePieceToHistory* cph) :
+MovePicker::MovePicker(const Position&              p,
+                       Move                         ttm,
+                       int                          th,
+                       const CapturePieceToHistory* cph,
+                       const std::array<Move, 2>*   killersPtr) :
     pos(p),
     captureHistory(cph),
     ttMove(ttm),
-    threshold(th) {
+    threshold(th),
+    killers(killersPtr) {
     assert(!pos.checkers());
 
     stage = PROBCUT_TT
@@ -155,6 +171,15 @@ void MovePicker::score() {
             Square    from = m.from_sq();
             Square    to   = m.to_sq();
 
+            int killerBonus = 0;
+            if (killers)
+            {
+                if (m == (*killers)[0])
+                    killerBonus = KillerPrimaryBonus;
+                else if (m == (*killers)[1])
+                    killerBonus = KillerSecondaryBonus;
+            }
+
             // histories
             m.value = 2 * (*mainHistory)[pos.side_to_move()][m.from_to()];
             m.value += 2 * (*pawnHistory)[pawn_structure_index(pos)][pc][to];
@@ -167,6 +192,8 @@ void MovePicker::score() {
 
             // bonus for checks
             m.value += bool(pos.check_squares(pt) & to) * 16384;
+
+            m.value += killerBonus;
 
             // bonus for escaping from capture
             m.value += threatenedPieces & from ? (pt == QUEEN && !(to & threatenedByRook)   ? 51700
@@ -316,5 +343,51 @@ top:
 }
 
 void MovePicker::skip_quiet_moves() { skipQuiets = true; }
+
+std::array<Move, 2> load_killers_from_cache(int ply) {
+
+    if (ply < 0 || ply >= KillerCacheDepth)
+        return {Move::none(), Move::none()};
+
+    return killerCache[ply];
+}
+
+void save_killer_to_cache(int ply, Move move) {
+
+    if (!move.is_ok() || ply < 0 || ply >= KillerCacheDepth)
+        return;
+
+    auto& entry = killerCache[ply];
+
+    if (entry[0] == move)
+        return;
+
+    if (entry[1] == move)
+    {
+        std::swap(entry[0], entry[1]);
+        return;
+    }
+
+    entry[1] = entry[0];
+    entry[0] = move;
+}
+
+void clear_killer_cache() {
+
+    for (auto& entry : killerCache)
+        entry = {Move::none(), Move::none()};
+}
+
+void clear_killer_cache_from_ply(int ply) {
+
+    if (ply < 0)
+        ply = 0;
+
+    if (ply >= KillerCacheDepth)
+        return;
+
+    for (int i = ply; i < KillerCacheDepth; ++i)
+        killerCache[i] = {Move::none(), Move::none()};
+}
 
 }  // namespace Stockfish
