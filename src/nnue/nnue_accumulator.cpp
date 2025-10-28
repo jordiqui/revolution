@@ -50,17 +50,17 @@ namespace {
 #if defined(USE_AVX2) || defined(USE_SSE2)
 
 template<typename T>
-using ColumnPtrPair = std::array<const T*, 2>;
+using ColumnPtrBuffer = std::array<const T*, FeatureSet::MaxActiveDimensions>;
 
 #if defined(USE_AVX2)
 
-inline void apply_accumulator_deltas_avx2(std::int16_t*                      dest,
-                                          const std::int16_t*                base,
-                                          const ColumnPtrPair<WeightType>&   removedCols,
-                                          std::size_t                        removedCount,
-                                          const ColumnPtrPair<WeightType>&   addedCols,
-                                          std::size_t                        addedCount,
-                                          IndexType                          dimensions) {
+inline void apply_accumulator_deltas_avx2(std::int16_t*                       dest,
+                                          const std::int16_t*                 base,
+                                          const ColumnPtrBuffer<WeightType>&  removedCols,
+                                          std::size_t                         removedCount,
+                                          const ColumnPtrBuffer<WeightType>&  addedCols,
+                                          std::size_t                         addedCount,
+                                          IndexType                           dimensions) {
 
     const auto* baseVec = reinterpret_cast<const __m256i*>(base);
     auto*       destVec = reinterpret_cast<__m256i*>(dest);
@@ -86,12 +86,12 @@ inline void apply_accumulator_deltas_avx2(std::int16_t*                      des
     }
 }
 
-inline void apply_psqt_deltas_avx2(std::int32_t*                            dest,
-                                   const std::int32_t*                      base,
-                                   const ColumnPtrPair<PSQTWeightType>&     removedCols,
-                                   std::size_t                              removedCount,
-                                   const ColumnPtrPair<PSQTWeightType>&     addedCols,
-                                   std::size_t                              addedCount) {
+inline void apply_psqt_deltas_avx2(std::int32_t*                             dest,
+                                   const std::int32_t*                       base,
+                                   const ColumnPtrBuffer<PSQTWeightType>&    removedCols,
+                                   std::size_t                               removedCount,
+                                   const ColumnPtrBuffer<PSQTWeightType>&    addedCols,
+                                   std::size_t                               addedCount) {
 
     const auto* baseVec = reinterpret_cast<const __m256i*>(base);
     auto*       destVec = reinterpret_cast<__m256i*>(dest);
@@ -121,13 +121,13 @@ inline void apply_psqt_deltas_avx2(std::int32_t*                            dest
 
 #if defined(USE_SSE2)
 
-inline void apply_accumulator_deltas_sse2(std::int16_t*                      dest,
-                                          const std::int16_t*                base,
-                                          const ColumnPtrPair<WeightType>&   removedCols,
-                                          std::size_t                        removedCount,
-                                          const ColumnPtrPair<WeightType>&   addedCols,
-                                          std::size_t                        addedCount,
-                                          IndexType                          dimensions) {
+inline void apply_accumulator_deltas_sse2(std::int16_t*                       dest,
+                                          const std::int16_t*                 base,
+                                          const ColumnPtrBuffer<WeightType>&  removedCols,
+                                          std::size_t                         removedCount,
+                                          const ColumnPtrBuffer<WeightType>&  addedCols,
+                                          std::size_t                         addedCount,
+                                          IndexType                           dimensions) {
 
     const auto* baseVec = reinterpret_cast<const __m128i*>(base);
     auto*       destVec = reinterpret_cast<__m128i*>(dest);
@@ -153,12 +153,12 @@ inline void apply_accumulator_deltas_sse2(std::int16_t*                      des
     }
 }
 
-inline void apply_psqt_deltas_sse2(std::int32_t*                            dest,
-                                   const std::int32_t*                      base,
-                                   const ColumnPtrPair<PSQTWeightType>&     removedCols,
-                                   std::size_t                              removedCount,
-                                   const ColumnPtrPair<PSQTWeightType>&     addedCols,
-                                   std::size_t                              addedCount) {
+inline void apply_psqt_deltas_sse2(std::int32_t*                             dest,
+                                   const std::int32_t*                       base,
+                                   const ColumnPtrBuffer<PSQTWeightType>&    removedCols,
+                                   std::size_t                               removedCount,
+                                   const ColumnPtrBuffer<PSQTWeightType>&    addedCols,
+                                   std::size_t                               addedCount) {
 
     const auto* baseVec = reinterpret_cast<const __m128i*>(base);
     auto*       destVec = reinterpret_cast<__m128i*>(dest);
@@ -409,10 +409,10 @@ void update_accumulator_incremental(
         const auto removedCount = static_cast<std::size_t>(removed.size());
         const auto addedCount   = static_cast<std::size_t>(added.size());
 
-        ColumnPtrPair<WeightType> removedColumns{};
-        ColumnPtrPair<WeightType> addedColumns{};
-        ColumnPtrPair<PSQTWeightType> removedPsqtColumns{};
-        ColumnPtrPair<PSQTWeightType> addedPsqtColumns{};
+        ColumnPtrBuffer<WeightType> removedColumns{};
+        ColumnPtrBuffer<WeightType> addedColumns{};
+        ColumnPtrBuffer<PSQTWeightType> removedPsqtColumns{};
+        ColumnPtrBuffer<PSQTWeightType> addedPsqtColumns{};
 
         for (std::size_t idx = 0; idx < removedCount; ++idx)
         {
@@ -654,10 +654,10 @@ void update_accumulator_refresh_cache(
     const auto removedCount = static_cast<std::size_t>(removed.size());
     const auto addedCount   = static_cast<std::size_t>(added.size());
 
-    ColumnPtrPair<WeightType>     removedColumns{};
-    ColumnPtrPair<WeightType>     addedColumns{};
-    ColumnPtrPair<PSQTWeightType> removedPsqtColumns{};
-    ColumnPtrPair<PSQTWeightType> addedPsqtColumns{};
+    ColumnPtrBuffer<WeightType>     removedColumns{};
+    ColumnPtrBuffer<WeightType>     addedColumns{};
+    ColumnPtrBuffer<PSQTWeightType> removedPsqtColumns{};
+    ColumnPtrBuffer<PSQTWeightType> addedPsqtColumns{};
 
     for (std::size_t idx = 0; idx < removedCount; ++idx)
     {
