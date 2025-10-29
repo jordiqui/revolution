@@ -155,7 +155,7 @@ Value to_corrected_static_eval(const Value v, const int cv) {
     return std::clamp(v + cv / 131072, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 }
 
-void update_killers(Stack* ss, Move move) {
+void update_killers(Stack* ss, Move move, Depth depth) {
 
     if (!move.is_ok() || move == Move::null())
         return;
@@ -173,7 +173,7 @@ void update_killers(Stack* ss, Move move) {
         killers[0] = move;
     }
 
-    save_killer_to_cache(ss->ply, move);
+    save_killer_to_cache(ss->ply, move, depth);
 
 #ifndef NDEBUG
     assert(!killers[0].is_ok() || killers[0] != killers[1]);
@@ -1095,7 +1095,7 @@ moves_loop:  // When in check, search starts here
       (ss - 1)->continuationHistory, (ss - 2)->continuationHistory, (ss - 3)->continuationHistory,
       (ss - 4)->continuationHistory, (ss - 5)->continuationHistory, (ss - 6)->continuationHistory};
 
-    ss->killers = load_killers_from_cache(ss->ply);
+    ss->killers = load_killers_from_cache(ss->ply, depth);
 
 
     MovePicker mp(pos, ttData.move, depth, &thisThread->mainHistory, &thisThread->lowPlyHistory,
@@ -1111,6 +1111,8 @@ moves_loop:  // When in check, search starts here
     while ((move = mp.next_move()) != Move::none())
     {
         assert(move.is_ok());
+
+        const Depth currentDepth = depth;
 
         if (move == excludedMove)
             continue;
@@ -1506,7 +1508,7 @@ moves_loop:  // When in check, search starts here
                     // (* Scaler) Especially if they make cutoffCnt increment more often.
                     ss->cutoffCnt += (extension < 2) || PvNode;
                     if (!capture && move.type_of() != PROMOTION)
-                        update_killers(ss, move);
+                        update_killers(ss, move, currentDepth);
                     assert(value >= beta);  // Fail high
                     break;
                 }

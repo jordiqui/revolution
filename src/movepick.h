@@ -83,8 +83,8 @@ class MovePicker {
     ExtMove                      moves[MAX_MOVES];
 };
 
-std::array<Move, 2> load_killers_from_cache(int ply);
-void                save_killer_to_cache(int ply, Move move);
+std::array<Move, 2> load_killers_from_cache(int ply, Depth depth);
+void                save_killer_to_cache(int ply, Move move, Depth depth);
 void                clear_killer_cache();
 void                clear_killer_cache_from_ply(int ply);
 
