@@ -49,6 +49,17 @@ else
         BRANDED_EXE  = $(BRANDED_NAME)
 endif
 
+LLVM_PROFDATA ?= llvm-profdata
+
+ifeq ($(XCRUN),)
+ifneq ($(shell command -v $(LLVM_PROFDATA) >/dev/null 2>&1 && echo yes),yes)
+        override LLVM_PROFDATA := $(firstword $(foreach v,20 19 18 17 16 15 14 13 12,$(if $(shell command -v llvm-profdata-$(v) >/dev/null 2>&1 && echo yes),llvm-profdata-$(v))))
+        ifeq ($(LLVM_PROFDATA),)
+                override LLVM_PROFDATA := llvm-profdata
+        endif
+endif
+endif
+
 ### Installation dir definitions
 PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
@@ -972,8 +983,10 @@ strip: $(EXE) brand
 	$(STRIP) "$(BRANDED_EXE)"
 
 brand: $(EXE)
-	@rm -f "$(BRANDED_EXE)"
-	@cp $(EXE) "$(BRANDED_EXE)"
+	@if [ "$(EXE)" != "$(BRANDED_EXE)" ]; then \
+		rm -f "$(BRANDED_EXE)"; \
+		cp "$(EXE)" "$(BRANDED_EXE)"; \
+	fi
 
 install: all
 	-mkdir -p -m 755 $(BINDIR)
@@ -1097,7 +1110,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1125,7 +1138,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
