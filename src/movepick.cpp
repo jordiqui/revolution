@@ -74,7 +74,12 @@ void partial_insertion_sort(ExtMove* begin, ExtMove* end, int limit) {
 
 constexpr int KillerCacheDepth = 64;
 
-thread_local std::array<std::array<Move, 2>, KillerCacheDepth> killerCache{};
+struct KillerEntry {
+    std::array<Move, 2> moves{Move::none(), Move::none()};
+    Depth               maxDepth = Depth(0);
+};
+
+thread_local std::array<KillerEntry, KillerCacheDepth> killerCache{};
 
 constexpr int KillerPrimaryBonus   = 1 << 26;
 constexpr int KillerSecondaryBonus = KillerPrimaryBonus - (1 << 10);
@@ -344,38 +349,55 @@ top:
 
 void MovePicker::skip_quiet_moves() { skipQuiets = true; }
 
-std::array<Move, 2> load_killers_from_cache(int ply) {
+std::array<Move, 2> load_killers_from_cache(int ply, Depth depth) {
 
     if (ply < 0 || ply >= KillerCacheDepth)
         return {Move::none(), Move::none()};
 
-    return killerCache[ply];
+    const Depth requiredDepth = std::max(depth, Depth(0));
+    const auto& entry         = killerCache[ply];
+
+    if (entry.maxDepth < requiredDepth)
+        return {Move::none(), Move::none()};
+
+    return entry.moves;
 }
 
-void save_killer_to_cache(int ply, Move move) {
+void save_killer_to_cache(int ply, Move move, Depth depth) {
 
     if (!move.is_ok() || ply < 0 || ply >= KillerCacheDepth)
         return;
 
-    auto& entry = killerCache[ply];
+    const Depth storedDepth = std::max(depth, Depth(0));
 
-    if (entry[0] == move)
+    if (storedDepth == Depth(0))
         return;
 
-    if (entry[1] == move)
+    auto& entry  = killerCache[ply];
+    auto& moves  = entry.moves;
+
+    entry.maxDepth = std::max(entry.maxDepth, storedDepth);
+
+    if (moves[0] == move)
+        return;
+
+    if (moves[1] == move)
     {
-        std::swap(entry[0], entry[1]);
+        std::swap(moves[0], moves[1]);
         return;
     }
 
-    entry[1] = entry[0];
-    entry[0] = move;
+    moves[1] = moves[0];
+    moves[0] = move;
 }
 
 void clear_killer_cache() {
 
     for (auto& entry : killerCache)
-        entry = {Move::none(), Move::none()};
+    {
+        entry.moves    = {Move::none(), Move::none()};
+        entry.maxDepth = Depth(0);
+    }
 }
 
 void clear_killer_cache_from_ply(int ply) {
@@ -387,7 +409,10 @@ void clear_killer_cache_from_ply(int ply) {
         return;
 
     for (int i = ply; i < KillerCacheDepth; ++i)
-        killerCache[i] = {Move::none(), Move::none()};
+    {
+        killerCache[i].moves    = {Move::none(), Move::none()};
+        killerCache[i].maxDepth = Depth(0);
+    }
 }
 
 }  // namespace Stockfish
