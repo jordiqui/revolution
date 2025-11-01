@@ -1,0 +1,18 @@
+# Plan de optimización de rendimiento para Revolution
+
+Tras completar las tres propuestas previas sin mejoras medibles en las pruebas SPRT, se proponen las siguientes líneas de trabajo adicionales. Cada tarea está pensada para aislar un posible cuello de botella diferente del motor y facilitar comparaciones A/B mediante campañas SPRT controladas.
+
+| Tarea | Objetivo | Cambios clave | Métrica principal | Riesgos y mitigaciones |
+|-------|----------|---------------|-------------------|------------------------|
+| **1. Refinar el historial y la heurística de quiet moves** | Reducir fallos tácticos en nodos tranquilos manteniendo la velocidad. | Ajustar el cálculo de `history` y `countermoves` en `src/movepick.cpp` y `src/search.cpp` para que se actualicen proporcionalmente al margen de victoria, además de introducir un decaimiento exponencial por iteración. | Elo en SPRT STC 10+0.1 y tasa de nodos tranquilos revisitados. | Riesgo de sobreajuste: ejecutar suites tácticas (`tests/puzzles`) y comparar contra una rama de control con los mismos decaimientos pero sin escalado por margen. |
+| **2. Prefetch de tablas NNUE dependiente de topología** | Disminuir la latencia por `cache-miss` en la actualización de `accumulators`. | Insertar instrucciones `prefetch` específicas de arquitectura en `src/nnue/nnue_accumulator.cpp`, habilitadas tras detectar AVX2/AVX512 en `src/misc.cpp`, con ruta alternativa limpia para SSE2. | NPS medio en `bench 16 1 8 default depth 18` y Elo en SPRT blitz 5+0.1. | Inestabilidad por detección incorrecta: añadir pruebas unitarias en `tests/nnue/` que verifiquen la ruta seleccionada según `CPU::features`. |
+| **3. Ajuste del pruning asimétrico para finales simplificados** | Mantener agresividad en medios juegos pero mejorar precisión en finales. | Revisar las condiciones de activación de `futility pruning` y `razoring` en `src/search.cpp`, utilizando el número de piezas menores y presencia de peones pasados como factores moduladores. | Elo en SPRT LTC 60+0.1 y porcentaje de finales perdidos tras 50 movimientos. | Complejidad extra en evaluación: validar con análisis `perft` y comprobar que no se rompen invariantes de repetición. |
+| **4. Paralelización de pruebas de regresión NNUE** | Reducir tiempo de validación previa a SPRT. | Extender `scripts/nnue_evaluator.py` (crear si no existe) para procesar lotes con `multiprocessing`, generando informes en `docs/sprt-results/` con métricas RMSE y precisión WDL. | Tiempo total de validación y Elo tras integrar nuevos pesos. | Riesgo de incoherencia de datos: forzar semilla determinista y añadir verificación cruzada con una ejecución secuencial semanal. |
+| **5. Pipeline continuo de builds optimizados** | Evitar variaciones de compilador entre runs SPRT. | Añadir un workflow en `.github/workflows/ci.yml` que compile con `clang 18 -O3 -flto` y publique artefactos etiquetados por commit para su uso en testing. | Tiempo de compilación y porcentaje de runs SPRT lanzados con binarios reproducibles. | Incremento de carga CI: limitar la ejecución del workflow a ramas `sprt/*` y a los tags `sprt-*`. |
+
+## Próximos pasos sugeridos
+
+1. Abrir una rama dedicada por tarea (`sprt/history-decay`, `sprt/nnue-prefetch`, etc.) y dejar un commit base etiquetado (`tag: sprt-history-decay-v1`) antes de cada batería SPRT.
+2. Reunir métricas preliminares con `nps` y `bench` antes de lanzar los tests SPRT para filtrar regresiones obvias.
+3. Centralizar en `docs/sprt-results/` los reportes de cada corrida (log Fastchess, configuración y resultado) para mantener trazabilidad.
+4. Si una tarea supera los umbrales SPRT definidos (por ejemplo, `LLR ≥ 2.0` con `elo0=0`, `elo1=2.5`), fusionar en la rama principal y repetir el proceso con la siguiente propuesta.
