@@ -182,9 +182,24 @@ Option& Option::operator=(const std::string& v) {
     assert(!type.empty());
 
     if ((type != "button" && type != "string" && v.empty())
-        || (type == "check" && v != "true" && v != "false")
-        || (type == "spin" && (std::stof(v) < min || std::stof(v) > max)))
+        || (type == "check" && v != "true" && v != "false"))
         return *this;
+
+    if (type == "spin")
+    {
+        std::istringstream iss(v);
+        double             spinValue = 0.0;
+
+        if (!(iss >> spinValue))
+            return *this;
+
+        iss >> std::ws;
+        if (!iss.eof())
+            return *this;
+
+        if (spinValue < min || spinValue > max)
+            return *this;
+    }
 
     if (type == "combo")
     {
