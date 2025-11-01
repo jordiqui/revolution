@@ -71,6 +71,13 @@ int margin_scale(Value margin) {
     return PawnNorm + diff;
 }
 
+int scale_bonus_by_margin(int bonus, Value margin) {
+    constexpr int PawnNorm = int(PawnValue);
+    const int      marginFactor = margin_scale(margin);
+    const auto     scaled       = static_cast<long long>(bonus) * marginFactor / PawnNorm;
+    return static_cast<int>(scaled);
+}
+
 template<typename T, int D>
 void exponential_decay_entry(StatsEntry<T, D>& entry, double factor) {
     int  raw    = entry;
@@ -828,14 +835,22 @@ Value Search::Worker::search(
         if (ttData.move && ttData.value >= beta)
         {
             // Bonus for a quiet ttMove that fails high
+            const Value margin = ttData.value - beta;
+
             if (!ttCapture)
+            {
+                const int baseBonus = std::min(120 * depth - 75, 1241);
                 update_quiet_histories(pos, ss, *this, ttData.move,
-                                       std::min(120 * depth - 75, 1241));
+                                       scale_bonus_by_margin(baseBonus, margin));
+            }
 
             // Extra penalty for early quiet moves of the previous ply
             if (prevSq != SQ_NONE && (ss - 1)->moveCount <= 3 && !priorCapture)
+            {
+                const int penaltyBase = std::min(809 * (depth + 1) - 249, 3052);
                 update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                              -std::min(809 * (depth + 1) - 249, 3052));
+                                              scale_bonus_by_margin(-penaltyBase, margin));
+            }
         }
 
         // Partial workaround for the graph history interaction problem
@@ -1388,7 +1403,8 @@ moves_loop:  // When in check, search starts here
                     value = -search<NonPV>(pos, ss + 1, -(alpha + 1), -alpha, newDepth, !cutNode);
 
                 // Post LMR continuation history updates
-                int bonus = 1600;
+                const Value margin = value - alpha;
+                const int   bonus  = scale_bonus_by_margin(1600, margin);
                 update_continuation_histories(ss, movedPiece, move.to_sq(), bonus);
             }
             else if (value > alpha && value < bestValue + 9)
@@ -1564,20 +1580,21 @@ moves_loop:  // When in check, search starts here
 
         bonusScale = std::max(bonusScale, 0);
 
-        constexpr int PawnNorm = int(PawnValue);
-        const int      marginFactor = margin_scale(originalAlpha - bestValue);
-        const int      depthTerm    = std::min(160 * int(depth) - 99, 1492);
-        const int64_t  scaledBase   = int64_t(depthTerm) * bonusScale * marginFactor;
+        const Value margin    = originalAlpha - bestValue;
+        const int   depthTerm = std::min(160 * int(depth) - 99, 1492);
 
-        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                      int(scaledBase * 388 / (32768LL * PawnNorm)));
+        auto scaled = [&](int weight) {
+            const long long base = 1LL * depthTerm * bonusScale * weight / 32768;
+            return scale_bonus_by_margin(static_cast<int>(base), margin);
+        };
 
-        thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
-          << int(scaledBase * 212 / (32768LL * PawnNorm));
+        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, scaled(388));
+
+        thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()] << scaled(212);
 
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
             thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
-              << int(scaledBase * 1055 / (32768LL * PawnNorm));
+              << scaled(1055);
     }
 
     // Bonus for prior capture countermove that caused the fail low
@@ -1585,10 +1602,9 @@ moves_loop:  // When in check, search starts here
     {
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
-        const int marginFactor = margin_scale(originalAlpha - bestValue);
-        constexpr int PawnNorm = int(PawnValue);
+        const Value margin = originalAlpha - bestValue;
         thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)]
-          << int(1100LL * marginFactor / PawnNorm);
+          << scale_bonus_by_margin(1100, margin);
     }
 
     if (PvNode)
@@ -1975,10 +1991,8 @@ void update_all_stats(const Position&      pos,
 
     const Value marginValue = bestValue >= betaReference ? bestValue - betaReference
                                                          : bestValue - alphaReference;
-    const int   marginFactor = margin_scale(marginValue);
-    constexpr int PawnNorm   = int(PawnValue);
-    const int   scaledBonus  = int(int64_t(bonus) * marginFactor / PawnNorm);
-    const int   scaledMalus  = int(int64_t(malus) * marginFactor / PawnNorm);
+    const int   scaledBonus = scale_bonus_by_margin(bonus, marginValue);
+    const int   scaledMalus = scale_bonus_by_margin(malus, marginValue);
 
     if (!pos.capture_stage(bestMove))
     {

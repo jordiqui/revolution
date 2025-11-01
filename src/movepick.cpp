@@ -79,7 +79,7 @@ namespace {
 // Compress history contributions so that the larger values produced by the
 // margin-scaled updates remain in a comparable range for move ordering.
 int history_score(int raw) {
-    constexpr int Normalization = 2048;
+    constexpr int Normalization = 4096;
     return raw * Normalization / (Normalization + std::abs(raw));
 }
 
