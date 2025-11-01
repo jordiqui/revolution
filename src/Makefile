@@ -972,8 +972,10 @@ strip: $(EXE) brand
 	$(STRIP) "$(BRANDED_EXE)"
 
 brand: $(EXE)
-	@rm -f "$(BRANDED_EXE)"
-	@cp $(EXE) "$(BRANDED_EXE)"
+	@if [ "$(EXE)" != "$(BRANDED_EXE)" ]; then \
+		rm -f "$(BRANDED_EXE)"; \
+		cp "$(EXE)" "$(BRANDED_EXE)"; \
+	fi
 
 install: all
 	-mkdir -p -m 755 $(BINDIR)
