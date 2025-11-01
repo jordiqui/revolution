@@ -1,6 +1,6 @@
-revolution-dv1-011125 is a derivative of Stockfish 17.1, maintained by Jorge Ruiz
+revolution-dev-01125 is a derivative of Stockfish 17.1, maintained by Jorge Ruiz
 with credits to ChatGPT and the Stockfish developers listed in AUTHORS. The GNU
-General Public License reproduced below governs revolution-dv1-011125.
+General Public License reproduced below governs revolution-dev-01125.
 
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007

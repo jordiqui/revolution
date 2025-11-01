@@ -1,8 +1,8 @@
 <div align="center">
 
-  <img src="assets/pullsfish-logo.svg" alt="revolution-dv1-011125 logo" width="160">
+  <img src="assets/pullsfish-logo.svg" alt="revolution-dev-01125 logo" width="160">
 
-  <h3>revolution-dv1-011125</h3>
+  <h3>revolution-dev-01125</h3>
 
   A free and strong UCI chess engine derived from Stockfish 17.1.
   <br>
@@ -19,31 +19,31 @@
 
 </div>
 
-> **revolution-dv1-011125** is a UCI chess engine derived from **Stockfish 17.1**. The
+> **revolution-dev-01125** is a UCI chess engine derived from **Stockfish 17.1**. The
 > project is jointly authored by **Jorge Ruiz** and the **ChatGPT AI**, with
 > credits to the Stockfish authors and every contributor listed in
 > [AUTHORS](AUTHORS). This repository provides the complete source so the
 > community can collaborate on maintenance and future improvements.
 
-This release and all distributed binaries identify themselves as **revolution-dv1-011125**.
+This release and all distributed binaries identify themselves as **revolution-dev-01125**.
 You should see that exact name in the engine headers, UCI responses, and
 compiled executable filenames. If a GUI shows a different string, make sure it
 is loading the binaries built from this version of the source tree.
 
 ## Overview
 
-revolution-dv1-011125 is a **free and strong UCI chess engine** that analyzes chess positions
+revolution-dev-01125 is a **free and strong UCI chess engine** that analyzes chess positions
 and computes the optimal moves while preserving full compatibility with popular
 front-ends.
 
-revolution-dv1-011125 **does not include a graphical user interface** (GUI) and is normally
+revolution-dev-01125 **does not include a graphical user interface** (GUI) and is normally
 paired with third-party front-ends such as Fritz 20 or Cutechess. It implements
 the Universal Chess Interface (UCI) protocol so those GUIs can discover it as
-**revolution-dv1-011125** in their engine lists.
+**revolution-dev-01125** in their engine lists.
 
 ### BrainLearn experience integration
 
-revolution-dv1-011125 bundles the BrainLearn learning hash so it shares the same
+revolution-dev-01125 bundles the BrainLearn learning hash so it shares the same
 UCI options as BrainFish while persisting the data to `experience.exp`. Each
 entry in the file stores the following information (mirroring the in-memory
 BrainLearn transposition table):
@@ -89,17 +89,17 @@ each move, and persists the updated values so they are used in future sessions.
 
 ## Files
 
-This distribution of revolution-dv1-011125 consists of the following files:
+This distribution of revolution-dev-01125 consists of the following files:
 
   * [README.md](README.md), the file you are currently reading.
 
   * [Copying.txt](Copying.txt), a text file containing the GNU General Public
     License version 3.
 
-  * [AUTHORS](AUTHORS), a text file with the list of authors for revolution-dv1-011125.
+  * [AUTHORS](AUTHORS), a text file with the list of authors for revolution-dev-01125.
 
   * [src](src), a subdirectory containing the full source code, including a
-    Makefile that can be used to compile revolution-dv1-011125 on Unix-like systems.
+    Makefile that can be used to compile revolution-dev-01125 on Unix-like systems.
 
   * a file with the .nnue extension, storing the neural network for the NNUE
     evaluation. Binary distributions will have this file embedded.
@@ -110,32 +110,32 @@ __See [Contributing Guide](CONTRIBUTING.md).__
 
 ### Donating hardware
 
-Improving revolution-dv1-011125 requires a massive amount of testing. You can donate your
-hardware resources by installing the revolution-dv1-011125 worker and joining the community
+Improving revolution-dev-01125 requires a massive amount of testing. You can donate your
+hardware resources by installing the revolution-dev-01125 worker and joining the community
 channels to coordinate testing campaigns.
 
 ### Improving the code
 
 In the [chessprogramming wiki](https://www.chessprogramming.org/Main_Page), many
-techniques used in revolution-dv1-011125 are explained with a lot of background information.
+techniques used in revolution-dev-01125 are explained with a lot of background information.
 The [section on evaluation techniques](https://www.chessprogramming.org/Evaluation)
 describes many features and techniques used by modern engines.
 
-The engine testing is coordinated by the revolution-dv1-011125 maintainers. If you want to
-help improve revolution-dv1-011125, please read this
+The engine testing is coordinated by the revolution-dev-01125 maintainers. If you want to
+help improve revolution-dev-01125, please read this
 [guideline](https://github.com/jorgeluisruiz/revolution/wiki/Getting-Started)
 first, where the basics of development are explained.
 
-Discussions about revolution-dv1-011125 take place mainly in the community
+Discussions about revolution-dev-01125 take place mainly in the community
 [Discord server](https://discord.gg/GWDRS3kU6R). This is the best place to ask
 questions about the codebase and how to improve it.
 
-## Compiling revolution-dv1-011125
+## Compiling revolution-dev-01125
 
-revolution-dv1-011125 has support for 32 or 64-bit CPUs, certain hardware instructions,
+revolution-dev-01125 has support for 32 or 64-bit CPUs, certain hardware instructions,
 big-endian machines such as Power PC, and other platforms.
 
-On Unix-like systems, it should be easy to compile revolution-dv1-011125 directly from the
+On Unix-like systems, it should be easy to compile revolution-dev-01125 directly from the
 source code with the included Makefile in the folder `src`. In general, it is
 recommended to run `make help` to see a list of make targets with corresponding
 descriptions. An example suitable for most Intel and AMD chips:
@@ -149,11 +149,11 @@ Detailed compilation instructions for all platforms can be found in the
 [documentation](https://github.com/jorgeluisruiz/revolution/wiki/Compilation). The
 wiki also has information about the
 [UCI commands](https://github.com/jorgeluisruiz/revolution/wiki/UCI-Commands)
-supported by revolution-dv1-011125.
+supported by revolution-dev-01125.
 
 ## Terms of use
 
-revolution-dv1-011125 is free and distributed under the
+revolution-dev-01125 is free and distributed under the
 [**GNU General Public License version 3**](Copying.txt) (GPL v3). Essentially,
 this means you are free to do almost exactly what you want with the program,
 including distributing it among your friends, making it available for download
@@ -161,7 +161,7 @@ from your website, selling it (either by itself or as part of some bigger
 software package), or using it as the starting point for a software project of
 your own.
 
-The only real limitation is that whenever you distribute revolution-dv1-011125 in some way,
+The only real limitation is that whenever you distribute revolution-dev-01125 in some way,
 you MUST always include the license and the full source code (or a pointer to
 where the source code can be found) to generate the exact binary you are
 distributing. If you make any changes to the source code, these changes must
@@ -169,14 +169,14 @@ also be made available under GPL v3.
 
 ## Credits
 
-revolution-dv1-011125 is maintained by Jorge Ruiz in collaboration with the ChatGPT AI.
+revolution-dev-01125 is maintained by Jorge Ruiz in collaboration with the ChatGPT AI.
 The project gives full credit to the Stockfish authors and to every contributor
 listed in [AUTHORS](AUTHORS), and it continues to benefit from the innovations
 shared by the wider open-source chess community.
 
 ## Acknowledgements
 
-revolution-dv1-011125 uses neural networks trained on
+revolution-dev-01125 uses neural networks trained on
 [data provided by the Leela Chess Zero project](https://training.lczero.org/),
 which is made available under the
 [Open Database License](https://opendatacommons.org/licenses/odbl/) (ODbL).

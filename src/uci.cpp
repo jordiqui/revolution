@@ -267,10 +267,10 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nrevolution-dv1-011125 is a powerful chess engine for playing and analyzing games of chess."
+              << "\nrevolution-dev-01125 is a powerful chess engine for playing and analyzing games of chess."
                  "\nIt is a derivative of Stockfish 17.1 maintained by Jorge Ruiz with credits to ChatGPT"
                  "\nand is released as free software licensed under the GNU GPLv3 License."
-                 "\nrevolution-dv1-011125 is normally used with a graphical user interface (GUI) and implements"
+                 "\nrevolution-dev-01125 is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
                  "\nFor further information, visit https://github.com/jorgeruiz/revolution"
                  "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
