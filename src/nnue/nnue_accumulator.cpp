@@ -21,6 +21,7 @@
 #include <cassert>
 #include <initializer_list>
 #include <memory>
+#include <cstdint>
 
 #include "../bitboard.h"
 #include "../position.h"
@@ -214,9 +215,13 @@ void AccumulatorStack::backward_update_incremental(
 
     const Square ksq = pos.square<KING>(Perspective);
 
-    for (std::size_t next = m_current_idx - 2; next >= end; next--)
-        update_accumulator_incremental<Perspective, BACKWARDS>(
-          featureTransformer, ksq, m_accumulators[next], m_accumulators[next + 1]);
+    for (std::int64_t next = static_cast<std::int64_t>(m_current_idx) - 2;
+         next >= static_cast<std::int64_t>(end);
+         --next)
+        update_accumulator_incremental<Perspective, BACKWARDS>(featureTransformer,
+                                                               ksq,
+                                                               m_accumulators[static_cast<std::size_t>(next)],
+                                                               m_accumulators[static_cast<std::size_t>(next + 1)]);
 
     assert((m_accumulators[end].*accPtr).computed[Perspective]);
 }
