@@ -46,6 +46,17 @@ std::string compiler_info();
 // which can be quite slow.
 void prefetch(const void* addr);
 
+// Preferred NNUE prefetch strategy detected at runtime. The detection is only
+// meaningful on x86-family CPUs and falls back to PrefetchTopology::None on
+// other architectures.
+enum class PrefetchTopology {
+    None,
+    AVX2,
+    AVX512
+};
+
+PrefetchTopology nnue_prefetch_topology();
+
 void start_logger(const std::string& fname);
 
 size_t str_to_size_t(const std::string& s);
