@@ -129,8 +129,6 @@ namespace {
 PrefetchTopology detect_nnue_prefetch_topology() {
 
 #if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
-    PrefetchTopology topology = PrefetchTopology::None;
-
     #if defined(_MSC_VER)
     int cpu_info[4] = {0};
     __cpuid(cpu_info, 0);
@@ -144,11 +142,11 @@ PrefetchTopology detect_nnue_prefetch_topology() {
         const bool has_avx512vl = (cpu_info[1] & (1 << 31)) != 0;
 
         if (has_avx512f && has_avx512bw && has_avx512vl)
-            topology = PrefetchTopology::AVX512;
-        else if (has_avx2)
-            topology = PrefetchTopology::AVX2;
+            return PrefetchTopology::AVX512;
+        if (has_avx2)
+            return PrefetchTopology::AVX2;
     }
-    return topology;
+    return PrefetchTopology::None;
     #else
     unsigned int max_leaf = __get_cpuid_max(0, nullptr);
     if (max_leaf >= 7)
