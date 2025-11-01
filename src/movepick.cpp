@@ -19,6 +19,7 @@
 #include "movepick.h"
 
 #include <cassert>
+#include <cstdlib>
 #include <limits>
 
 #include "bitboard.h"
@@ -68,6 +69,18 @@ void partial_insertion_sort(ExtMove* begin, ExtMove* end, int limit) {
                 *q = *(q - 1);
             *q = tmp;
         }
+}
+
+}  // namespace
+
+
+namespace {
+
+// Compress history contributions so that the larger values produced by the
+// margin-scaled updates remain in a comparable range for move ordering.
+int history_score(int raw) {
+    constexpr int Normalization = 2048;
+    return raw * Normalization / (Normalization + std::abs(raw));
 }
 
 }  // namespace
@@ -156,14 +169,14 @@ void MovePicker::score() {
             Square    to   = m.to_sq();
 
             // histories
-            m.value = 2 * (*mainHistory)[pos.side_to_move()][m.from_to()];
-            m.value += 2 * (*pawnHistory)[pawn_structure_index(pos)][pc][to];
-            m.value += (*continuationHistory[0])[pc][to];
-            m.value += (*continuationHistory[1])[pc][to];
-            m.value += (*continuationHistory[2])[pc][to];
-            m.value += (*continuationHistory[3])[pc][to];
-            m.value += (*continuationHistory[4])[pc][to] / 3;
-            m.value += (*continuationHistory[5])[pc][to];
+            m.value = 2 * history_score((*mainHistory)[pos.side_to_move()][m.from_to()]);
+            m.value += 2 * history_score((*pawnHistory)[pawn_structure_index(pos)][pc][to]);
+            m.value += history_score((*continuationHistory[0])[pc][to]);
+            m.value += history_score((*continuationHistory[1])[pc][to]);
+            m.value += history_score((*continuationHistory[2])[pc][to]);
+            m.value += history_score((*continuationHistory[3])[pc][to]);
+            m.value += history_score((*continuationHistory[4])[pc][to]) / 3;
+            m.value += history_score((*continuationHistory[5])[pc][to]);
 
             // bonus for checks
             m.value += bool(pos.check_squares(pt) & to) * 16384;
@@ -181,7 +194,7 @@ void MovePicker::score() {
                                                                      : 0);
 
             if (ply < LOW_PLY_HISTORY_SIZE)
-                m.value += 8 * (*lowPlyHistory)[ply][m.from_to()] / (1 + 2 * ply);
+                m.value += 8 * history_score((*lowPlyHistory)[ply][m.from_to()]) / (1 + 2 * ply);
         }
 
         else  // Type == EVASIONS
@@ -189,9 +202,10 @@ void MovePicker::score() {
             if (pos.capture_stage(m))
                 m.value = PieceValue[pos.piece_on(m.to_sq())] + (1 << 28);
             else
-                m.value = (*mainHistory)[pos.side_to_move()][m.from_to()]
-                        + (*continuationHistory[0])[pos.moved_piece(m)][m.to_sq()]
-                        + (*pawnHistory)[pawn_structure_index(pos)][pos.moved_piece(m)][m.to_sq()];
+                m.value = history_score((*mainHistory)[pos.side_to_move()][m.from_to()])
+                        + history_score((*continuationHistory[0])[pos.moved_piece(m)][m.to_sq()])
+                        + history_score(
+                          (*pawnHistory)[pawn_structure_index(pos)][pos.moved_piece(m)][m.to_sq()]);
         }
 }
 
