@@ -29,7 +29,7 @@ set "FASTCHESS=C:\fastchess\fastchess.exe"
 set "DIR_DEV=C:\fastchess\revolution-device"
 set "ENGINE_DEV=%DIR_DEV%\revolution-PVS.exe"
 set "DIR_BASE=C:\fastchess\revolution-baseline"
-set "ENGINE_BASE=%DIR_BASE%\Revolution-3.0-01125.exe"
+set "ENGINE_BASE=%DIR_BASE%\Revolution-3.0-011125.exe"
 set "BOOK=C:\fastchess\Books\UHO_Lichess_4852_v1.epd"
 set "OUTDIR=C:\fastchess\out"
 
