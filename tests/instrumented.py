@@ -221,7 +221,7 @@ class TestInteractive(metaclass=OrderedClassMembers):
         self.revolution.clear_output()
 
     def test_startup_output(self):
-        self.revolution.starts_with("Revolution")
+        self.revolution.starts_with("revolution-dv1-011125")
 
     def test_uci_command(self):
         self.revolution.send_command("uci")
@@ -433,7 +433,7 @@ class TestSyzygy(metaclass=OrderedClassMembers):
         self.revolution.clear_output()
 
     def test_syzygy_setup(self):
-        self.revolution.starts_with("Revolution")
+        self.revolution.starts_with("revolution-dv1-011125")
         self.revolution.send_command("uci")
         self.revolution.send_command(
             f"setoption name SyzygyPath value {os.path.join(PATH, 'syzygy')}"

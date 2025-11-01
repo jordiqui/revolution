@@ -1,12 +1,13 @@
-# Contributing to Revolution
+# Contributing to revolution-dv1-011125
 
-Welcome to the Revolution project! We are excited that you are interested in
-contributing. This document outlines the guidelines and steps to follow when
-making contributions to Revolution 2.90 241025, a derivative of Stockfish 17.1.
+Welcome to the revolution-dv1-011125 project! We are excited that you are
+interested in contributing. This document outlines the guidelines and steps to
+follow when making contributions to revolution-dv1-011125, a derivative of
+Stockfish 17.1.
 
 ## Table of Contents
 
-- [Building Revolution](#building-revolution)
+- [Building revolution-dv1-011125](#building-revolution-dv1-011125)
 - [Making Contributions](#making-contributions)
   - [Reporting Issues](#reporting-issues)
   - [Submitting Pull Requests](#submitting-pull-requests)
@@ -14,7 +15,7 @@ making contributions to Revolution 2.90 241025, a derivative of Stockfish 17.1.
 - [Community and Communication](#community-and-communication)
 - [License](#license)
 
-## Building Revolution
+## Building revolution-dv1-011125
 
 In case you do not have a C++ compiler installed, you can follow the
 instructions from our wiki.
@@ -32,7 +33,7 @@ If you find a bug, please open an issue on the
 like your operating system, build environment, and a detailed description of the
 problem.
 
-_Please note that Revolution development follows the upstream Stockfish policy of
+_Please note that revolution-dv1-011125 development follows the upstream Stockfish policy of
 not focusing on new features. Thus any issue regarding missing features will
 potentially be closed without further discussion._
 
@@ -51,13 +52,13 @@ potentially be closed without further discussion._
 
 _First time contributors should add their name to [AUTHORS](./AUTHORS)._ 
 
-_Revolution's development is not focused on adding new features, mirroring
+_revolution-dv1-011125's development is not focused on adding new features, mirroring
 Stockfish. Thus any pull request introducing new features will potentially be
 closed without further discussion._
 
 ## Code Style
 
-Changes to Revolution C++ code should respect our coding style defined by
+Changes to revolution-dv1-011125 C++ code should respect our coding style defined by
 [.clang-format](.clang-format). You can format your changes by running
 `make format`. This requires clang-format version 18 to be installed on your system.
 
@@ -80,11 +81,11 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 
 ## License
 
-By contributing to Revolution, you agree that your contributions will be licensed
+By contributing to revolution-dv1-011125, you agree that your contributions will be licensed
 under the GNU General Public License v3.0. See [Copying.txt][copying-link] for
 more details.
 
-Thank you for contributing to Revolution and helping us make it even better!
+Thank you for contributing to revolution-dv1-011125 and helping us make it even better!
 
 [copying-link]:           https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt
 [discord-link]:           https://discord.gg/GWDRS3kU6R

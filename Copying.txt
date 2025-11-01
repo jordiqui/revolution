@@ -1,6 +1,6 @@
-Revolution 2.90 241025 is a derivative of Stockfish 17.1, maintained by Jorge Ruiz
+revolution-dv1-011125 is a derivative of Stockfish 17.1, maintained by Jorge Ruiz
 with credits to ChatGPT and the Stockfish developers listed in AUTHORS. The GNU
-General Public License reproduced below governs Revolution.
+General Public License reproduced below governs revolution-dv1-011125.
 
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
