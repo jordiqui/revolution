@@ -1733,6 +1733,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         futilityBase = ss->staticEval + 359;
     }
 
+    const int scoreMargin = std::max(0, int(beta - alpha));
+
     const PieceToHistory* contHist[] = {(ss - 1)->continuationHistory,
                                         (ss - 2)->continuationHistory};
 
