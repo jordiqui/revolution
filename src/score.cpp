@@ -36,7 +36,7 @@ Score::Score(Value v, const Position& pos) {
     else if (std::abs(v) <= VALUE_TB)
     {
         auto distance = VALUE_TB - std::abs(v);
-        score         = (v > 0) ? Tablebase{distance, true} : Tablebase{-distance, false};
+        score         = (v > 0) ? Tablebase{distance, true} : Tablebase{distance, false};
     }
     else
     {
