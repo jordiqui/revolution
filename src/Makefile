@@ -542,6 +542,24 @@ ifeq ($(KERNEL),Darwin)
 	XCRUN = xcrun
 endif
 
+LLVM_PROFDATA ?= $(shell command -v llvm-profdata 2>/dev/null)
+ifeq ($(LLVM_PROFDATA),)
+LLVM_PROFDATA := $(shell command -v llvm-profdata-18 2>/dev/null)
+endif
+ifeq ($(LLVM_PROFDATA),)
+LLVM_PROFDATA := $(shell command -v llvm-profdata-17 2>/dev/null)
+endif
+ifeq ($(LLVM_PROFDATA),)
+LLVM_PROFDATA := $(shell command -v llvm-profdata-16 2>/dev/null)
+endif
+ifeq ($(LLVM_PROFDATA),)
+ifneq ($(strip $(XCRUN)),)
+LLVM_PROFDATA := $(XCRUN) llvm-profdata
+else
+LLVM_PROFDATA := llvm-profdata
+endif
+endif
+
 # To cross-compile for Android, NDK version r21 or later is recommended.
 # In earlier NDK versions, you'll need to pass -fno-addrsig if using GNU binutils.
 # Currently we don't know how to make PGO builds with the NDK yet.
@@ -972,8 +990,10 @@ strip: $(EXE) brand
 	$(STRIP) "$(BRANDED_EXE)"
 
 brand: $(EXE)
-	@rm -f "$(BRANDED_EXE)"
-	@cp $(EXE) "$(BRANDED_EXE)"
+	@if [ "$(BRANDED_EXE)" != "$(EXE)" ]; then \
+		rm -f "$(BRANDED_EXE)"; \
+		cp "$(EXE)" "$(BRANDED_EXE)"; \
+	fi
 
 install: all
 	-mkdir -p -m 755 $(BINDIR)
@@ -1097,7 +1117,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1125,7 +1145,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
