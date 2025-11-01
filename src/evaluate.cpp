@@ -19,6 +19,7 @@
 #include "evaluate.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <cmath>
 #include <cstdlib>
@@ -45,7 +46,24 @@ int Eval::simple_eval(const Position& pos, Color c) {
          + (pos.non_pawn_material(c) - pos.non_pawn_material(~c));
 }
 
+namespace {
+
+std::atomic<bool> g_useSmallNetwork{true};
+
+}  // namespace
+
+void Eval::set_small_network_usage(bool enable) {
+    g_useSmallNetwork.store(enable, std::memory_order_relaxed);
+}
+
+bool Eval::small_network_enabled() {
+    return g_useSmallNetwork.load(std::memory_order_relaxed);
+}
+
 bool Eval::use_smallnet(const Position& pos) {
+    if (!small_network_enabled())
+        return false;
+
     int simpleEval = simple_eval(pos, pos.side_to_move());
     return std::abs(simpleEval) > 962;
 }
