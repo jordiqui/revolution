@@ -62,6 +62,38 @@ constexpr Value DecidedGameEvalThreshold = PawnValue * 5;
 constexpr int   DecidedGameMaxPly        = 150;
 constexpr int   DecidedGameMaxPieceCount = 5;
 
+constexpr double HistoryDecayBase = 0.92;
+
+int margin_scale(Value margin) {
+    constexpr int PawnNorm = int(PawnValue);
+    int            diff    = std::max(0, std::abs(int(margin)));
+    diff                   = std::min(diff, 4 * PawnNorm);
+    return PawnNorm + diff;
+}
+
+template<typename T, int D>
+void exponential_decay_entry(StatsEntry<T, D>& entry, double factor) {
+    int  raw    = entry;
+    auto scaled = static_cast<long>(std::lround(raw * factor));
+    entry       = static_cast<T>(scaled);
+}
+
+template<typename Container>
+void exponential_decay_entry(Container& container, double factor) {
+    for (auto& element : container)
+        exponential_decay_entry(element, factor);
+}
+
+void decay_histories(Search::Worker& worker) {
+    exponential_decay_entry(worker.mainHistory, HistoryDecayBase);
+    exponential_decay_entry(worker.lowPlyHistory, HistoryDecayBase);
+    exponential_decay_entry(worker.captureHistory, HistoryDecayBase);
+    exponential_decay_entry(worker.pawnHistory, HistoryDecayBase);
+    for (auto& colorHistorySet : worker.continuationHistory)
+        for (auto& history : colorHistorySet)
+            exponential_decay_entry(history, HistoryDecayBase);
+}
+
 inline bool is_game_decided(const Position& pos, Value lastScore) {
     if (is_valid(lastScore) && std::abs(lastScore) > DecidedGameEvalThreshold)
         return true;
@@ -194,7 +226,10 @@ void update_all_stats(const Position&      pos,
                       ValueList<Move, 32>& capturesSearched,
                       Depth                depth,
                       bool                 isTTMove,
-                      int                  moveCount);
+                      int                  moveCount,
+                      Value                bestValue,
+                      Value                alphaReference,
+                      Value                betaReference);
 
 }  // namespace
 
@@ -419,6 +454,8 @@ void Search::Worker::iterative_deepening() {
 
         if (!threads.increaseDepth)
             searchAgainCounter++;
+
+        decay_histories(*this);
 
         // MultiPV loop. We perform a full root search for each PV line
         for (pvIdx = 0; pvIdx < multiPV; ++pvIdx)
@@ -701,6 +738,9 @@ Value Search::Worker::search(
     assert(PvNode || (alpha == beta - 1));
     assert(0 < depth && depth < MAX_PLY);
     assert(!(PvNode && cutNode));
+
+    const Value originalAlpha = alpha;
+    const Value originalBeta  = beta;
 
     Move      pv[MAX_PLY + 1];
     StateInfo st;
@@ -1509,7 +1549,8 @@ moves_loop:  // When in check, search starts here
     // we update the stats of searched moves.
     else if (bestMove)
         update_all_stats(pos, ss, *this, bestMove, prevSq, quietsSearched, capturesSearched, depth,
-                         bestMove == ttData.move, moveCount);
+                         bestMove == ttData.move, moveCount, bestValue, originalAlpha,
+                         originalBeta);
 
     // Bonus for prior quiet countermove that caused the fail low
     else if (!priorCapture && prevSq != SQ_NONE)
@@ -1523,17 +1564,20 @@ moves_loop:  // When in check, search starts here
 
         bonusScale = std::max(bonusScale, 0);
 
-        const int scaledBonus = std::min(160 * depth - 99, 1492) * bonusScale;
+        constexpr int PawnNorm = int(PawnValue);
+        const int      marginFactor = margin_scale(originalAlpha - bestValue);
+        const int      depthTerm    = std::min(160 * int(depth) - 99, 1492);
+        const int64_t  scaledBase   = int64_t(depthTerm) * bonusScale * marginFactor;
 
         update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
-                                      scaledBonus * 388 / 32768);
+                                      int(scaledBase * 388 / (32768LL * PawnNorm)));
 
         thisThread->mainHistory[~us][((ss - 1)->currentMove).from_to()]
-          << scaledBonus * 212 / 32768;
+          << int(scaledBase * 212 / (32768LL * PawnNorm));
 
         if (type_of(pos.piece_on(prevSq)) != PAWN && ((ss - 1)->currentMove).type_of() != PROMOTION)
             thisThread->pawnHistory[pawn_structure_index(pos)][pos.piece_on(prevSq)][prevSq]
-              << scaledBonus * 1055 / 32768;
+              << int(scaledBase * 1055 / (32768LL * PawnNorm));
     }
 
     // Bonus for prior capture countermove that caused the fail low
@@ -1541,7 +1585,10 @@ moves_loop:  // When in check, search starts here
     {
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
-        thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 1100;
+        const int marginFactor = margin_scale(originalAlpha - bestValue);
+        constexpr int PawnNorm = int(PawnValue);
+        thisThread->captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)]
+          << int(1100LL * marginFactor / PawnNorm);
     }
 
     if (PvNode)
@@ -1914,7 +1961,10 @@ void update_all_stats(const Position&      pos,
                       ValueList<Move, 32>& capturesSearched,
                       Depth                depth,
                       bool                 isTTMove,
-                      int                  moveCount) {
+                      int                  moveCount,
+                      Value                bestValue,
+                      Value                alphaReference,
+                      Value                betaReference) {
 
     CapturePieceToHistory& captureHistory = workerThread.captureHistory;
     Piece                  moved_piece    = pos.moved_piece(bestMove);
@@ -1923,32 +1973,40 @@ void update_all_stats(const Position&      pos,
     int bonus = std::min(141 * depth - 89, 1613) + 311 * isTTMove;
     int malus = std::min(695 * depth - 215, 2808) - 31 * (moveCount - 1);
 
+    const Value marginValue = bestValue >= betaReference ? bestValue - betaReference
+                                                         : bestValue - alphaReference;
+    const int   marginFactor = margin_scale(marginValue);
+    constexpr int PawnNorm   = int(PawnValue);
+    const int   scaledBonus  = int(int64_t(bonus) * marginFactor / PawnNorm);
+    const int   scaledMalus  = int(int64_t(malus) * marginFactor / PawnNorm);
+
     if (!pos.capture_stage(bestMove))
     {
-        update_quiet_histories(pos, ss, workerThread, bestMove, bonus * 1129 / 1024);
+        update_quiet_histories(pos, ss, workerThread, bestMove, scaledBonus * 1129 / 1024);
 
         // Decrease stats for all non-best quiet moves
         for (Move move : quietsSearched)
-            update_quiet_histories(pos, ss, workerThread, move, -malus * 1246 / 1024);
+            update_quiet_histories(pos, ss, workerThread, move, -scaledMalus * 1246 / 1024);
     }
     else
     {
         // Increase stats for the best move in case it was a capture move
         captured = type_of(pos.piece_on(bestMove.to_sq()));
-        captureHistory[moved_piece][bestMove.to_sq()][captured] << bonus * 1187 / 1024;
+        captureHistory[moved_piece][bestMove.to_sq()][captured] << scaledBonus * 1187 / 1024;
     }
 
     // Extra penalty for a quiet early move that was not a TT move in
     // previous ply when it gets refuted.
     if (prevSq != SQ_NONE && ((ss - 1)->moveCount == 1 + (ss - 1)->ttHit) && !pos.captured_piece())
-        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq, -malus * 987 / 1024);
+        update_continuation_histories(ss - 1, pos.piece_on(prevSq), prevSq,
+                                      -scaledMalus * 987 / 1024);
 
     // Decrease stats for all non-best capture moves
     for (Move move : capturesSearched)
     {
         moved_piece = pos.moved_piece(move);
         captured    = type_of(pos.piece_on(move.to_sq()));
-        captureHistory[moved_piece][move.to_sq()][captured] << -malus * 1377 / 1024;
+        captureHistory[moved_piece][move.to_sq()][captured] << -scaledMalus * 1377 / 1024;
     }
 }
 
