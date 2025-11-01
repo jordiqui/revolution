@@ -33,6 +33,14 @@
 #include <sstream>
 #include <string_view>
 
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+    #if defined(_MSC_VER)
+        #include <intrin.h>
+    #else
+        #include <cpuid.h>
+    #endif
+#endif
+
 #include "types.h"
 
 namespace Stockfish {
@@ -114,6 +122,64 @@ class Logger {
 };
 
 }  // namespace
+
+
+namespace {
+
+PrefetchTopology detect_nnue_prefetch_topology() {
+
+#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+    PrefetchTopology topology = PrefetchTopology::None;
+
+    #if defined(_MSC_VER)
+    int cpu_info[4] = {0};
+    __cpuid(cpu_info, 0);
+    const int max_leaf = cpu_info[0];
+    if (max_leaf >= 7)
+    {
+        __cpuidex(cpu_info, 7, 0);
+        const bool has_avx2    = (cpu_info[1] & (1 << 5)) != 0;
+        const bool has_avx512f = (cpu_info[1] & (1 << 16)) != 0;
+        const bool has_avx512bw = (cpu_info[1] & (1 << 30)) != 0;
+        const bool has_avx512vl = (cpu_info[1] & (1 << 31)) != 0;
+
+        if (has_avx512f && has_avx512bw && has_avx512vl)
+            topology = PrefetchTopology::AVX512;
+        else if (has_avx2)
+            topology = PrefetchTopology::AVX2;
+    }
+    return topology;
+    #else
+    unsigned int max_leaf = __get_cpuid_max(0, nullptr);
+    if (max_leaf >= 7)
+    {
+        unsigned int eax, ebx, ecx, edx;
+        __cpuid_count(7, 0, eax, ebx, ecx, edx);
+        const bool has_avx2    = (ebx & (1u << 5)) != 0;
+        const bool has_avx512f = (ebx & (1u << 16)) != 0;
+        const bool has_avx512bw = (ebx & (1u << 30)) != 0;
+        const bool has_avx512vl = (ebx & (1u << 31)) != 0;
+
+        if (has_avx512f && has_avx512bw && has_avx512vl)
+            return PrefetchTopology::AVX512;
+        if (has_avx2)
+            return PrefetchTopology::AVX2;
+    }
+    return PrefetchTopology::None;
+    #endif
+
+#else
+    return PrefetchTopology::None;
+#endif
+}
+
+}  // namespace
+
+
+PrefetchTopology nnue_prefetch_topology() {
+    static const PrefetchTopology topology = detect_nnue_prefetch_topology();
+    return topology;
+}
 
 
 // Returns the full name of the current Revolution version.

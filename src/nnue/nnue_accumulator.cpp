@@ -46,6 +46,36 @@ namespace Stockfish::Eval::NNUE {
 
 namespace {
 
+template<typename T>
+inline void prefetch_weight_stream(const T* ptr, PrefetchTopology topology) {
+    if (!ptr)
+        return;
+
+#if defined(USE_AVX512) || defined(USE_AVX2) || defined(USE_SSE41) || defined(USE_SSSE3) || defined(USE_SSE2)
+    const auto* addr = reinterpret_cast<const char*>(ptr);
+    switch (topology)
+    {
+        case PrefetchTopology::AVX512:
+            _mm_prefetch(addr, _MM_HINT_T0);
+            _mm_prefetch(addr + CacheLineSize, _MM_HINT_T0);
+            _mm_prefetch(addr + 2 * CacheLineSize, _MM_HINT_T0);
+            _mm_prefetch(addr + 3 * CacheLineSize, _MM_HINT_T0);
+            break;
+        case PrefetchTopology::AVX2:
+            _mm_prefetch(addr, _MM_HINT_T0);
+            _mm_prefetch(addr + CacheLineSize, _MM_HINT_T0);
+            break;
+        case PrefetchTopology::None:
+        default:
+            Stockfish::prefetch(static_cast<const void*>(ptr));
+            break;
+    }
+#else
+    (void) topology;
+    Stockfish::prefetch(static_cast<const void*>(ptr));
+#endif
+}
+
 template<Color                                     Perspective,
          IncUpdateDirection                        Direction = FORWARD,
          IndexType                                 TransformedFeatureDimensions,
@@ -264,6 +294,7 @@ void update_accumulator_incremental(
         sf_assume(removed.size() == 1 || removed.size() == 2);
 
 #ifdef VECTOR
+        const PrefetchTopology prefetchTopology = nnue_prefetch_topology();
         auto* accIn =
           reinterpret_cast<const vec_t*>(&(computed.*accPtr).accumulation[Perspective][0]);
         auto* accOut =
@@ -273,6 +304,9 @@ void update_accumulator_incremental(
         auto* columnA0 = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetA0]);
         const IndexType offsetR0 = TransformedFeatureDimensions * removed[0];
         auto* columnR0 = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetR0]);
+
+        prefetch_weight_stream(columnA0, prefetchTopology);
+        prefetch_weight_stream(columnR0, prefetchTopology);
 
         if ((Forward && removed.size() == 1) || (Backwards && added.size() == 1))
         {
@@ -286,6 +320,7 @@ void update_accumulator_incremental(
             assert(removed.size() == 2);
             const IndexType offsetR1 = TransformedFeatureDimensions * removed[1];
             auto* columnR1 = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetR1]);
+            prefetch_weight_stream(columnR1, prefetchTopology);
 
             for (IndexType i = 0;
                  i < TransformedFeatureDimensions * sizeof(WeightType) / sizeof(vec_t); ++i)
@@ -297,6 +332,7 @@ void update_accumulator_incremental(
             assert(added.size() == 2);
             const IndexType offsetA1 = TransformedFeatureDimensions * added[1];
             auto* columnA1 = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetA1]);
+            prefetch_weight_stream(columnA1, prefetchTopology);
 
             for (IndexType i = 0;
                  i < TransformedFeatureDimensions * sizeof(WeightType) / sizeof(vec_t); ++i)
@@ -310,6 +346,8 @@ void update_accumulator_incremental(
             auto* columnA1 = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetA1]);
             const IndexType offsetR1 = TransformedFeatureDimensions * removed[1];
             auto* columnR1 = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetR1]);
+            prefetch_weight_stream(columnA1, prefetchTopology);
+            prefetch_weight_stream(columnR1, prefetchTopology);
 
             for (IndexType i = 0;
                  i < TransformedFeatureDimensions * sizeof(WeightType) / sizeof(vec_t); ++i)
@@ -329,6 +367,9 @@ void update_accumulator_incremental(
         auto*           columnPsqtR0 =
           reinterpret_cast<const psqt_vec_t*>(&featureTransformer.psqtWeights[offsetPsqtR0]);
 
+        prefetch_weight_stream(columnPsqtA0, prefetchTopology);
+        prefetch_weight_stream(columnPsqtR0, prefetchTopology);
+
         if ((Forward && removed.size() == 1)
             || (Backwards && added.size() == 1))  // added.size() == removed.size() == 1
         {
@@ -342,6 +383,7 @@ void update_accumulator_incremental(
             const IndexType offsetPsqtR1 = PSQTBuckets * removed[1];
             auto*           columnPsqtR1 =
               reinterpret_cast<const psqt_vec_t*>(&featureTransformer.psqtWeights[offsetPsqtR1]);
+            prefetch_weight_stream(columnPsqtR1, prefetchTopology);
 
             for (std::size_t i = 0; i < PSQTBuckets * sizeof(PSQTWeightType) / sizeof(psqt_vec_t);
                  ++i)
@@ -353,6 +395,7 @@ void update_accumulator_incremental(
             const IndexType offsetPsqtA1 = PSQTBuckets * added[1];
             auto*           columnPsqtA1 =
               reinterpret_cast<const psqt_vec_t*>(&featureTransformer.psqtWeights[offsetPsqtA1]);
+            prefetch_weight_stream(columnPsqtA1, prefetchTopology);
 
             for (std::size_t i = 0; i < PSQTBuckets * sizeof(PSQTWeightType) / sizeof(psqt_vec_t);
                  ++i)
@@ -367,6 +410,8 @@ void update_accumulator_incremental(
             const IndexType offsetPsqtR1 = PSQTBuckets * removed[1];
             auto*           columnPsqtR1 =
               reinterpret_cast<const psqt_vec_t*>(&featureTransformer.psqtWeights[offsetPsqtR1]);
+            prefetch_weight_stream(columnPsqtA1, prefetchTopology);
+            prefetch_weight_stream(columnPsqtR1, prefetchTopology);
 
             for (std::size_t i = 0; i < PSQTBuckets * sizeof(PSQTWeightType) / sizeof(psqt_vec_t);
                  ++i)
@@ -456,6 +501,7 @@ void update_accumulator_refresh_cache(
       std::abs((int) removed.size() - (int) added.size()) == 1 && removed.size() + added.size() > 2;
     vec_t      acc[Tiling::NumRegs];
     psqt_vec_t psqt[Tiling::NumPsqtRegs];
+    const PrefetchTopology prefetchTopology = nnue_prefetch_topology();
 
     for (IndexType j = 0; j < Dimensions / Tiling::TileHeight; ++j)
     {
@@ -476,6 +522,9 @@ void update_accumulator_refresh_cache(
             const IndexType offsetA = Dimensions * indexA + j * Tiling::TileHeight;
             auto* columnA = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetA]);
 
+            prefetch_weight_stream(columnR, prefetchTopology);
+            prefetch_weight_stream(columnA, prefetchTopology);
+
             for (IndexType k = 0; k < Tiling::NumRegs; ++k)
                 acc[k] = vec_add_16(acc[k], vec_sub_16(columnA[k], columnR[k]));
         }
@@ -488,12 +537,16 @@ void update_accumulator_refresh_cache(
             const IndexType offsetA = Dimensions * indexA + j * Tiling::TileHeight;
             auto* columnA = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetA]);
 
+            prefetch_weight_stream(columnR, prefetchTopology);
+            prefetch_weight_stream(columnA, prefetchTopology);
+
             if (removed.size() > added.size())
             {
                 IndexType       indexR2  = removed[i + 1];
                 const IndexType offsetR2 = Dimensions * indexR2 + j * Tiling::TileHeight;
                 auto*           columnR2 =
                   reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetR2]);
+                prefetch_weight_stream(columnR2, prefetchTopology);
 
                 for (IndexType k = 0; k < Tiling::NumRegs; ++k)
                     acc[k] = vec_sub_16(vec_add_16(acc[k], columnA[k]),
@@ -505,6 +558,7 @@ void update_accumulator_refresh_cache(
                 const IndexType offsetA2 = Dimensions * indexA2 + j * Tiling::TileHeight;
                 auto*           columnA2 =
                   reinterpret_cast<const vec_t*>(&featureTransformer.weights[offsetA2]);
+                prefetch_weight_stream(columnA2, prefetchTopology);
 
                 for (IndexType k = 0; k < Tiling::NumRegs; ++k)
                     acc[k] = vec_add_16(vec_sub_16(acc[k], columnR[k]),
@@ -518,6 +572,7 @@ void update_accumulator_refresh_cache(
                 IndexType       index  = removed[i];
                 const IndexType offset = Dimensions * index + j * Tiling::TileHeight;
                 auto* column = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offset]);
+                prefetch_weight_stream(column, prefetchTopology);
 
                 for (IndexType k = 0; k < Tiling::NumRegs; ++k)
                     acc[k] = vec_sub_16(acc[k], column[k]);
@@ -527,6 +582,7 @@ void update_accumulator_refresh_cache(
                 IndexType       index  = added[i];
                 const IndexType offset = Dimensions * index + j * Tiling::TileHeight;
                 auto* column = reinterpret_cast<const vec_t*>(&featureTransformer.weights[offset]);
+                prefetch_weight_stream(column, prefetchTopology);
 
                 for (IndexType k = 0; k < Tiling::NumRegs; ++k)
                     acc[k] = vec_add_16(acc[k], column[k]);
@@ -555,6 +611,7 @@ void update_accumulator_refresh_cache(
             const IndexType offset = PSQTBuckets * index + j * Tiling::PsqtTileHeight;
             auto*           columnPsqt =
               reinterpret_cast<const psqt_vec_t*>(&featureTransformer.psqtWeights[offset]);
+            prefetch_weight_stream(columnPsqt, prefetchTopology);
 
             for (std::size_t k = 0; k < Tiling::NumPsqtRegs; ++k)
                 psqt[k] = vec_sub_psqt_32(psqt[k], columnPsqt[k]);
@@ -565,6 +622,7 @@ void update_accumulator_refresh_cache(
             const IndexType offset = PSQTBuckets * index + j * Tiling::PsqtTileHeight;
             auto*           columnPsqt =
               reinterpret_cast<const psqt_vec_t*>(&featureTransformer.psqtWeights[offset]);
+            prefetch_weight_stream(columnPsqt, prefetchTopology);
 
             for (std::size_t k = 0; k < Tiling::NumPsqtRegs; ++k)
                 psqt[k] = vec_add_psqt_32(psqt[k], columnPsqt[k]);
