@@ -45,6 +45,8 @@ class AccumulatorStack;
 std::string trace(Position& pos, const Eval::NNUE::Networks& networks);
 
 int   simple_eval(const Position& pos, Color c);
+void  set_small_network_usage(bool enable);
+bool  small_network_enabled();
 bool  use_smallnet(const Position& pos);
 Value evaluate(const NNUE::Networks&          networks,
                const Position&                pos,

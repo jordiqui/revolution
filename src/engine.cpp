@@ -160,6 +160,13 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
+    options.add(
+      "UseSmallNetwork",
+      Option(true, [](const Option& o) {
+          Eval::set_small_network_usage(int(o));
+          return std::nullopt;
+      }).with_info("Use the auxiliary NNUE network in high-evaluation positions. Disable to force exclusive use of the big network."));
+
     options.add("Read only learning", Option(false, [](const Option& o) {
                     LD.set_readonly(o);
                     return std::nullopt;
@@ -200,6 +207,8 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Book 2 Width", Option(1, 1, 100));
     options.add("Book 2 Depth", Option(100, 0, 200));
     options.add("(CTG) Book 2 Only Green", Option(false));
+
+    Eval::set_small_network_usage(int(options["UseSmallNetwork"]));
 
     load_networks();
     resize_threads();
