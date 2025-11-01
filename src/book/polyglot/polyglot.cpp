@@ -427,6 +427,9 @@ namespace Stockfish
             size_t curPos = find_first_pos(key) * sizeof(PolyglotEntry);
             while (true)
             {
+                if (curPos >= bookDataLength)
+                    break;
+
                 //Read a new entry
                 read_poly_entry(e, curPos, bookData, bookDataLength);
 
