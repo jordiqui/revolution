@@ -41,8 +41,8 @@ namespace {
 
 // Version number or dev.
 // Keep this in sync with the README and build scripts so every artifact reports
-// the same Revolution-3.0-01125 release branding.
-constexpr std::string_view engine_name = "Revolution-3.0-01125";
+// the same Revolution-3.0-011125 release branding.
+constexpr std::string_view engine_name = "Revolution-3.0-011125";
 constexpr std::string_view version     = "release";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
