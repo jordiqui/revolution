@@ -66,15 +66,21 @@ constexpr double HistoryDecayBase = 0.92;
 
 int margin_scale(Value margin) {
     constexpr int PawnNorm = int(PawnValue);
-    int            diff    = std::max(0, std::abs(int(margin)));
-    diff                   = std::min(diff, 4 * PawnNorm);
+    int            diff    = std::clamp(std::abs(int(margin)), 0, 4 * PawnNorm);
     return PawnNorm + diff;
 }
 
+// Scale history updates based on the score margin. Updates aligned with the margin
+// direction are amplified, whereas those fighting against the margin are dampened.
 int scale_bonus_by_margin(int bonus, Value margin) {
     constexpr int PawnNorm = int(PawnValue);
-    const int      marginFactor = margin_scale(margin);
-    const auto     scaled       = static_cast<long long>(bonus) * marginFactor / PawnNorm;
+
+    const int magnitude    = margin_scale(margin);
+    const int opposing     = std::max(PawnNorm / 4, 2 * PawnNorm - magnitude);
+    const bool alignedSign = (bonus >= 0) == (margin >= 0);
+    const int  factor      = alignedSign ? magnitude : opposing;
+
+    const auto scaled = static_cast<long long>(bonus) * factor / PawnNorm;
     return static_cast<int>(scaled);
 }
 
