@@ -18,7 +18,10 @@
 
 #include "movepick.h"
 
+#include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <cstdint>
 #include <limits>
 
 #include "bitboard.h"
@@ -57,6 +60,24 @@ enum Stages {
 
 // Sort moves in descending order up to and including a given limit.
 // The order of moves smaller than the limit is left unspecified.
+int history_scaling_factor(int scoreMargin, int iteration) {
+
+    constexpr int MaxMargin = 4096;
+    scoreMargin              = std::clamp(scoreMargin, 0, MaxMargin);
+    iteration                = std::max(iteration, 0);
+
+    const double marginComponent = 1.0 + double(scoreMargin) / MaxMargin;
+    const double decayComponent  = std::exp(-double(iteration) / 12.0);
+    const double scaled          = marginComponent * decayComponent * 1024.0;
+
+    return std::clamp<int>(int(std::lround(scaled)), 128, 4096);
+}
+
+int apply_history_scaling(int value, int historyScale) {
+
+    return int((static_cast<int64_t>(value) * historyScale) / 1024);
+}
+
 void partial_insertion_sort(ExtMove* begin, ExtMove* end, int limit) {
 
     for (ExtMove *sortedEnd = begin, *p = begin + 1; p < end; ++p)
@@ -86,7 +107,8 @@ MovePicker::MovePicker(const Position&              p,
                        const CapturePieceToHistory* cph,
                        const PieceToHistory**       ch,
                        const PawnHistory*           ph,
-                       int                          pl) :
+                       int                          pl,
+                       int                          scoreMargin) :
     pos(p),
     mainHistory(mh),
     lowPlyHistory(lph),
@@ -95,7 +117,8 @@ MovePicker::MovePicker(const Position&              p,
     pawnHistory(ph),
     ttMove(ttm),
     depth(d),
-    ply(pl) {
+    ply(pl),
+    historyScale(history_scaling_factor(scoreMargin, pl)) {
 
     if (pos.checkers())
         stage = EVASION_TT + !(ttm && pos.pseudo_legal(ttm));
@@ -106,11 +129,16 @@ MovePicker::MovePicker(const Position&              p,
 
 // MovePicker constructor for ProbCut: we generate captures with Static Exchange
 // Evaluation (SEE) greater than or equal to the given threshold.
-MovePicker::MovePicker(const Position& p, Move ttm, int th, const CapturePieceToHistory* cph) :
+MovePicker::MovePicker(const Position&              p,
+                       Move                         ttm,
+                       int                          th,
+                       const CapturePieceToHistory* cph,
+                       int                          scoreMargin) :
     pos(p),
     captureHistory(cph),
     ttMove(ttm),
-    threshold(th) {
+    threshold(th),
+    historyScale(history_scaling_factor(scoreMargin, 0)) {
     assert(!pos.checkers());
 
     stage = PROBCUT_TT
@@ -142,11 +170,18 @@ void MovePicker::score() {
                          | (pos.pieces(us, KNIGHT, BISHOP) & threatenedByPawn);
     }
 
+    const auto scale_history = [scale = historyScale](int value) {
+        return apply_history_scaling(value, scale);
+    };
+
     for (auto& m : *this)
         if constexpr (Type == CAPTURES)
-            m.value =
-              7 * int(PieceValue[pos.piece_on(m.to_sq())])
-              + (*captureHistory)[pos.moved_piece(m)][m.to_sq()][type_of(pos.piece_on(m.to_sq()))];
+        {
+            const int historyValue =
+              (*captureHistory)[pos.moved_piece(m)][m.to_sq()][type_of(pos.piece_on(m.to_sq()))];
+
+            m.value = 7 * int(PieceValue[pos.piece_on(m.to_sq())]) + scale_history(historyValue);
+        }
 
         else if constexpr (Type == QUIETS)
         {
@@ -156,14 +191,14 @@ void MovePicker::score() {
             Square    to   = m.to_sq();
 
             // histories
-            m.value = 2 * (*mainHistory)[pos.side_to_move()][m.from_to()];
-            m.value += 2 * (*pawnHistory)[pawn_structure_index(pos)][pc][to];
-            m.value += (*continuationHistory[0])[pc][to];
-            m.value += (*continuationHistory[1])[pc][to];
-            m.value += (*continuationHistory[2])[pc][to];
-            m.value += (*continuationHistory[3])[pc][to];
-            m.value += (*continuationHistory[4])[pc][to] / 3;
-            m.value += (*continuationHistory[5])[pc][to];
+            m.value = scale_history(2 * (*mainHistory)[pos.side_to_move()][m.from_to()]);
+            m.value += scale_history(2 * (*pawnHistory)[pawn_structure_index(pos)][pc][to]);
+            m.value += scale_history((*continuationHistory[0])[pc][to]);
+            m.value += scale_history((*continuationHistory[1])[pc][to]);
+            m.value += scale_history((*continuationHistory[2])[pc][to]);
+            m.value += scale_history((*continuationHistory[3])[pc][to]);
+            m.value += scale_history((*continuationHistory[4])[pc][to] / 3);
+            m.value += scale_history((*continuationHistory[5])[pc][to]);
 
             // bonus for checks
             m.value += bool(pos.check_squares(pt) & to) * 16384;
@@ -181,7 +216,8 @@ void MovePicker::score() {
                                                                      : 0);
 
             if (ply < LOW_PLY_HISTORY_SIZE)
-                m.value += 8 * (*lowPlyHistory)[ply][m.from_to()] / (1 + 2 * ply);
+                m.value +=
+                  scale_history(8 * (*lowPlyHistory)[ply][m.from_to()] / (1 + 2 * ply));
         }
 
         else  // Type == EVASIONS
@@ -189,9 +225,10 @@ void MovePicker::score() {
             if (pos.capture_stage(m))
                 m.value = PieceValue[pos.piece_on(m.to_sq())] + (1 << 28);
             else
-                m.value = (*mainHistory)[pos.side_to_move()][m.from_to()]
-                        + (*continuationHistory[0])[pos.moved_piece(m)][m.to_sq()]
-                        + (*pawnHistory)[pawn_structure_index(pos)][pos.moved_piece(m)][m.to_sq()];
+                m.value = scale_history((*mainHistory)[pos.side_to_move()][m.from_to()])
+                        + scale_history((*continuationHistory[0])[pos.moved_piece(m)][m.to_sq()])
+                        + scale_history((*pawnHistory)[pawn_structure_index(pos)][pos.moved_piece(m)]
+                                                       [m.to_sq()]);
         }
 }
 
