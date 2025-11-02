@@ -542,7 +542,7 @@ void UCIEngine::benchmark(std::istream& args) {
               << engine_version_info()
               // "\nCompiled by                : "
               << compiler_info()
-              << "Large pages                : " << (has_large_pages() ? "yes" : "no")
+              << "Large Memory Pages    : " << (has_large_pages() ? "available" : "unavailable")
               << "\nUser invocation            : " << BenchmarkCommand << " "
               << setup.originalInvocation << "\nFilled invocation          : " << BenchmarkCommand
               << " " << setup.filledInvocation

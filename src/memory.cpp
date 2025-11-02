@@ -19,7 +19,9 @@
 #include "memory.h"
 
 #include <cstdlib>
+#include <fstream>
 #include <limits>
+#include <string>
 
 #if __has_include("features.h")
     #include <features.h>
@@ -261,7 +263,42 @@ bool has_large_pages() {
 #elif defined(__linux__)
 
     #if defined(MADV_HUGEPAGE)
-    return true;
+    auto transparent_hugepages_enabled = []() {
+        std::ifstream thp("/sys/kernel/mm/transparent_hugepage/enabled");
+        if (!thp.is_open())
+            return false;
+
+        std::string line;
+        std::getline(thp, line);
+        return line.find("[always]") != std::string::npos
+            || line.find("[madvise]") != std::string::npos;
+    };
+
+    if (transparent_hugepages_enabled())
+        return true;
+
+    std::ifstream meminfo("/proc/meminfo");
+    if (!meminfo.is_open())
+        return false;
+
+    std::string key;
+    long        value = 0;
+    std::string unit;
+    bool        hasHugePages  = false;
+    bool        hasFreePages  = false;
+
+    while (meminfo >> key >> value >> unit)
+    {
+        if (key == "HugePages_Total:" && value > 0)
+            hasHugePages = true;
+        else if (key == "HugePages_Free:" && value > 0)
+            hasFreePages = true;
+
+        if (hasHugePages && hasFreePages)
+            return true;
+    }
+
+    return false;
     #else
     return false;
     #endif
