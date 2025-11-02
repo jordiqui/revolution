@@ -15,16 +15,17 @@ Estos resultados permanecen disponibles en el repositorio principal y constituye
 
 | Propuesta | Objetivo | Cambios clave | Repositorio / Tag | Métrica primaria | Riesgos y contramedidas |
 |-----------|----------|---------------|-------------------|------------------|-------------------------|
-| **1. Historial y quiet moves con decaimiento adaptativo** | Reducir fallos tácticos en nodos tranquilos manteniendo la velocidad. | Ajustar el cálculo de `history`, `countermoves` y `follow-up moves` en `src/movepick.cpp` y `src/search.cpp`, aplicando un factor proporcional al margen de score y un decaimiento exponencial por iteración. | `github.com/revolution-engine/revolution` `tag: sprt-history-decay-v1` | Elo en SPRT STC 10+0.1 y tasa de nodos tranquilos revisitados. | Sobreajuste: validar con suites `tests/puzzles`, contrastar con una rama espejo sin escalado por margen y revisar estadísticas `MovesToMate`. |
-| **2. Prefetch NNUE dependiente de topología** | Disminuir la latencia por `cache-miss` en la actualización de acumuladores NNUE. | Insertar instrucciones `prefetch` específicas (AVX2/AVX512) en `src/nnue/nnue_accumulator.cpp`, habilitadas tras detectar capacidades en `src/misc.cpp`; mantener ruta SSE2 limpia. | `github.com/revolution-engine/revolution` `tag: sprt-nnue-prefetch-v1` | NPS medio en `bench 16 1 8 default depth 18` y Elo en SPRT blitz 5+0.1. | Detección errónea de CPU: añadir pruebas en `tests/nnue/` que verifiquen la ruta seleccionada y permitir bandera `DisablePrefetch` en `ucioption.cpp`. |
-| **3. Pruning asimétrico orientado a finales simplificados** | Mantener agresividad en medios juegos y mejorar precisión en finales reducidos. | Revisar umbrales de `futility pruning`, `razoring` y `late move pruning` en `src/search.cpp`, utilizando el número de piezas menores y la presencia de peones pasados como moduladores. | `github.com/revolution-engine/revolution` `tag: sprt-endgame-pruning-v1` | Elo en SPRT LTC 60+0.1 y porcentaje de finales perdidos tras 50 movimientos. | Complejidad adicional en evaluación: validar con `perft` (`tests/perft/`) y revisar la lógica de repetición para evitar tablas espurias. |
-| **4. Paralelización de regresiones NNUE previas a SPRT** | Reducir el tiempo de validación antes de lanzar campañas Fastchess. | Extender `scripts/nnue_evaluator.py` (crear si no existe) para procesar lotes con `multiprocessing`, generando reportes en `docs/sprt-results/` con métricas RMSE y precisión WDL. | `github.com/revolution-engine/revolution-tuning` `tag: sprt-nnue-eval-parallel-v1` | Tiempo total de validación y Elo tras integrar nuevos pesos. | Incoherencia de datos: forzar semilla determinista, comparar con una ejecución secuencial semanal y versionar los datasets en `assets/selfplay/metadata.json`. |
+| **1. Extensiones selectivas guiadas por amenazas en QSearch** | Mitigar efectos horizonte sin disparar el factor de ramificación. | Añadir en `src/search.cpp` y `src/qsearch.cpp` extensiones controladas cuando el rey propio esté bajo ataque directo o existan recapturas forzadas, apoyándose en `SEE` para limitar profundidad. | `github.com/revolution-engine/revolution` `tag: sprt-threat-extensions-v1` | Elo en SPRT STC 10+0.05 y porcentaje de `fail-high` correctos en nodos tácticos. | Árbol explosivo: monitorizar extensiones por nodo y abortar si superan un umbral dependiente de la profundidad efectiva. |
+| **2. Política adaptativa de reemplazo en la tabla de transposición** | Aumentar la calidad de las entradas conservadas en partidas largas. | Ajustar `src/tt.cpp` y `src/search.cpp` para incorporar buckets por edad y una métrica híbrida (profundidad + calidad de score) en la lógica `TT::probe`, exponiendo un parámetro `TTAgeMargin` en `ucioption.cpp`. | `github.com/revolution-engine/revolution` `tag: sprt-tt-aging-v1` | Elo en SPRT LTC 60+0.1 y ratio de `TT hits` con entradas válidas. | Thrashing en hardware reducido: registrar reemplazos forzados y auditar consumo de memoria. |
+| **3. Margen de futility dinámico basado en NNUE** | Evitar descartar movimientos prometedores en posiciones agudas. | Recalibrar en `src/search.cpp` los márgenes de `futility` para que dependan de la desviación estándar de la evaluación NNUE de los hijos inmediatos, con una pasada previa en la frontera. | `github.com/revolution-engine/revolution` `tag: sprt-nnue-futility-v1` | Elo en SPRT STC 15+0.1 y variación en nodos visitados respecto a la base. | Latencia adicional: cachear evaluaciones auxiliares y abortar si el presupuesto de nodos aumenta >8% en `bench`. |
+| **4. Balance dinámico de tiempo y movimientos seguros** | Reducir derrotas por apuros de tiempo en TC cortos. | Incorporar en `src/timeman.cpp` una heurística que combine histórico de `MoveOverhead` y volatilidad del score para ajustar `time_for_move`, exponiendo estadísticas en `go`. | `github.com/revolution-engine/revolution` `tag: sprt-dynamic-timeman-v1` | Elo en SPRT blitz 3+0.01 y número de banderas frente a la base. | Tiempo mal invertido: fijar un límite inferior del 10% del reloj y validar con suites de finales. |
+| **5. Canal incremental de presión sobre el rey en NNUE** | Capturar mejor las amenazas directas a los reyes en posiciones abiertas. | Extender `src/nnue/nnue_architecture.cpp` y `assets/nnue/features/` con un canal de atacantes por anillo y fase, reentrenando pesos y añadiendo validaciones en `tests/nnue/feature_sanity.cpp`. | `github.com/revolution-engine/revolution` `tag: sprt-king-pressure-v1` | Elo en SPRT STC 10+0.1 y precisión del evaluador en posiciones `mate-in-x`. | Sobreajuste: congelar el dataset y comparar RMSE contra la red actual antes de lanzar campañas. |
 
-## Configuración recomendada para la Propuesta 1 (historial adaptativo)
+## Configuración recomendada para la Propuesta 1 (extensiones guiadas por amenazas)
 
-Para el primer test de la propuesta **“Historial y quiet moves con decaimiento adaptativo”** se utilizará el modo Stockfish de Fastchess con dos fases:
+Para el primer test de la propuesta **“Extensiones selectivas guiadas por amenazas en QSearch”** se utilizará el modo Stockfish de Fastchess con dos fases:
 
-1. **STC (Short Time Control)**: `10s + 0.1s`, apuntando a 2k rondas con `concurrency=2` para validar rápidamente que la modificación es prometedora.
+1. **STC (Short Time Control)**: `10s + 0.05s`, apuntando a 2400 rondas con `concurrency=2` para capturar rápidamente variaciones en la tasa de aciertos tácticos.
 2. **LTC (Long Time Control)**: `60s + 0.1s`, sobre el mismo binario etiquetado si el STC resulta en aceptación positiva del SPRT.
 
 El siguiente _launcher_ en Windows (Batch) está parametrizado con las rutas y opciones necesarias para la fase STC. Ajusta `ENGINE_DEV` y `ENGINE_BASE` a los binarios correspondientes al tag activo y a la versión de referencia.
@@ -37,23 +38,23 @@ title FastChess SPRT - Live (Elo/LLR/LOS)
 rem ====== RUTAS ======
 set "FASTCHESS=C:\\fastchess\\fastchess.exe"
 set "DIR_DEV=C:\\fastchess\\revolution-device"
-set "ENGINE_DEV=%DIR_DEV%\\revolution-history-decay.exe"
+set "ENGINE_DEV=%DIR_DEV%\\revolution-threat-extensions.exe"
 set "DIR_BASE=C:\\fastchess\\revolution-baseline"
 set "ENGINE_BASE=%DIR_BASE%\\Revolution-3.0-011125.exe"
 set "BOOK=C:\\fastchess\\Books\\UHO_Lichess_4852_v1.epd"
 set "OUTDIR=C:\\fastchess\\out"
 
 rem ====== PARÁMETROS ======
-set "TC=10+0.1"
+set "TC=10+0.05"
 set "THREADS=1"
 set "HASH=64"
 set "CONCURRENCY=2"
-set "ROUNDS=2000"
+set "ROUNDS=2400"
 set "GAMES=2"
 set "REPEAT=1"
 set "MAXMOVES=200"
 set "ELO0=0"
-set "ELO1=2.5"
+set "ELO1=3"
 set "ALPHA=0.05"
 set "BETA=0.05"
 set "RATINGINT=10"
@@ -119,15 +120,15 @@ echo --- FIN. Pulsa una tecla para cerrar ---
 pause
 ```
 
-**Opciones recomendadas para STC 10+0.1** (aplican a ambos motores salvo que se indique lo contrario):
+**Opciones recomendadas para STC 10+0.05** (aplican a ambos motores salvo que se indique lo contrario):
 
 - `Threads = 1`: reproduce el modelo de referencia de Stockfish y evita interacciones con _smp scaling_.
 - `Hash = 64 MB`: balance entre consistencia y consumo de memoria en máquinas modestas; subir a 128 MB solo si hay disponibilidad y ambos binarios lo soportan.
 - `Ponder = false`: reduce ruido durante los emparejamientos y evita bloqueos cuando un motor finaliza antes.
 - `Move Overhead = 80 ms` y `Minimum Thinking Time = 100 ms`: mitigan pérdidas por _lag_ en TC cortos.
 - `Slow Mover = 100`: mantiene la agresividad estándar de Stockfish; experimentar ±10 solo si el STC muestra inestabilidad.
-- `concurrency = 2`: suficiente para 2k rondas en tiempos razonables sin saturar CPUs con 4 hilos físicos.
-- `elo0 = 0`, `elo1 = 2.5`, `alpha = 0.05`, `beta = 0.05`: parámetros SPRT simétricos que equilibran riesgo de falsos positivos/negativos en regresiones pequeñas.
+- `concurrency = 2`: adecuado para unas 2400 rondas sin saturar CPUs con 4 hilos físicos.
+- `elo0 = 0`, `elo1 = 3`, `alpha = 0.05`, `beta = 0.05`: parámetros SPRT simétricos que elevan el umbral mínimo esperado para aceptar mejoras tácticas.
 
 Para la fase **LTC 60+0.1**, mantener el mismo _launcher_ cambiando únicamente `TC=60+0.1`, `ROUNDS=1200` (aprox. 1200 juegos con repetición 1) y, si el hardware lo permite, `Hash=256` para aprovechar partidas más largas.
 
