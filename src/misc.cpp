@@ -163,7 +163,7 @@ std::string engine_version_info() {
 
 std::string engine_info(bool to_uci) {
     return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "Jorge Ruiz with credits to ChatGPT, the Stockfish authors, and the Revolution development community (see AUTHORS file)";
+         + "Jorge Ruiz and Stockfish developers (see AUTHORS file)";
 }
 
 
