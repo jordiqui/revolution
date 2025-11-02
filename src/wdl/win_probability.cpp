@@ -68,12 +68,12 @@ WDL get_wdl(Value value, const Position& pos) {
 
 std::uint8_t get_win_probability_by_material(Value value, int materialClamp) {
     const WDL wdl = get_wdl_by_material(value, materialClamp);
-    return static_cast<std::uint8_t>(wdl.win + wdl.draw / 2);
+    return static_cast<std::uint8_t>(std::round(wdl.win + wdl.draw / 2.0));
 }
 
 std::uint8_t get_win_probability(Value value, const Position& pos) {
     const WDL wdl = get_wdl(value, pos);
-    return static_cast<std::uint8_t>(wdl.win + wdl.draw / 2);
+    return static_cast<std::uint8_t>(std::round(wdl.win + wdl.draw / 2.0));
 }
 
 std::uint8_t get_win_probability(Value value, int plies) {
