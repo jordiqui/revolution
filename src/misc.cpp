@@ -33,6 +33,7 @@
 #include <sstream>
 #include <string_view>
 
+#include "memory.h"
 #include "types.h"
 
 namespace Stockfish {
@@ -162,8 +163,16 @@ std::string engine_version_info() {
 }
 
 std::string engine_info(bool to_uci) {
-    return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "Jorge Ruiz and Stockfish developers (see AUTHORS file)";
+    std::string info = engine_version_info();
+
+    if (to_uci)
+        return info + "\nid author " + "Jorge Ruiz and Stockfish developers (see AUTHORS file)";
+
+    info += " by Jorge Ruiz and Stockfish developers (see AUTHORS file)";
+    info += "\nLarge Memory Pages    : ";
+    info += has_large_pages() ? "available" : "unavailable";
+
+    return info;
 }
 
 
