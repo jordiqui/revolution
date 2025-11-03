@@ -282,17 +282,31 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     // be deduced from a fen string, so set() clears them and they are set from
     // setupStates->back() later. The rootState is per thread, earlier states are
     // shared since they are read-only.
-    for (auto&& th : threads)
+    const std::string rootFen    = pos.fen();
+    const bool        isChess960 = pos.is_chess960();
+    const StateInfo   rootState  = setupStates->back();
+
+    for (auto&& threadPtr : threads)
     {
-        th->run_custom_job([&]() {
-            th->worker->limits = limits;
-            th->worker->nodes = th->worker->tbHits = th->worker->nmpMinPly =
-              th->worker->bestMoveChanges          = 0;
-            th->worker->rootDepth = th->worker->completedDepth = 0;
-            th->worker->rootMoves                              = rootMoves;
-            th->worker->rootPos.set(pos.fen(), pos.is_chess960(), &th->worker->rootState);
-            th->worker->rootState = setupStates->back();
-            th->worker->tbConfig  = tbConfig;
+        Thread* thread = threadPtr.get();
+
+        thread->run_custom_job([this,
+                                thread,
+                                &rootMoves,
+                                limits,
+                                tbConfig,
+                                rootFen,
+                                isChess960,
+                                rootState]() mutable {
+            auto& worker = *thread->worker;
+
+            worker.limits = limits;
+            worker.nodes = worker.tbHits = worker.nmpMinPly = worker.bestMoveChanges = 0;
+            worker.rootDepth = worker.completedDepth = 0;
+            worker.rootMoves = rootMoves;
+            worker.rootPos.set(rootFen, isChess960, &worker.rootState);
+            worker.rootState = rootState;
+            worker.tbConfig  = tbConfig;
         });
     }
 
