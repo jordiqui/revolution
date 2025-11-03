@@ -87,6 +87,11 @@ void syzygy_extend_pv(const OptionsMap&            options,
 
 using namespace Search;
 
+namespace Search {
+bool should_extend_qsearch(const Position& pos, const Stack* ss, Depth depth);
+bool is_forced_recapture(const Position& pos, const Stack* ss);
+}  // namespace Search
+
 namespace {
 
 // (*Scalers):
@@ -682,8 +687,13 @@ Value Search::Worker::search(
     // Dive into quiescence search when the depth reaches zero
     if (depth <= 0)
     {
-        constexpr auto nt = PvNode ? PV : NonPV;
-        return qsearch<nt>(pos, ss, alpha, beta);
+        if (!should_extend_qsearch(pos, ss, depth))
+        {
+            constexpr auto nt = PvNode ? PV : NonPV;
+            return qsearch<nt>(pos, ss, alpha, beta);
+        }
+
+        depth = 1;
     }
 
     // Limit the depth if extensions made it too large
@@ -1698,6 +1708,11 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
     Square prevSq = ((ss - 1)->currentMove).is_ok() ? ((ss - 1)->currentMove).to_sq() : SQ_NONE;
 
+    const bool   forcedRecapture = is_forced_recapture(pos, ss);
+    const Square recaptureSquare = forcedRecapture && ((ss - 1)->currentMove).is_ok()
+                                     ? ((ss - 1)->currentMove).to_sq()
+                                     : SQ_NONE;
+
     // Initialize a MovePicker object for the current position, and prepare to search
     // the moves. We presently use two stages of move generator in quiescence search:
     // captures, or evasions only when in check.
@@ -1719,7 +1734,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         moveCount++;
 
         // Step 6. Pruning
-        if (!is_loss(bestValue))
+        const bool isThreatRecapture = recaptureSquare != SQ_NONE && move.to_sq() == recaptureSquare;
+
+        if (!is_loss(bestValue) && !isThreatRecapture)
         {
             // Futility pruning and moveCount pruning
             if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
@@ -1759,6 +1776,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
             if (!pos.see_ge(move, -75))
                 continue;
         }
+        else if (isThreatRecapture && !pos.see_ge(move, VALUE_ZERO))
+            continue;
 
         // Step 7. Make and search the move
         Piece movedPiece = pos.moved_piece(move);
