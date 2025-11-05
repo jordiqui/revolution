@@ -25,7 +25,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <vector>
 
 #include "../types.h"
 #include "nnue_architecture.h"
@@ -37,19 +36,10 @@ class Position;
 
 namespace Stockfish::Eval::NNUE {
 
-using BiasType       = std::int16_t;
-using PSQTWeightType = std::int32_t;
-using IndexType      = std::uint32_t;
-
-struct Networks;
-
 template<IndexType Size>
 struct alignas(CacheLineSize) Accumulator;
 
-struct AccumulatorState;
-
-template<IndexType                                 TransformedFeatureDimensions,
-         Accumulator<TransformedFeatureDimensions> AccumulatorState::*accPtr>
+template<IndexType TransformedFeatureDimensions>
 class FeatureTransformer;
 
 // Class that holds the result of affine transformation of input features
@@ -57,7 +47,7 @@ template<IndexType Size>
 struct alignas(CacheLineSize) Accumulator {
     std::int16_t               accumulation[COLOR_NB][Size];
     std::int32_t               psqtAccumulation[COLOR_NB][PSQTBuckets];
-    std::array<bool, COLOR_NB> computed;
+    std::array<bool, COLOR_NB> computed = {};
 };
 
 
@@ -80,8 +70,8 @@ struct AccumulatorCaches {
         struct alignas(CacheLineSize) Entry {
             BiasType       accumulation[Size];
             PSQTWeightType psqtAccumulation[PSQTBuckets];
-            Bitboard       byColorBB[COLOR_NB];
-            Bitboard       byTypeBB[PIECE_TYPE_NB];
+            Piece          pieces[SQUARE_NB];
+            Bitboard       pieceBB;
 
             // To initialize a refresh entry, we set all its bitboards empty,
             // so we put the biases in the accumulation, without any weights on top
@@ -97,7 +87,7 @@ struct AccumulatorCaches {
         void clear(const Network& network) {
             for (auto& entries1D : entries)
                 for (auto& entry : entries1D)
-                    entry.clear(network.featureTransformer->biases);
+                    entry.clear(network.featureTransformer.biases);
         }
 
         std::array<Entry, COLOR_NB>& operator[](Square sq) { return entries[sq]; }
@@ -121,61 +111,70 @@ struct AccumulatorState {
     Accumulator<TransformedFeatureDimensionsSmall> accumulatorSmall;
     DirtyPiece                                     dirtyPiece;
 
+    template<IndexType Size>
+    auto& acc() noexcept {
+        static_assert(Size == TransformedFeatureDimensionsBig
+                        || Size == TransformedFeatureDimensionsSmall,
+                      "Invalid size for accumulator");
+
+        if constexpr (Size == TransformedFeatureDimensionsBig)
+            return accumulatorBig;
+        else if constexpr (Size == TransformedFeatureDimensionsSmall)
+            return accumulatorSmall;
+    }
+
+    template<IndexType Size>
+    const auto& acc() const noexcept {
+        static_assert(Size == TransformedFeatureDimensionsBig
+                        || Size == TransformedFeatureDimensionsSmall,
+                      "Invalid size for accumulator");
+
+        if constexpr (Size == TransformedFeatureDimensionsBig)
+            return accumulatorBig;
+        else if constexpr (Size == TransformedFeatureDimensionsSmall)
+            return accumulatorSmall;
+    }
+
     void reset(const DirtyPiece& dp) noexcept;
 };
 
 
 class AccumulatorStack {
    public:
-    AccumulatorStack() :
-        m_accumulators(MAX_PLY + 1),
-        m_current_idx{} {}
-
     [[nodiscard]] const AccumulatorState& latest() const noexcept;
 
-    void
-    reset(const Position& rootPos, const Networks& networks, AccumulatorCaches& caches) noexcept;
+    void reset() noexcept;
     void push(const DirtyPiece& dirtyPiece) noexcept;
     void pop() noexcept;
 
-    template<IndexType Dimensions, Accumulator<Dimensions> AccumulatorState::*accPtr>
-    void evaluate(const Position&                               pos,
-                  const FeatureTransformer<Dimensions, accPtr>& featureTransformer,
-                  AccumulatorCaches::Cache<Dimensions>&         cache) noexcept;
+    template<IndexType Dimensions>
+    void evaluate(const Position&                       pos,
+                  const FeatureTransformer<Dimensions>& featureTransformer,
+                  AccumulatorCaches::Cache<Dimensions>& cache) noexcept;
 
    private:
     [[nodiscard]] AccumulatorState& mut_latest() noexcept;
 
-    template<Color                   Perspective,
-             IndexType               Dimensions,
-             Accumulator<Dimensions> AccumulatorState::*accPtr>
-    void evaluate_side(const Position&                               pos,
-                       const FeatureTransformer<Dimensions, accPtr>& featureTransformer,
-                       AccumulatorCaches::Cache<Dimensions>&         cache) noexcept;
+    template<Color Perspective, IndexType Dimensions>
+    void evaluate_side(const Position&                       pos,
+                       const FeatureTransformer<Dimensions>& featureTransformer,
+                       AccumulatorCaches::Cache<Dimensions>& cache) noexcept;
 
-    template<Color                   Perspective,
-             IndexType               Dimensions,
-             Accumulator<Dimensions> AccumulatorState::*accPtr>
+    template<Color Perspective, IndexType Dimensions>
     [[nodiscard]] std::size_t find_last_usable_accumulator() const noexcept;
 
-    template<Color                   Perspective,
-             IndexType               Dimensions,
-             Accumulator<Dimensions> AccumulatorState::*accPtr>
-    void
-    forward_update_incremental(const Position&                               pos,
-                               const FeatureTransformer<Dimensions, accPtr>& featureTransformer,
-                               const std::size_t                             begin) noexcept;
+    template<Color Perspective, IndexType Dimensions>
+    void forward_update_incremental(const Position&                       pos,
+                                    const FeatureTransformer<Dimensions>& featureTransformer,
+                                    const std::size_t                     begin) noexcept;
 
-    template<Color                   Perspective,
-             IndexType               Dimensions,
-             Accumulator<Dimensions> AccumulatorState::*accPtr>
-    void
-    backward_update_incremental(const Position&                               pos,
-                                const FeatureTransformer<Dimensions, accPtr>& featureTransformer,
-                                const std::size_t                             end) noexcept;
+    template<Color Perspective, IndexType Dimensions>
+    void backward_update_incremental(const Position&                       pos,
+                                     const FeatureTransformer<Dimensions>& featureTransformer,
+                                     const std::size_t                     end) noexcept;
 
-    std::vector<AccumulatorState> m_accumulators;
-    std::size_t                   m_current_idx;
+    std::array<AccumulatorState, MAX_PLY + 1> accumulators;
+    std::size_t                               size = 1;
 };
 
 }  // namespace Stockfish::Eval::NNUE
