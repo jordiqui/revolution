@@ -43,6 +43,8 @@ set "DIR_BASE=C:\\fastchess\\revolution-baseline"
 set "ENGINE_BASE=%DIR_BASE%\\Revolution-3.0-011125.exe"
 set "BOOK=C:\\fastchess\\Books\\UHO_Lichess_4852_v1.epd"
 set "OUTDIR=C:\\fastchess\\out"
+rem Rutas a las tablas de finales Syzygy (3-6 piezas)
+set "TBPATH=C:\\Syzygy;D:\\Syzygy6"
 
 rem ====== PARÁMETROS ======
 set "TC=10+0.05"
@@ -90,8 +92,8 @@ start "SPRT Live (Elo/LLR/LOS)" powershell -NoLogo -NoExit -Command ^
 
 echo ====== COMANDO QUE SE EJECUTA (SPRT) ======
 echo "%FASTCHESS%" ^
- -engine cmd="%ENGINE_DEV%"  name=DEV  dir="%DIR_DEV%"  option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 ^
- -engine cmd="%ENGINE_BASE%" name=BASE dir="%DIR_BASE%" option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 ^
+ -engine cmd="%ENGINE_DEV%"  name=DEV  dir="%DIR_DEV%"  option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 option."SyzygyPath"="%TBPATH%" ^
+ -engine cmd="%ENGINE_BASE%" name=BASE dir="%DIR_BASE%" option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 option."SyzygyPath"="%TBPATH%" ^
  -each tc=%TC% proto=uci ^
  -openings file="%BOOK%" format=epd order=random ^
  -games %GAMES% -rounds %ROUNDS% -repeat %REPEAT% -maxmoves %MAXMOVES% -concurrency %CONCURRENCY% ^
@@ -103,8 +105,8 @@ echo.
 
 rem ====== LANZAR FASTCHESS ======
 "%FASTCHESS%" ^
- -engine cmd="%ENGINE_DEV%"  name=DEV  dir="%DIR_DEV%"  option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 ^
- -engine cmd="%ENGINE_BASE%" name=BASE dir="%DIR_BASE%" option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 ^
+ -engine cmd="%ENGINE_DEV%"  name=DEV  dir="%DIR_DEV%"  option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 option."SyzygyPath"="%TBPATH%" ^
+ -engine cmd="%ENGINE_BASE%" name=BASE dir="%DIR_BASE%" option.Threads=%THREADS% option.Hash=%HASH% option.Ponder=false option.MultiPV=1 option."Move Overhead"=80 option."Slow Mover"=100 option."Minimum Thinking Time"=100 option."SyzygyPath"="%TBPATH%" ^
  -each tc=%TC% proto=uci ^
  -openings file="%BOOK%" format=epd order=random ^
  -games %GAMES% -rounds %ROUNDS% -repeat %REPEAT% -maxmoves %MAXMOVES% -concurrency %CONCURRENCY% ^
