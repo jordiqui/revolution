@@ -176,8 +176,7 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
 
     constexpr uint64_t alignment = CacheLineSize;
 
-    alignas(alignment)
-      TransformedFeatureType transformedFeatures[FeatureTransformer<FTDimensions>::BufferSize];
+    alignas(alignment) TransformedFeatureType transformedFeatures[Transformer::BufferSize];
 
     ASSERT_ALIGNED(transformedFeatures, alignment);
 
@@ -238,8 +237,7 @@ Network<Arch, Transformer>::trace_evaluate(const Position&                      
 
     constexpr uint64_t alignment = CacheLineSize;
 
-    alignas(alignment)
-      TransformedFeatureType transformedFeatures[FeatureTransformer<FTDimensions>::BufferSize];
+    alignas(alignment) TransformedFeatureType transformedFeatures[Transformer::BufferSize];
 
     ASSERT_ALIGNED(transformedFeatures, alignment);
 
@@ -408,9 +406,11 @@ bool Network<Arch, Transformer>::write_parameters(std::ostream&      stream,
 // Explicit template instantiations
 
 template class Network<NetworkArchitecture<TransformedFeatureDimensionsBig, L2Big, L3Big>,
-                       FeatureTransformer<TransformedFeatureDimensionsBig>>;
+                       FeatureTransformer<TransformedFeatureDimensionsBig,
+                                          &AccumulatorState::accumulatorBig>>;
 
 template class Network<NetworkArchitecture<TransformedFeatureDimensionsSmall, L2Small, L3Small>,
-                       FeatureTransformer<TransformedFeatureDimensionsSmall>>;
+                       FeatureTransformer<TransformedFeatureDimensionsSmall,
+                                          &AccumulatorState::accumulatorSmall>>;
 
 }  // namespace Stockfish::Eval::NNUE

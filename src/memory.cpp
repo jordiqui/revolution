@@ -57,6 +57,7 @@
 // versions, so instead of calling them directly (forcing the linker to resolve
 // the calls at compile time), try to load them at runtime. To do this we need
 // first to define the corresponding function pointers.
+#endif
 
 namespace Stockfish {
 
