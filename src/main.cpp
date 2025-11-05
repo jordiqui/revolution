@@ -17,6 +17,7 @@
 */
 
 #include <iostream>
+#include <memory>
 
 #include "bitboard.h"
 #include "misc.h"
@@ -38,12 +39,12 @@ int main(int argc, char* argv[]) {
     Bitboards::init();
     Position::init();
 
-    UCIEngine uci(argc, argv);
+    auto uci = std::make_unique<UCIEngine>(argc, argv);
 
-    LD.init(uci.engine_options());
-    Tune::init(uci.engine_options());
+    LD.init(uci->engine_options());
+    Tune::init(uci->engine_options());
 
-    uci.loop();
+    uci->loop();
 
     return 0;
 }
