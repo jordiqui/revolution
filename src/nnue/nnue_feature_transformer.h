@@ -77,7 +77,8 @@ void permute(T (&data)[N], const std::array<std::size_t, OrderSize>& order) {
 }
 
 // Input feature converter
-template<IndexType TransformedFeatureDimensions>
+template<IndexType TransformedFeatureDimensions,
+         Accumulator<TransformedFeatureDimensions> AccumulatorState::*AccPtr>
 class FeatureTransformer {
 
     // Number of output dimensions for one side
@@ -186,7 +187,7 @@ class FeatureTransformer {
                            OutputType*                               output,
                            int                                       bucket) const {
 
-        using namespace SIMD;
+        using namespace ::Stockfish::Eval::NNUE::SIMD;
 
         accumulatorStack.evaluate(pos, *this, *cache);
         const auto& accumulatorState = accumulatorStack.latest();
@@ -318,10 +319,12 @@ class FeatureTransformer {
 }  // namespace Stockfish::Eval::NNUE
 
 
-template<Stockfish::Eval::NNUE::IndexType TransformedFeatureDimensions>
-struct std::hash<Stockfish::Eval::NNUE::FeatureTransformer<TransformedFeatureDimensions>> {
+template<Stockfish::Eval::NNUE::IndexType TransformedFeatureDimensions,
+         Stockfish::Eval::NNUE::Accumulator<TransformedFeatureDimensions>
+           Stockfish::Eval::NNUE::AccumulatorState::*AccPtr>
+struct std::hash<Stockfish::Eval::NNUE::FeatureTransformer<TransformedFeatureDimensions, AccPtr>> {
     std::size_t
-    operator()(const Stockfish::Eval::NNUE::FeatureTransformer<TransformedFeatureDimensions>& ft)
+    operator()(const Stockfish::Eval::NNUE::FeatureTransformer<TransformedFeatureDimensions, AccPtr>& ft)
       const noexcept {
         return ft.get_content_hash();
     }

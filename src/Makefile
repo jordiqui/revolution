@@ -632,6 +632,19 @@ ifneq ($(comp),mingw)
 	endif
 endif
 
+### Locate llvm-profdata for profile-guided builds
+CLANG_MAJOR_VERSION = $(shell $(CXX) --version 2>/dev/null | head -n 1 | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p')
+ifeq ($(CLANG_MAJOR_VERSION),)
+CLANG_MAJOR_VERSION = $(shell $(CXX) -dumpversion 2>/dev/null | cut -d. -f1)
+endif
+
+LLVM_PROFDATA_CANDIDATES = $(if $(CLANG_MAJOR_VERSION),llvm-profdata-$(CLANG_MAJOR_VERSION)) llvm-profdata llvm-profdata-20 llvm-profdata-19 llvm-profdata-18 llvm-profdata-17 llvm-profdata-16 llvm-profdata-15 llvm-profdata-14
+LLVM_PROFDATA = $(firstword $(foreach cmd,$(LLVM_PROFDATA_CANDIDATES),$(if $(shell command -v $(cmd) 2>/dev/null),$(shell command -v $(cmd)))))
+
+ifeq ($(LLVM_PROFDATA),)
+$(error Could not find llvm-profdata executable; please install llvm-profdata or set LLVM_PROFDATA)
+endif
+
 ### 3.2.1 Debugging
 ifeq ($(debug),no)
 	CXXFLAGS += -DNDEBUG
@@ -1113,7 +1126,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1141,7 +1154,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
