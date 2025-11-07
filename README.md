@@ -1,8 +1,6 @@
 <div align="center">
 
-  <img src="assets/pullsfish-logo.svg" alt="Revolution logo" width="160">
-
-  <h3>Revolution 2.90 241025</h3>
+  <h3>Revolution 3.40-081125</h3>
 
   A free and strong UCI chess engine derived from Stockfish 17.1.
   <br>
@@ -19,32 +17,32 @@
 
 </div>
 
-> **Revolution 2.90 241025** is a UCI chess engine derived from **Stockfish 17.1**. The
+> **Revolution 3.40-081125** is a UCI chess engine derived from **Stockfish 17.1**. The
 > project is jointly authored by **Jorge Ruiz** and the **ChatGPT AI**, with
 > credits to the Stockfish authors and every contributor listed in
 > [AUTHORS](AUTHORS). This repository provides the complete source so the
 > community can collaborate on maintenance and future improvements.
 
-This release and all distributed binaries identify themselves as **Revolution 2.90 241025**.
-You should see that exact name (including the build tag `241025`) in the engine
+This release and all distributed binaries identify themselves as **Revolution 3.40-081125**.
+You should see that exact name (including the build tag `081125`) in the engine
 headers, UCI responses, and compiled executable filenames. If a GUI shows a
 different string, make sure it is loading the binaries built from this version
 of the source tree.
 
 ## Overview
 
-Revolution 2.90 241025 is a **free and strong UCI chess engine** that analyzes chess positions
+Revolution 3.40-081125 is a **free and strong UCI chess engine** that analyzes chess positions
 and computes the optimal moves while preserving full compatibility with popular
 front-ends.
 
-Revolution 2.90 241025 **does not include a graphical user interface** (GUI) and is normally
+Revolution 3.40-081125 **does not include a graphical user interface** (GUI) and is normally
 paired with third-party front-ends such as Fritz 20 or Cutechess. It implements
 the Universal Chess Interface (UCI) protocol so those GUIs can discover it as
-**Revolution 2.90 241025** in their engine lists.
+**Revolution 3.40-081125** in their engine lists.
 
 ### BrainLearn experience integration
 
-Revolution 2.90 241025 bundles the BrainLearn learning hash so it shares the same
+Revolution 3.40-081125 bundles the BrainLearn learning hash so it shares the same
 UCI options as BrainFish while persisting the data to `experience.exp`. Each
 entry in the file stores the following information (mirroring the in-memory
 BrainLearn transposition table):
@@ -90,17 +88,17 @@ each move, and persists the updated values so they are used in future sessions.
 
 ## Files
 
-This distribution of Revolution 2.90 241025 consists of the following files:
+This distribution of Revolution 3.40-081125 consists of the following files:
 
   * [README.md](README.md), the file you are currently reading.
 
   * [Copying.txt](Copying.txt), a text file containing the GNU General Public
     License version 3.
 
-  * [AUTHORS](AUTHORS), a text file with the list of authors for Revolution 2.90 241025.
+  * [AUTHORS](AUTHORS), a text file with the list of authors for Revolution 3.40-081125.
 
   * [src](src), a subdirectory containing the full source code, including a
-    Makefile that can be used to compile Revolution 2.90 241025 on Unix-like systems.
+    Makefile that can be used to compile Revolution 3.40-081125 on Unix-like systems.
 
   * a file with the .nnue extension, storing the neural network for the NNUE
     evaluation. Binary distributions will have this file embedded.
@@ -111,19 +109,19 @@ __See [Contributing Guide](CONTRIBUTING.md).__
 
 ### Donating hardware
 
-Improving Revolution 2.90 241025 requires a massive amount of testing. You can donate your
+Improving Revolution 3.40-081125 requires a massive amount of testing. You can donate your
 hardware resources by installing the Revolution worker and joining the community
 channels to coordinate testing campaigns.
 
 ### Improving the code
 
 In the [chessprogramming wiki](https://www.chessprogramming.org/Main_Page), many
-techniques used in Revolution 2.90 241025 are explained with a lot of background information.
+techniques used in Revolution 3.40-081125 are explained with a lot of background information.
 The [section on evaluation techniques](https://www.chessprogramming.org/Evaluation)
 describes many features and techniques used by modern engines.
 
 The engine testing is coordinated by the Revolution maintainers. If you want to
-help improve Revolution 2.90 241025, please read this
+help improve Revolution 3.40-081125, please read this
 [guideline](https://github.com/jorgeluisruiz/revolution/wiki/Getting-Started)
 first, where the basics of development are explained.
 
@@ -133,10 +131,10 @@ questions about the codebase and how to improve it.
 
 ## Compiling Revolution
 
-Revolution 2.90 241025 has support for 32 or 64-bit CPUs, certain hardware instructions,
+Revolution 3.40-081125 has support for 32 or 64-bit CPUs, certain hardware instructions,
 big-endian machines such as Power PC, and other platforms.
 
-On Unix-like systems, it should be easy to compile Revolution 2.90 241025 directly from the
+On Unix-like systems, it should be easy to compile Revolution 3.40-081125 directly from the
 source code with the included Makefile in the folder `src`. In general, it is
 recommended to run `make help` to see a list of make targets with corresponding
 descriptions. An example suitable for most Intel and AMD chips:
@@ -154,7 +152,7 @@ supported by Revolution.
 
 ## Terms of use
 
-Revolution 2.90 241025 is free and distributed under the
+Revolution 3.40-081125 is free and distributed under the
 [**GNU General Public License version 3**](Copying.txt) (GPL v3). Essentially,
 this means you are free to do almost exactly what you want with the program,
 including distributing it among your friends, making it available for download
@@ -162,7 +160,7 @@ from your website, selling it (either by itself or as part of some bigger
 software package), or using it as the starting point for a software project of
 your own.
 
-The only real limitation is that whenever you distribute Revolution 2.90 241025 in some way,
+The only real limitation is that whenever you distribute Revolution 3.40-081125 in some way,
 you MUST always include the license and the full source code (or a pointer to
 where the source code can be found) to generate the exact binary you are
 distributing. If you make any changes to the source code, these changes must
@@ -170,7 +168,7 @@ also be made available under GPL v3.
 
 ## Credits
 
-Revolution 2.90 241025 is maintained by Jorge Ruiz in collaboration with the ChatGPT AI.
+Revolution 3.40-081125 is maintained by Jorge Ruiz in collaboration with the ChatGPT AI.
 The project gives full credit to the Stockfish authors and to every contributor
 listed in [AUTHORS](AUTHORS), and it continues to benefit from the innovations
 shared by the wider open-source chess community.
