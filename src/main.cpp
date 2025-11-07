@@ -17,20 +17,20 @@
 */
 
 #include <iostream>
+#include <memory>
 
 #include "bitboard.h"
+#include "learn/learn.h"
 #include "misc.h"
 #include "position.h"
 #include "tune.h"
 #include "types.h"
 #include "uci.h"
 #include "wdl/win_probability.h"
-#include "learn/learn.h"
 
 using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
-
     std::cout << engine_info() << std::endl;
 
     WDLModel::init();
@@ -38,12 +38,12 @@ int main(int argc, char* argv[]) {
     Bitboards::init();
     Position::init();
 
-    UCIEngine uci(argc, argv);
+    auto uci = std::make_unique<UCIEngine>(argc, argv);
 
-    LD.init(uci.engine_options());
-    Tune::init(uci.engine_options());
+    LD.init(uci->engine_options());
+    Tune::init(uci->engine_options());
 
-    uci.loop();
+    uci->loop();
 
     return 0;
 }

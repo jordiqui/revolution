@@ -86,17 +86,17 @@ void AccumulatorStack::reset(const Position&    rootPos,
 
     update_accumulator_refresh_cache<WHITE, TransformedFeatureDimensionsBig,
                                      &AccumulatorState::accumulatorBig>(
-      *networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
+      networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
     update_accumulator_refresh_cache<BLACK, TransformedFeatureDimensionsBig,
                                      &AccumulatorState::accumulatorBig>(
-      *networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
+      networks.big.featureTransformer, rootPos, m_accumulators[0], caches.big);
 
     update_accumulator_refresh_cache<WHITE, TransformedFeatureDimensionsSmall,
                                      &AccumulatorState::accumulatorSmall>(
-      *networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
+      networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
     update_accumulator_refresh_cache<BLACK, TransformedFeatureDimensionsSmall,
                                      &AccumulatorState::accumulatorSmall>(
-      *networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
+      networks.small.featureTransformer, rootPos, m_accumulators[0], caches.small);
 }
 
 void AccumulatorStack::push(const DirtyPiece& dirtyPiece) noexcept {
