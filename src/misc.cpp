@@ -33,7 +33,6 @@
 #include <sstream>
 #include <string_view>
 
-#include "memory.h"
 #include "types.h"
 
 namespace Stockfish {
@@ -42,8 +41,8 @@ namespace {
 
 // Version number or dev.
 // Keep this in sync with the README and build scripts so every artifact reports
-// the same revolution-3.10-051125 release branding.
-constexpr std::string_view engine_name = "revolution-3.10-051125";
+// the same Revolution 2.90 241025 release branding.
+constexpr std::string_view engine_name = "Revolution 2.90 241025";
 constexpr std::string_view version     = "release";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
@@ -163,16 +162,8 @@ std::string engine_version_info() {
 }
 
 std::string engine_info(bool to_uci) {
-    std::string info = engine_version_info();
-
-    if (to_uci)
-        return info + "\nid author " + "Jorge Ruiz and Stockfish developers (see AUTHORS file)";
-
-    info += " by Jorge Ruiz and Stockfish developers (see AUTHORS file)";
-    info += "\nLarge Memory Pages    : ";
-    info += has_large_pages() ? "available" : "unavailable";
-
-    return info;
+    return engine_version_info() + (to_uci ? "\nid author " : " by ")
+         + "Jorge Ruiz with credits to ChatGPT, the Stockfish authors, and the Revolution development community (see AUTHORS file)";
 }
 
 

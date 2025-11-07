@@ -483,64 +483,6 @@ class TestSyzygy(metaclass=OrderedClassMembers):
         self.revolution.expect("bestmove *")
 
 
-class TestDynamicKingSafety(metaclass=OrderedClassMembers):
-
-    def beforeEach(self):
-        self.revolution = Revolution([], False)
-        self.revolution.send_command("uci")
-        self.revolution.expect("uciok")
-        self.revolution.send_command("isready")
-        self.revolution.equals("readyok")
-        self.revolution.clear_output()
-
-    def afterEach(self):
-        if self.revolution:
-            try:
-                self.revolution.send_command("quit")
-            finally:
-                assert postfix_check(self.revolution.get_output()) == True
-                self.revolution.close()
-                self.revolution = None
-
-    def _search_score(self, fen: str) -> float:
-        self.revolution.send_command(f"position fen {fen}")
-        self.revolution.send_command("go depth 1")
-
-        result = {}
-
-        def callback(line):
-            match = re.search(r"score cp (-?\d+)", line)
-            if match:
-                result["score"] = int(match.group(1)) / 100.0
-                return False
-            if line.startswith("bestmove"):
-                return True
-            return False
-
-        self.revolution.check_output(callback)
-        self.revolution.clear_output()
-        assert "score" in result
-        return result["score"]
-
-    def test_counterplay_prefers_dynamic_breaks(self):
-        baseline = "6k1/6pp/2p2p2/7P/3PP1P1/8/4PP2/6K1 b - - 0 1"
-        dynamic = "6k1/6pp/2p3p1/5p1P/3PP1P1/8/4PP2/6K1 b - - 0 1"
-
-        score_baseline = self._search_score(baseline)
-        score_dynamic = self._search_score(dynamic)
-
-        assert score_dynamic >= score_baseline + 1.0
-
-    def test_passive_h6_structure_is_penalized(self):
-        baseline = "6k1/6pp/8/8/6PP/8/8/6K1 b - - 0 1"
-        passive = "6k1/6pp/7p/8/6PP/8/8/6K1 b - - 0 1"
-
-        score_baseline = self._search_score(baseline)
-        score_passive = self._search_score(passive)
-
-        assert score_passive <= score_baseline + 0.30
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Run Revolution with testing options")
     parser.add_argument("--valgrind", action="store_true", help="Run valgrind testing")
@@ -574,7 +516,7 @@ if __name__ == "__main__":
     framework = MiniTestFramework()
 
     # Each test suite will be ran inside a temporary directory
-    framework.run([TestCLI, TestInteractive, TestSyzygy, TestDynamicKingSafety])
+    framework.run([TestCLI, TestInteractive, TestSyzygy])
 
     EPD.delete_bench_epd()
     TSAN.unset_tsan_option()

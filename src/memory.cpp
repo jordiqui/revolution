@@ -19,9 +19,7 @@
 #include "memory.h"
 
 #include <cstdlib>
-#include <fstream>
 #include <limits>
-#include <string>
 
 #if __has_include("features.h")
     #include <features.h>
@@ -57,7 +55,15 @@
 // versions, so instead of calling them directly (forcing the linker to resolve
 // the calls at compile time), try to load them at runtime. To do this we need
 // first to define the corresponding function pointers.
+
+extern "C" {
+using OpenProcessToken_t      = bool (*)(HANDLE, DWORD, PHANDLE);
+using LookupPrivilegeValueA_t = bool (*)(LPCSTR, LPCSTR, PLUID);
+using AdjustTokenPrivileges_t =
+  bool (*)(HANDLE, BOOL, PTOKEN_PRIVILEGES, DWORD, PTOKEN_PRIVILEGES, PDWORD);
+}
 #endif
+
 
 namespace Stockfish {
 
@@ -130,14 +136,77 @@ void std_aligned_free(void* ptr) {
 
 static void* aligned_large_pages_alloc_windows([[maybe_unused]] size_t allocSize) {
 
-    return windows_try_with_large_page_priviliges(
-      [&](size_t largePageSize) {
-          // Round up size to full pages and allocate
-          allocSize = (allocSize + largePageSize - 1) & ~size_t(largePageSize - 1);
-          return VirtualAlloc(nullptr, allocSize, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES,
-                              PAGE_READWRITE);
-      },
-      []() { return (void*) nullptr; });
+    #if !defined(_WIN64)
+    return nullptr;
+    #else
+
+    HANDLE hProcessToken{};
+    LUID   luid{};
+    void*  mem = nullptr;
+
+    const size_t largePageSize = GetLargePageMinimum();
+    if (!largePageSize)
+        return nullptr;
+
+    // Dynamically link OpenProcessToken, LookupPrivilegeValue and AdjustTokenPrivileges
+
+    HMODULE hAdvapi32 = GetModuleHandle(TEXT("advapi32.dll"));
+
+    if (!hAdvapi32)
+        hAdvapi32 = LoadLibrary(TEXT("advapi32.dll"));
+
+    auto OpenProcessToken_f =
+      OpenProcessToken_t((void (*)()) GetProcAddress(hAdvapi32, "OpenProcessToken"));
+    if (!OpenProcessToken_f)
+        return nullptr;
+    auto LookupPrivilegeValueA_f =
+      LookupPrivilegeValueA_t((void (*)()) GetProcAddress(hAdvapi32, "LookupPrivilegeValueA"));
+    if (!LookupPrivilegeValueA_f)
+        return nullptr;
+    auto AdjustTokenPrivileges_f =
+      AdjustTokenPrivileges_t((void (*)()) GetProcAddress(hAdvapi32, "AdjustTokenPrivileges"));
+    if (!AdjustTokenPrivileges_f)
+        return nullptr;
+
+    // We need SeLockMemoryPrivilege, so try to enable it for the process
+
+    if (!OpenProcessToken_f(  // OpenProcessToken()
+          GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hProcessToken))
+        return nullptr;
+
+    if (LookupPrivilegeValueA_f(nullptr, "SeLockMemoryPrivilege", &luid))
+    {
+        TOKEN_PRIVILEGES tp{};
+        TOKEN_PRIVILEGES prevTp{};
+        DWORD            prevTpLen = 0;
+
+        tp.PrivilegeCount           = 1;
+        tp.Privileges[0].Luid       = luid;
+        tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+        // Try to enable SeLockMemoryPrivilege. Note that even if AdjustTokenPrivileges()
+        // succeeds, we still need to query GetLastError() to ensure that the privileges
+        // were actually obtained.
+
+        if (AdjustTokenPrivileges_f(hProcessToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), &prevTp,
+                                    &prevTpLen)
+            && GetLastError() == ERROR_SUCCESS)
+        {
+            // Round up size to full pages and allocate
+            allocSize = (allocSize + largePageSize - 1) & ~size_t(largePageSize - 1);
+            mem       = VirtualAlloc(nullptr, allocSize, MEM_RESERVE | MEM_COMMIT | MEM_LARGE_PAGES,
+                                     PAGE_READWRITE);
+
+            // Privilege no longer needed, restore previous state
+            AdjustTokenPrivileges_f(hProcessToken, FALSE, &prevTp, 0, nullptr, nullptr);
+        }
+    }
+
+    CloseHandle(hProcessToken);
+
+    return mem;
+
+    #endif
 }
 
 void* aligned_large_pages_alloc(size_t allocSize) {
@@ -192,42 +261,7 @@ bool has_large_pages() {
 #elif defined(__linux__)
 
     #if defined(MADV_HUGEPAGE)
-    auto transparent_hugepages_enabled = []() {
-        std::ifstream thp("/sys/kernel/mm/transparent_hugepage/enabled");
-        if (!thp.is_open())
-            return false;
-
-        std::string line;
-        std::getline(thp, line);
-        return line.find("[always]") != std::string::npos
-            || line.find("[madvise]") != std::string::npos;
-    };
-
-    if (transparent_hugepages_enabled())
-        return true;
-
-    std::ifstream meminfo("/proc/meminfo");
-    if (!meminfo.is_open())
-        return false;
-
-    std::string key;
-    long        value = 0;
-    std::string unit;
-    bool        hasHugePages  = false;
-    bool        hasFreePages  = false;
-
-    while (meminfo >> key >> value >> unit)
-    {
-        if (key == "HugePages_Total:" && value > 0)
-            hasHugePages = true;
-        else if (key == "HugePages_Free:" && value > 0)
-            hasFreePages = true;
-
-        if (hasHugePages && hasFreePages)
-            return true;
-    }
-
-    return false;
+    return true;
     #else
     return false;
     #endif

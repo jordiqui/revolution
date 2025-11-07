@@ -38,8 +38,8 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
-RELEASE_BIN   = revolution-3.10-051125
-BRANDED_NAME  = revolution-3.10-051125
+RELEASE_BIN   = revolution-2.90-241025
+BRANDED_NAME  = revolution 2.90 241025
 
 ifeq ($(target_windows),yes)
         EXE          = $(RELEASE_BIN).exe
@@ -442,7 +442,7 @@ endif
 ifeq ($(COMP),gcc)
 	comp=gcc
 	CXX=g++
-       CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-declarations -Wstack-usage=128000
+	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-declarations
 
 	ifeq ($(arch),$(filter $(arch),armv7 armv8 riscv64))
 		ifeq ($(OS),Android)
@@ -613,44 +613,17 @@ ifneq ($(comp),mingw)
 		# Haiku has pthreads in its libroot, so only link it in on other platforms
 		ifneq ($(KERNEL),Haiku)
 			ifneq ($(COMP),ndk)
-                               LDFLAGS += -lpthread
-
-                               add_lrt = yes
-                               ifeq ($(target_windows),yes)
-                                       add_lrt = no
-                               endif
-
-                               ifeq ($(KERNEL),Darwin)
-                                       add_lrt = no
-                               endif
-
-                               ifeq ($(add_lrt),yes)
-                                       LDFLAGS += -lrt
-                               endif
+				LDFLAGS += -lpthread
 			endif
 		endif
 	endif
-endif
-
-### Locate llvm-profdata for profile-guided builds
-CLANG_MAJOR_VERSION = $(shell $(CXX) --version 2>/dev/null | head -n 1 | sed -n 's/.*version \([0-9][0-9]*\).*/\1/p')
-ifeq ($(CLANG_MAJOR_VERSION),)
-CLANG_MAJOR_VERSION = $(shell $(CXX) -dumpversion 2>/dev/null | cut -d. -f1)
-endif
-
-LLVM_PROFDATA_CANDIDATES = $(if $(CLANG_MAJOR_VERSION),llvm-profdata-$(CLANG_MAJOR_VERSION)) llvm-profdata llvm-profdata-20 llvm-profdata-19 llvm-profdata-18 llvm-profdata-17 llvm-profdata-16 llvm-profdata-15 llvm-profdata-14
-LLVM_PROFDATA = $(firstword $(foreach cmd,$(LLVM_PROFDATA_CANDIDATES),$(if $(shell command -v $(cmd) 2>/dev/null),$(shell command -v $(cmd)))))
-
-ifeq ($(LLVM_PROFDATA),)
-$(error Could not find llvm-profdata executable; please install llvm-profdata or set LLVM_PROFDATA)
 endif
 
 ### 3.2.1 Debugging
 ifeq ($(debug),no)
 	CXXFLAGS += -DNDEBUG
 else
-       CXXFLAGS += -g
-       CXXFLAGS += -D_GLIBCXX_ASSERTIONS -D_GLIBCXX_DEBUG
+	CXXFLAGS += -g
 endif
 
 ### 3.2.2 Debugging with undefined behavior sanitizers
@@ -999,10 +972,8 @@ strip: $(EXE) brand
 	$(STRIP) "$(BRANDED_EXE)"
 
 brand: $(EXE)
-	@if [ "$(EXE)" != "$(BRANDED_EXE)" ]; then \
-		rm -f "$(BRANDED_EXE)"; \
-		cp "$(EXE)" "$(BRANDED_EXE)"; \
-	fi
+	@rm -f "$(BRANDED_EXE)"
+	@cp $(EXE) "$(BRANDED_EXE)"
 
 install: all
 	-mkdir -p -m 755 $(BINDIR)
@@ -1126,7 +1097,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1154,7 +1125,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
+	$(XCRUN) llvm-profdata merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \

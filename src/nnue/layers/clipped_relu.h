@@ -58,12 +58,6 @@ class ClippedReLU {
     // Write network parameters
     bool write_parameters(std::ostream&) const { return true; }
 
-    std::size_t get_content_hash() const {
-        std::size_t h = 0;
-        hash_combine(h, get_hash_value(0));
-        return h;
-    }
-
     // Forward propagation
     void propagate(const InputType* input, OutputType* output) const {
 
