@@ -34,8 +34,139 @@
 #include "types.h"
 #include "uci.h"
 #include "nnue/nnue_accumulator.h"
+#include "bitboard.h"
 
 namespace Stockfish {
+
+namespace {
+
+constexpr Value WingAttackBasePenalty      = 8;
+constexpr Value WingAttackDepthPenalty     = 3;
+constexpr Value WingFileAlignmentPenalty   = 2;
+constexpr Value CounterplayAdvancedBonus   = 16;
+constexpr Value CounterplayReadyBonus      = 12;
+constexpr Value CounterplayPreparation     = 8;
+constexpr Value PassiveHFilePenalty        = 120;
+constexpr Value MaximumSwing               = 80;
+
+Value counterplay_strength(const Position& pos, Color us, File file) {
+
+    Bitboard pawns = pos.pieces(us, PAWN) & file_bb(file);
+    Value    best  = VALUE_ZERO;
+
+    while (pawns)
+    {
+        Square sq     = pop_lsb(pawns);
+        Rank   rel    = relative_rank(us, sq);
+        Value  score  = VALUE_ZERO;
+        Square ahead  = sq + pawn_push(us);
+        bool   canUse = is_ok(ahead) && pos.empty(ahead);
+
+        if (rel >= RANK_5)
+            score = CounterplayAdvancedBonus;
+        else if (canUse)
+        {
+            Rank aheadRank = relative_rank(us, ahead);
+
+            if (aheadRank >= RANK_5)
+                score = CounterplayReadyBonus;
+            else if (rel == RANK_2)
+            {
+                Square ahead2 = ahead + pawn_push(us);
+
+                if (is_ok(ahead2) && pos.empty(ahead2))
+                    score = CounterplayPreparation;
+            }
+            else if (aheadRank == RANK_4)
+                score = CounterplayPreparation;
+        }
+
+        best = std::max(best, score);
+    }
+
+    return best;
+}
+
+bool kingside_fianchetto(const Position& pos, Color us) {
+
+    Square kingSq = pos.square<KING>(us);
+
+    if (file_of(kingSq) < FILE_F)
+        return false;
+
+    Square gHome      = relative_square(us, SQ_G2);
+    Square gAdvance   = gHome + pawn_push(us);
+    bool   gAdvanceOk = is_ok(gAdvance);
+    bool   gPawn      = pos.piece_on(gHome) == make_piece(us, PAWN)
+                     || (gAdvanceOk && pos.piece_on(gAdvance) == make_piece(us, PAWN));
+
+    if (!gPawn)
+        return false;
+
+    Square bishopSq = relative_square(us, SQ_G7);
+    Square hHome    = relative_square(us, SQ_H2);
+    Square hAdvance = hHome + pawn_push(us);
+    bool   bishop   = is_ok(bishopSq) && pos.piece_on(bishopSq) == make_piece(us, BISHOP);
+    bool   hPawn    = pos.piece_on(hHome) == make_piece(us, PAWN)
+                   || (is_ok(hAdvance) && pos.piece_on(hAdvance) == make_piece(us, PAWN));
+
+    return bishop || hPawn;
+}
+
+Value dynamic_king_safety_for(const Position& pos, Color us) {
+
+    if (!kingside_fianchetto(pos, us))
+        return VALUE_ZERO;
+
+    const Color them    = ~us;
+    Square      kingSq  = pos.square<KING>(us);
+    Bitboard    wing    = pos.pieces(them, PAWN) & (file_bb(FILE_G) | file_bb(FILE_H));
+    Value       threat  = VALUE_ZERO;
+    int         attackers = 0;
+
+    while (wing)
+    {
+        Square sq = pop_lsb(wing);
+        Rank   rr = relative_rank(them, sq);
+
+        if (rr < RANK_4)
+            continue;
+
+        ++attackers;
+        threat += WingAttackBasePenalty;
+        threat += WingAttackDepthPenalty * (rr - RANK_4);
+
+        if (std::abs(file_of(sq) - file_of(kingSq)) <= 1)
+            threat += WingFileAlignmentPenalty;
+    }
+
+    if (!attackers)
+        return VALUE_ZERO;
+
+    Value counterplay = counterplay_strength(pos, us, FILE_C)
+                      + counterplay_strength(pos, us, FILE_F)
+                      + counterplay_strength(pos, us, FILE_E) / 2;
+
+    Value swing = counterplay * attackers - threat;
+
+    Square passiveH = relative_square(us, SQ_H3);
+    bool   passive  = pos.piece_on(passiveH) == make_piece(us, PAWN);
+
+    if (passive && counterplay < CounterplayReadyBonus)
+        swing -= PassiveHFilePenalty;
+
+    return std::clamp(swing, -MaximumSwing, MaximumSwing);
+}
+
+Value dynamic_king_safety_adjustment(const Position& pos) {
+
+    Value white = dynamic_king_safety_for(pos, WHITE);
+    Value black = dynamic_king_safety_for(pos, BLACK);
+
+    return std::clamp(white - black, -MaximumSwing, MaximumSwing);
+}
+
+}  // namespace
 
 // Returns a static, purely materialistic evaluation of the position from
 // the point of view of the given color. It can be divided by PawnValue to get
@@ -65,6 +196,11 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
                                        : networks.big.evaluate(pos, accumulators, &caches.big);
 
     Value nnue = (125 * psqt + 131 * positional) / 128;
+
+    Value dynamicAdjust = dynamic_king_safety_adjustment(pos);
+    if (pos.side_to_move() == BLACK)
+        dynamicAdjust = -dynamicAdjust;
+    nnue += dynamicAdjust;
 
     // Re-evaluate the position when higher eval accuracy is worth the time spent
     if (smallNet && (std::abs(nnue) < 236))
