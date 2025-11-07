@@ -1126,7 +1126,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-        $(XCRUN) $(LLVM_PROFDATA) merge -output="$(RELEASE_BIN).profdata" *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output="$(RELEASE_BIN).profdata" *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1154,7 +1154,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-        $(XCRUN) $(LLVM_PROFDATA) merge -output="$(RELEASE_BIN).profdata" *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output="$(RELEASE_BIN).profdata" *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
