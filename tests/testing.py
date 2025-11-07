@@ -14,8 +14,7 @@ import pathlib
 import concurrent.futures
 import tempfile
 import shutil
-import urllib.error
-import urllib.request
+import requests
 
 CYAN_COLOR = "\033[36m"
 GRAY_COLOR = "\033[2m"
@@ -100,15 +99,10 @@ class Syzygy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 tarball_path = os.path.join(tmpdirname, f"{file}.tar.gz")
 
-                try:
-                    with urllib.request.urlopen(url) as response, open(
-                        tarball_path, "wb"
-                    ) as f:
-                        shutil.copyfileobj(response, f)
-                except urllib.error.URLError as exc:
-                    raise RuntimeError(
-                        f"Failed to download Syzygy tablebases from {url}: {exc}"
-                    ) from exc
+                response = requests.get(url, stream=True)
+                with open(tarball_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
 
                 with tarfile.open(tarball_path, "r:gz") as tar:
                     tar.extractall(tmpdirname)

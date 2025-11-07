@@ -2,7 +2,7 @@
 
 Welcome to the Revolution project! We are excited that you are interested in
 contributing. This document outlines the guidelines and steps to follow when
-making contributions to revolution-3.10-051125, a derivative of Stockfish 17.1.
+making contributions to Revolution 2.90 241025, a derivative of Stockfish 17.1.
 
 ## Table of Contents
 

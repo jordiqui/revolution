@@ -727,11 +727,6 @@ Value Search::Worker::search(
     bestValue          = -VALUE_INFINITE;
     maxValue           = VALUE_INFINITE;
 
-    if (ss->sacrificeUrgency <= 0)
-        ss->sacrificeMargin = VALUE_ZERO;
-
-    bool underSacrificePressure = ss->sacrificeUrgency > 0;
-
     // Check for the available remaining time
     if (is_mainthread())
         main_manager()->check_time(*thisThread);
@@ -901,38 +896,6 @@ Value Search::Worker::search(
                        unadjustedStaticEval, tt.generation());
     }
 
-    if (priorCapture)
-    {
-        Square   kingSq           = pos.square<KING>(us);
-        Bitboard enemyAttackers   = pos.attackers_to(kingSq) & pos.pieces(~us);
-        int      attackCount      = popcount(enemyAttackers);
-        Value    capturedMaterial = PieceValue[pos.captured_piece()];
-        Value    sacrificePenalty = Value(attackCount * PawnValue / 2);
-
-        if (capturedMaterial >= RookValue)
-            sacrificePenalty += PawnValue / 2;
-        else if (capturedMaterial >= BishopValue)
-            sacrificePenalty += PawnValue / 4;
-
-        sacrificePenalty += std::max<Value>(VALUE_ZERO, ss->sacrificeMargin / 4);
-        sacrificePenalty = std::clamp(sacrificePenalty, VALUE_ZERO, Value(3 * PawnValue));
-
-        if (sacrificePenalty > VALUE_ZERO)
-        {
-            ss->staticEval = std::clamp(ss->staticEval - sacrificePenalty,
-                                        VALUE_TB_LOSS_IN_MAX_PLY + 1,
-                                        VALUE_TB_WIN_IN_MAX_PLY - 1);
-            eval = std::clamp(eval - sacrificePenalty, VALUE_TB_LOSS_IN_MAX_PLY + 1,
-                               VALUE_TB_WIN_IN_MAX_PLY - 1);
-
-            if (attackCount >= 2)
-                ss->sacrificeUrgency = std::max(ss->sacrificeUrgency, 1 + attackCount / 2);
-
-            ss->sacrificeMargin = std::max(ss->sacrificeMargin, capturedMaterial);
-            underSacrificePressure = ss->sacrificeUrgency > 0;
-        }
-    }
-
     // Use static evaluation difference to improve quiet move ordering
     if (((ss - 1)->currentMove).is_ok() && !(ss - 1)->inCheck && !priorCapture)
     {
@@ -966,7 +929,8 @@ Value Search::Worker::search(
     // The depth condition is important for mate finding.
     if (!ss->ttPv && depth < 14
         && eval - futility_margin(depth, cutNode && !ss->ttHit, improving, opponentWorsening)
-               + 37 - std::abs(correctionValue) / 139878 >= beta
+               - (ss - 1)->statScore / 301 + 37 - std::abs(correctionValue) / 139878
+             >= beta
         && eval >= beta && (!ttData.move || ttCapture) && !is_loss(beta) && !is_win(eval))
         return beta + (eval - beta) / 3;
 
@@ -1025,7 +989,6 @@ Value Search::Worker::search(
     probCutBeta = beta + 185 - 58 * improving;
     if (depth >= 3
         && !is_decisive(beta)
-        && !underSacrificePressure
         // If value from transposition table is lower than probCutBeta, don't attempt
         // probCut there and in further interactions with transposition table cutoff
         // depth is set to depth - 3 because probCut search has depth set to depth - 4
@@ -1088,8 +1051,7 @@ moves_loop:  // When in check, search starts here
     // Step 12. A small Probcut idea
     probCutBeta = beta + 415;
     if ((ttData.bound & BOUND_LOWER) && ttData.depth >= depth - 4 && ttData.value >= probCutBeta
-        && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value)
-        && !ss->sacrificeUrgency)
+        && !is_decisive(beta) && is_valid(ttData.value) && !is_decisive(ttData.value))
         return probCutBeta;
 
     const PieceToHistory* contHist[] = {
@@ -1140,11 +1102,6 @@ moves_loop:  // When in check, search starts here
         movedPiece = pos.moved_piece(move);
         givesCheck = pos.gives_check(move);
 
-        Piece capturedPiece = NO_PIECE;
-        if (capture)
-            capturedPiece = move.type_of() == EN_PASSANT ? make_piece(~us, PAWN)
-                                                         : pos.piece_on(move.to_sq());
-
         // Calculate new depth for this move
         newDepth = depth - 1;
 
@@ -1160,49 +1117,36 @@ moves_loop:  // When in check, search starts here
         if (ss->ttPv)
             r += 979;
 
-        if (ss->sacrificeUrgency > 0)
-        {
-            r -= r / 4;
-            r = std::max(0, r - 128 * ss->sacrificeUrgency);
-        }
-
         // Step 14. Pruning at shallow depth.
         // Depth conditions are important for mate finding.
         if (!rootNode && pos.non_pawn_material(us) && !is_loss(bestValue))
         {
-            if (!underSacrificePressure && moveCount >= futility_move_count(improving, depth))
+            // Skip quiet moves if movecount exceeds our FutilityMoveCount threshold
+            if (moveCount >= futility_move_count(improving, depth))
                 mp.skip_quiet_moves();
 
+            // Reduced depth of the next LMR search
             int lmrDepth = newDepth - r / 1024;
 
             if (capture || givesCheck)
             {
-                int captHist =
+                Piece capturedPiece = pos.piece_on(move.to_sq());
+                int   captHist =
                   thisThread->captureHistory[movedPiece][move.to_sq()][type_of(capturedPiece)];
 
-                if (!underSacrificePressure)
+                // Futility pruning for captures
+                if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
                 {
-                    if (!givesCheck && lmrDepth < 7 && !ss->inCheck)
-                    {
-                        Value futilityValue = ss->staticEval + 242 + 230 * lmrDepth
-                                            + PieceValue[capturedPiece] + 133 * captHist / 1024;
-                        if (futilityValue <= alpha)
-                            continue;
-                    }
+                    Value futilityValue = ss->staticEval + 242 + 230 * lmrDepth
+                                        + PieceValue[capturedPiece] + 133 * captHist / 1024;
+                    if (futilityValue <= alpha)
+                        continue;
+                }
 
-                    int seeHist = std::clamp(captHist / 32, -138 * depth, 135 * depth);
-                    if (!pos.see_ge(move, -154 * depth - seeHist))
-                        continue;
-                }
-                else
-                {
-                    lmrDepth = std::max(lmrDepth, newDepth - 1);
-                    int seeHist = std::clamp(captHist / 32, -138 * depth, 135 * depth);
-                    int seeMargin = (-154 * depth - seeHist) / 2
-                                  - std::max<int>(0, ss->sacrificeUrgency - 1) * 32;
-                    if (!pos.see_ge(move, seeMargin))
-                        continue;
-                }
+                // SEE based pruning for captures and checks
+                int seeHist = std::clamp(captHist / 32, -138 * depth, 135 * depth);
+                if (!pos.see_ge(move, -154 * depth - seeHist))
+                    continue;
             }
             else
             {
@@ -1211,78 +1155,40 @@ moves_loop:  // When in check, search starts here
                   + (*contHist[1])[movedPiece][move.to_sq()]
                   + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
 
-                if (!underSacrificePressure)
+                // Continuation history based pruning
+                if (history < -4348 * depth)
+                    continue;
+
+                history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
+
+                lmrDepth += history / 3593;
+
+                Value futilityValue = ss->staticEval + (bestMove ? 48 : 146) + 116 * lmrDepth
+                                    + 103 * (bestValue < ss->staticEval - 128);
+
+                // Futility pruning: parent node
+                // (*Scaler): Generally, more frequent futility pruning
+                // scales well with respect to time and threads
+                if (!ss->inCheck && lmrDepth < 12 && futilityValue <= alpha)
                 {
-                    if (history < -4348 * depth)
-                        continue;
-
-                    history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
-
-                    lmrDepth += history / 3593;
-
-                    Value futilityValue = ss->staticEval + (bestMove ? 48 : 146) + 116 * lmrDepth
-                                        + 103 * (bestValue < ss->staticEval - 128);
-
-                    if (!ss->inCheck && lmrDepth < 12 && futilityValue <= alpha)
-                    {
-                        if (bestValue <= futilityValue && !is_decisive(bestValue)
-                            && !is_win(futilityValue))
-                            bestValue = futilityValue;
-                        continue;
-                    }
-
-                    lmrDepth = std::max(lmrDepth, 0);
-
-                    if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
-                        continue;
+                    if (bestValue <= futilityValue && !is_decisive(bestValue)
+                        && !is_win(futilityValue))
+                        bestValue = futilityValue;
+                    continue;
                 }
-                else
-                {
-                    history += 68 * thisThread->mainHistory[us][move.from_to()] / 32;
-                    lmrDepth += history / 3593;
-                    lmrDepth = std::max(lmrDepth, 0);
 
-                    if (history < -4348 * depth - 512)
-                        continue;
+                lmrDepth = std::max(lmrDepth, 0);
 
-                    int seeMargin = -27 * lmrDepth * lmrDepth / 2;
-                    if (!pos.see_ge(move, seeMargin))
-                        continue;
-                }
+                // Prune moves with negative SEE
+                if (!pos.see_ge(move, -27 * lmrDepth * lmrDepth))
+                    continue;
             }
         }
-
-        int   nextSacUrgency = ss->sacrificeUrgency > 0 ? ss->sacrificeUrgency - 1 : 0;
-        Value nextSacMargin  = nextSacUrgency ? ss->sacrificeMargin : VALUE_ZERO;
-
-        if (capture)
-        {
-            Value capturedVal = PieceValue[capturedPiece];
-            Value moverVal    = PieceValue[movedPiece];
-            Value swing       = capturedVal - moverVal;
-
-            if (swing > PawnValue / 2)
-            {
-                nextSacUrgency = std::max(nextSacUrgency, 2 + (capturedVal >= RookValue));
-                nextSacMargin  = std::max(nextSacMargin, swing);
-            }
-            else if (ss->sacrificeUrgency > 0)
-                nextSacMargin = std::max(nextSacMargin, ss->sacrificeMargin);
-        }
-        else if (ss->sacrificeUrgency > 1)
-            nextSacMargin = ss->sacrificeMargin;
-
-        nextSacMargin = std::max(nextSacMargin, VALUE_ZERO);
-        (ss + 1)->sacrificeUrgency = nextSacUrgency;
-        (ss + 1)->sacrificeMargin  = nextSacMargin;
 
         // Step 15. Extensions
         // We take care to not overdo to avoid search getting stuck.
         if (ss->ply < thisThread->rootDepth * 2)
         {
-            if ((ss + 1)->sacrificeUrgency > 0 && (capture || givesCheck))
-                extension = std::max(extension, Depth(1));
-
             // Singular extension search. If all moves but one
             // fail low on a search of (alpha-s, beta-s), and just one fails high on
             // (alpha, beta), then that move is singular and should be extended. To
@@ -1715,11 +1621,6 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     ss->inCheck        = pos.checkers();
     moveCount          = 0;
 
-    Color us = pos.side_to_move();
-    if (ss->sacrificeUrgency <= 0)
-        ss->sacrificeMargin = VALUE_ZERO;
-    bool underSacrifice = ss->sacrificeUrgency > 0;
-
     // Used to send selDepth info to GUI (selDepth counts from 1, ply from 0)
     if (PvNode && thisThread->selDepth < ss->ply + 1)
         thisThread->selDepth = ss->ply + 1;
@@ -1818,97 +1719,50 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
 
         moveCount++;
 
-        Piece movedPiece   = pos.moved_piece(move);
-        Piece capturedPiece = NO_PIECE;
-        if (capture)
-            capturedPiece = move.type_of() == EN_PASSANT ? make_piece(~us, PAWN)
-                                                         : pos.piece_on(move.to_sq());
-
         // Step 6. Pruning
         if (!is_loss(bestValue))
         {
-            if (!underSacrifice)
+            // Futility pruning and moveCount pruning
+            if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
+                && move.type_of() != PROMOTION)
             {
-                // Futility pruning and moveCount pruning
-                if (!givesCheck && move.to_sq() != prevSq && !is_loss(futilityBase)
-                    && move.type_of() != PROMOTION)
+                if (moveCount > 2)
+                    continue;
+
+                Value futilityValue = futilityBase + PieceValue[pos.piece_on(move.to_sq())];
+
+                // If static eval + value of piece we are going to capture is
+                // much lower than alpha, we can prune this move.
+                if (futilityValue <= alpha)
                 {
-                    if (moveCount > 2)
-                        continue;
-
-                    Value futilityValue = futilityBase + PieceValue[capturedPiece];
-
-                    // If static eval + value of piece we are going to capture is
-                    // much lower than alpha, we can prune this move.
-                    if (futilityValue <= alpha)
-                    {
-                        bestValue = std::max(bestValue, futilityValue);
-                        continue;
-                    }
-
-                    // If static exchange evaluation is low enough
-                    // we can prune this move.
-                    if (!pos.see_ge(move, alpha - futilityBase))
-                    {
-                        bestValue = std::min(alpha, futilityBase);
-                        continue;
-                    }
+                    bestValue = std::max(bestValue, futilityValue);
+                    continue;
                 }
 
-                // Continuation history based pruning
-                if (!capture
-                    && (*contHist[0])[movedPiece][move.to_sq()]
-                           + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece]
+                // If static exchange evaluation is low enough
+                // we can prune this move.
+                if (!pos.see_ge(move, alpha - futilityBase))
+                {
+                    bestValue = std::min(alpha, futilityBase);
+                    continue;
+                }
+            }
+
+            // Continuation history based pruning
+            if (!capture
+                && (*contHist[0])[pos.moved_piece(move)][move.to_sq()]
+                       + thisThread->pawnHistory[pawn_structure_index(pos)][pos.moved_piece(move)]
                                                 [move.to_sq()]
-                         <= 6290)
-                    continue;
+                     <= 6290)
+                continue;
 
-                // Do not search moves with bad enough SEE values
-                if (!pos.see_ge(move, -75))
-                    continue;
-            }
-            else
-            {
-                if (!capture)
-                {
-                    int continuationScore =
-                      (*contHist[0])[movedPiece][move.to_sq()]
-                      + thisThread->pawnHistory[pawn_structure_index(pos)][movedPiece][move.to_sq()];
-                    if (continuationScore <= 5500)
-                        continue;
-                }
-
-                if (!pos.see_ge(move, -30))
-                    continue;
-            }
+            // Do not search moves with bad enough SEE values
+            if (!pos.see_ge(move, -75))
+                continue;
         }
-
-        int   nextSacUrgency = ss->sacrificeUrgency > 0 ? ss->sacrificeUrgency - 1 : 0;
-        Value nextSacMargin  = nextSacUrgency ? ss->sacrificeMargin : VALUE_ZERO;
-
-        if (capture)
-        {
-            Value capturedVal = PieceValue[capturedPiece];
-            Value moverVal    = PieceValue[movedPiece];
-            Value swing       = capturedVal - moverVal;
-
-            if (swing > PawnValue / 2)
-            {
-                nextSacUrgency = std::max(nextSacUrgency, 2 + (capturedVal >= RookValue));
-                nextSacMargin  = std::max(nextSacMargin, swing);
-            }
-            else if (ss->sacrificeUrgency > 0)
-                nextSacMargin = std::max(nextSacMargin, ss->sacrificeMargin);
-        }
-        else if (ss->sacrificeUrgency > 1)
-            nextSacMargin = ss->sacrificeMargin;
-
-        nextSacMargin = std::max(nextSacMargin, VALUE_ZERO);
-
-        (ss + 1)->sacrificeUrgency = nextSacUrgency;
-        (ss + 1)->sacrificeMargin  = nextSacMargin;
 
         // Step 7. Make and search the move
+        Piece movedPiece = pos.moved_piece(move);
 
         do_move(pos, move, st, givesCheck);
         thisThread->nodes.fetch_add(1, std::memory_order_relaxed);
