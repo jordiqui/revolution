@@ -38,8 +38,8 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
-RELEASE_BIN   = Revolution-3.20-Dev-071125
-BRANDED_NAME  = Revolution 3.20-Dev-071125
+RELEASE_BIN   = revolution-3.10-051125
+BRANDED_NAME  = revolution-3.10-051125
 
 ifeq ($(target_windows),yes)
         EXE          = $(RELEASE_BIN).exe
@@ -54,7 +54,7 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-PGOBENCH = $(WINE_PATH) "./$(EXE)" bench
+PGOBENCH = $(WINE_PATH) ./$(EXE) bench
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -878,7 +878,7 @@ ifeq ($(debug), no)
 endif
 endif
 
-### 3.20 Android 5 can only run position independent executables. Note that this
+### 3.10 Android 5 can only run position independent executables. Note that this
 ### breaks Android 4.0 and earlier.
 ifeq ($(OS), Android)
 	CXXFLAGS += -fPIE
@@ -1015,15 +1015,15 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f "$(RELEASE_BIN)" "$(RELEASE_BIN).exe" "$(BRANDED_NAME)" "$(BRANDED_NAME).exe" *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f $(RELEASE_BIN) $(RELEASE_BIN).exe "$(BRANDED_NAME)" "$(BRANDED_NAME).exe" *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
 
 # clean auxiliary profiling files
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
-	@rm -f "$(RELEASE_BIN).profdata" *.profraw
-	@rm -f "$(RELEASE_BIN)."*args*
-	@rm -f "$(RELEASE_BIN)."*lt*
+	@rm -f $(RELEASE_BIN).profdata *.profraw
+	@rm -f $(RELEASE_BIN).*args*
+	@rm -f $(RELEASE_BIN).*lt*
 	@rm -f "$(BRANDED_NAME).res" "$(RELEASE_BIN).res"
 	@rm -f ./-lstdc++.res
 
@@ -1126,7 +1126,7 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output="$(RELEASE_BIN).profdata" *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
@@ -1154,7 +1154,7 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output="$(RELEASE_BIN).profdata" *.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=$(RELEASE_BIN).profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=$(RELEASE_BIN).profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \

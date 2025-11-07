@@ -148,6 +148,6 @@ if [ -z "$file_arch" ]; then
   file_arch=$true_arch
 fi
 
-file_name="Revolution 3.20-Dev-071125-$file_os-$file_arch.$file_ext"
+file_name="revolution-3.10-051125-$file_os-$file_arch.$file_ext"
 
 printf '%s %s\n' "$true_arch" "$file_name"
