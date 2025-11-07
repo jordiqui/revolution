@@ -15,7 +15,7 @@ echo "reprosearch testing started"
 # the same node count for each iteration.
 cat << EOF > repeat.exp
  set timeout 10
-  spawn ./revolution-3.10-051125
+  spawn ./Revolution-3.20-Dev-071125
  lassign \$argv nodes
 
  send "uci\n"

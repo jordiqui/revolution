@@ -2,9 +2,9 @@
 # Visit https://bit.ly/cffinit to generate yours today!
 
 cff-version: 1.2.0
-title: revolution-3.10-051125
+title: Revolution 3.20-Dev-071125
 message: >-
-  Please cite revolution-3.10-051125 as a derivative of Stockfish 17.1 using the
+  Please cite Revolution 3.20-Dev-071125 as a derivative of Stockfish 17.1 using the
   metadata from this file.
 type: software
 authors:
@@ -16,7 +16,7 @@ repository-code: 'https://github.com/jorgeruiz/revolution'
 url: 'https://github.com/jorgeruiz/revolution'
 repository-artifact: 'https://github.com/jorgeruiz/revolution/releases'
 abstract: >-
-  revolution-3.10-051125 is a free and strong UCI chess engine derived from
+  Revolution 3.20-Dev-071125 is a free and strong UCI chess engine derived from
   Stockfish 17.1, co-authored by Jorge Ruiz and ChatGPT with full credit to the
   Stockfish developers.
 keywords:
