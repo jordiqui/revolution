@@ -49,6 +49,204 @@ constexpr Value CounterplayPreparation     = 8;
 constexpr Value PassiveHFilePenalty        = 120;
 constexpr Value MaximumSwing               = 80;
 
+constexpr Value PassedPawnFifthBonus       = Value(PawnValue / 2);
+constexpr Value PassedPawnSixthBonus       = Value(3 * PawnValue / 4);
+constexpr Value PassedPawnSeventhBonus     = Value(5 * PawnValue / 4);
+constexpr Value PassedPawnPushReadyBonus   = Value(PawnValue / 8);
+constexpr Value KingCentralizationFactor   = Value(PawnValue / 8);
+constexpr Value KingForwardActivityFactor  = Value(PawnValue / 12);
+constexpr Value KingBlockadeFactor         = Value(PawnValue / 10);
+constexpr Value PassiveRookPenalty         = Value(PawnValue / 2);
+constexpr Value PassiveQueenPenalty        = Value(2 * PawnValue / 5);
+constexpr Value ActiveRookBonus            = Value(PawnValue / 4);
+constexpr Value ActiveQueenBonus           = Value(PawnValue / 5);
+constexpr Value RemoteKingPenaltyFactor    = Value(PawnValue / 16);
+
+bool is_basic_endgame(const Position& pos) {
+    return pos.non_pawn_material() <= Value(2 * RookValue + 2 * BishopValue);
+}
+
+bool is_passed_pawn(const Position& pos, Color us, Square sq) {
+
+    assert(pos.piece_on(sq) == make_piece(us, PAWN));
+
+    const Color them    = ~us;
+    const int   fileIdx = int(file_of(sq));
+    const int   rankIdx = int(rank_of(sq));
+
+    for (int df = -1; df <= 1; ++df)
+    {
+        const int file = fileIdx + df;
+        if (file < int(FILE_A) || file > int(FILE_H))
+            continue;
+
+        if (us == WHITE)
+        {
+            for (int r = rankIdx + 1; r <= int(RANK_8); ++r)
+            {
+                Square ahead = make_square(File(file), Rank(r));
+                if (pos.piece_on(ahead) == make_piece(them, PAWN))
+                    return false;
+            }
+        }
+        else
+        {
+            for (int r = rankIdx - 1; r >= int(RANK_1); --r)
+            {
+                Square ahead = make_square(File(file), Rank(r));
+                if (pos.piece_on(ahead) == make_piece(them, PAWN))
+                    return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+Value passed_pawn_activity(const Position& pos, Color us) {
+
+    Bitboard pawns = pos.pieces(us, PAWN);
+    Value    bonus = VALUE_ZERO;
+
+    while (pawns)
+    {
+        Square sq = pop_lsb(pawns);
+
+        if (!is_passed_pawn(pos, us, sq))
+            continue;
+
+        Rank relRank = relative_rank(us, sq);
+
+        if (relRank >= RANK_5)
+            bonus += PassedPawnFifthBonus;
+
+        if (relRank == RANK_6)
+            bonus += PassedPawnSixthBonus;
+        else if (relRank >= RANK_7)
+            bonus += PassedPawnSeventhBonus;
+
+        Square ahead = sq + pawn_push(us);
+        if (is_ok(ahead) && pos.empty(ahead))
+            bonus += PassedPawnPushReadyBonus;
+
+        Square kingSq = pos.square<KING>(us);
+        int    dist   = distance<Square>(kingSq, sq);
+        if (dist < 4)
+            bonus += Value((4 - dist) * (PawnValue / 16));
+    }
+
+    return bonus;
+}
+
+Value king_activity_bonus(const Position& pos, Color us) {
+
+    Square kingSq = pos.square<KING>(us);
+    Value  bonus  = VALUE_ZERO;
+
+    const Square centers[] = {SQ_D4, SQ_E4, SQ_D5, SQ_E5};
+    int          minDist   = 8;
+
+    for (Square center : centers)
+        minDist = std::min(minDist, distance<Square>(kingSq, center));
+
+    if (minDist < 4)
+        bonus += Value((4 - minDist) * KingCentralizationFactor);
+
+    int relRank = int(relative_rank(us, kingSq));
+    if (relRank > int(RANK_2))
+        bonus += Value((relRank - int(RANK_2)) * KingForwardActivityFactor);
+
+    Bitboard enemyPawns = pos.pieces(~us, PAWN);
+
+    while (enemyPawns)
+    {
+        Square sq = pop_lsb(enemyPawns);
+
+        if (!is_passed_pawn(pos, ~us, sq))
+            continue;
+
+        Square blockSq = sq + pawn_push(~us);
+        if (!is_ok(blockSq))
+            blockSq = sq;
+
+        int dist = distance<Square>(kingSq, blockSq);
+        if (dist <= 4)
+            bonus += Value((4 - dist) * KingBlockadeFactor);
+    }
+
+    return bonus;
+}
+
+Value heavy_piece_activity_swing(const Position& pos, Color us) {
+
+    if (pos.count<KNIGHT>(us) || pos.count<BISHOP>(us))
+        return VALUE_ZERO;
+
+    Bitboard pawns  = pos.pieces(us, PAWN);
+    Bitboard rooks  = pos.pieces(us, ROOK);
+    Bitboard queens = pos.pieces(us, QUEEN);
+    Value    swing   = VALUE_ZERO;
+
+    auto assess_heavy_piece = [&](Square sq, Value passivePenalty, Value activeBonus) {
+        Bitboard sameFile = pawns & file_bb(sq);
+        Bitboard tmp      = sameFile;
+        bool     hasBonus = false;
+
+        while (tmp)
+        {
+            Square pawnSq = pop_lsb(tmp);
+
+            if ((us == WHITE && rank_of(sq) < rank_of(pawnSq))
+                || (us == BLACK && rank_of(sq) > rank_of(pawnSq)))
+            {
+                swing -= passivePenalty;
+                return;
+            }
+
+            if ((us == WHITE && rank_of(sq) > rank_of(pawnSq))
+                || (us == BLACK && rank_of(sq) < rank_of(pawnSq)))
+                hasBonus = true;
+        }
+
+        if (hasBonus)
+            swing += activeBonus;
+    };
+
+    while (rooks)
+        assess_heavy_piece(pop_lsb(rooks), PassiveRookPenalty, ActiveRookBonus);
+
+    while (queens)
+        assess_heavy_piece(pop_lsb(queens), PassiveQueenPenalty, ActiveQueenBonus);
+
+    if (pawns)
+    {
+        Square leadPawn = us == WHITE ? Square(msb(pawns)) : Square(lsb(pawns));
+        int    dist     = distance<Square>(pos.square<KING>(us), leadPawn);
+
+        if (dist > 3)
+            swing -= Value((dist - 3) * RemoteKingPenaltyFactor);
+    }
+
+    return swing;
+}
+
+Value endgame_activity_adjustment(const Position& pos) {
+
+    if (!is_basic_endgame(pos))
+        return VALUE_ZERO;
+
+    Value adjustment[COLOR_NB] = {VALUE_ZERO, VALUE_ZERO};
+
+    for (Color c : {WHITE, BLACK})
+    {
+        adjustment[c] += passed_pawn_activity(pos, c);
+        adjustment[c] += king_activity_bonus(pos, c);
+        adjustment[c] += heavy_piece_activity_swing(pos, c);
+    }
+
+    return adjustment[WHITE] - adjustment[BLACK];
+}
+
 Value counterplay_strength(const Position& pos, Color us, File file) {
 
     Bitboard pawns = pos.pieces(us, PAWN) & file_bb(file);
@@ -201,6 +399,11 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     if (pos.side_to_move() == BLACK)
         dynamicAdjust = -dynamicAdjust;
     nnue += dynamicAdjust;
+
+    Value endgameAdjust = endgame_activity_adjustment(pos);
+    if (pos.side_to_move() == BLACK)
+        endgameAdjust = -endgameAdjust;
+    nnue += endgameAdjust;
 
     // Re-evaluate the position when higher eval accuracy is worth the time spent
     if (smallNet && (std::abs(nnue) < 236))
