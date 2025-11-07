@@ -1,0 +1,35 @@
+[Event "Training"]
+[Site "?"]
+[Date "2024.01.01"]
+[Round "-"]
+[White "Flank Exchange Pressure"]
+[Black "Revolution"]
+[Result "*"]
+[Annotator "Sacrifice regression"]
+[Opening "King's Indian Defence"]
+
+1.d4 Nf6 2.c4 g6 3.Nc3 Bg7 4.e4 d6 5.Nf3 O-O 6.Be2 e5 7.O-O Nc6 8.d5 Ne7 9.b4 a5 10.Ba3 axb4 11.Bxb4 Nd7 12.a4 f5 13.Ng5 Nf6 14.f3 Bh6 15.Ne6 Bxe6 16.dxe6 Be3+ 17.Kh1 Nh5 18.g3 f4 19.Nd5 Nc6 20.e7 Nxe7 21.g4 Nc6 22.gxh5 Qh4 23.Nxc7 Ra5 24.Bxd6 Rf6 25.Qe1 Qxh5 26.c5 g5 27.Bc4+ Kh8 28.Rb1 Rh6 29.Rb2 Nd4 30.Qxa5 Nc6 31.Qa8+ Kg7 32.Qf8+ Kg6 33.Qf7# *
+
+[Event "Training"]
+[Site "?"]
+[Date "2024.01.02"]
+[Round "-"]
+[White "Queenside Pawn Storm"]
+[Black "Revolution"]
+[Result "*"]
+[Annotator "Sacrifice regression"]
+[Opening "English Opening"]
+
+1.c4 Nf6 2.Nc3 e6 3.Nf3 d5 4.e3 c5 5.d4 Nc6 6.a3 a5 7.cxd5 exd5 8.dxc5 Bxc5 9.b3 O-O 10.Bb2 d4 11.Na4 Ba7 12.Nxd4 Nxd4 13.Bxd4 Bxd4 14.Qxd4 Qxd4 15.exd4 Re8+ 16.Kd2 Bf5 17.f3 Rad8 18.Bb5 Rxd4+ 19.Kc3 Red8 20.Nb2 Nd5+ 21.Kxd4 Nc7+ 22.Kc5 Ne6+ 23.Kb6 Rd2 24.Nc4 Rxg2 25.Rad1 h5 26.h4 Rg3 27.Nd6 Bc2 28.Rd2 Bxb3 29.Kxa5 Rxf3 30.Kb6 Kf8 31.a4 Ke7 32.Re1 g5 33.hxg5 Rg3 34.Nf5+ Kf8 35.Nxg3 h4 36.Nf5 *
+
+[Event "Training"]
+[Site "?"]
+[Date "2024.01.03"]
+[Round "-"]
+[White "Kingside Initiative"]
+[Black "Revolution"]
+[Result "*"]
+[Annotator "Sacrifice regression"]
+[Opening "Queen's Pawn Game"]
+
+1.d4 Nf6 2.c4 e6 3.Nc3 Bb4 4.a3 Bxc3+ 5.bxc3 b6 6.f3 Bb7 7.e4 d6 8.Bd3 c5 9.Ne2 Nc6 10.O-O e5 11.f4 exd4 12.cxd4 cxd4 13.Ng3 Nd7 14.Nf5 Qf6 15.e5 dxe5 16.fxe5 Ndxe5 17.Nxg7+ Qxg7 18.Be4 O-O-O 19.Bf4 Rhg8 20.Qh5 Kb8 21.Rae1 f6 22.Bd5 Rge8 23.Bg3 Ka8 24.Qf5 d3 25.Qxf6 Qxf6 26.Rxf6 d2 27.Rd1 Nxc4 28.Bxc4 Na5 29.Bf1 Nb3 30.Rf7 Bd5 31.Rxh7 Re3 32.Bf4 Re1 33.Rxd2 Nxd2 34.Bxd2 Rxf1+ 35.Kxf1 Bxg2+ 36.Kxg2 Rxd2+ *
