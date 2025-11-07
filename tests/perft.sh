@@ -19,7 +19,7 @@ cat << 'EOF' > $EXPECT_SCRIPT
 set timeout 30
 lassign [lrange $argv 0 4] pos depth result chess960 logfile
 log_file -noappend $logfile
-spawn ./revolution-3.10-051125
+spawn ./Revolution-3.20-Dev-071125
 if {$chess960 == "true"} {
   send "setoption name UCI_Chess960 value true\n"
 }
