@@ -76,6 +76,8 @@ struct Stack {
     bool                        isTTMove = false;
     int                         cutoffCnt;
     int                         reduction;
+    int                         sacrificeUrgency = 0;
+    Value                       sacrificeMargin  = VALUE_ZERO;
 };
 
 
