@@ -123,30 +123,51 @@ int correction_value(const Worker& w, const Position& pos, const Stack* const ss
 }
 
 int risk_tolerance(const Position& pos, Value v) {
-    // Returns (some constant of) second derivative of sigmoid.
-    static constexpr auto sigmoid_d2 = [](int x, int y) {
-        return 644800 * x / ((x * x + 3 * y * y) * y);
+    if (!is_valid(v))
+        return 0;
+
+    // Returns (some constant of) the second derivative of the win probability sigmoid.
+    static constexpr auto sigmoid_d2 = [](double x, double y) {
+        if (y == 0.0)
+            return 0.0;
+
+        const double denom = (x * x + 3.0 * y * y) * y;
+        return denom != 0.0 ? 644800.0 * x / denom : 0.0;
     };
 
-    int m = (67 * pos.count<PAWN>() + 182 * pos.count<KNIGHT>() + 182 * pos.count<BISHOP>()
-             + 337 * pos.count<ROOK>() + 553 * pos.count<QUEEN>())
-          / 64;
+    const auto [a, b] = WDLModel::win_rate_params(pos);
+    const double      value = static_cast<double>(v);
 
-    // a and b are the crude approximation of the wdl model.
-    // The win rate is: 1/(1+exp((a-v)/b))
-    // The loss rate is 1/(1+exp((v+a)/b))
-    int a = 356;
-    int b = ((65 * m - 3172) * m + 240578) / 2048;
+    const double winning_risk = sigmoid_d2(value - a, b);
+    const double losing_risk  = sigmoid_d2(value + a, b);
 
-    // guard against overflow
-    assert(abs(v) + a <= std::numeric_limits<int>::max() / 644800);
+    const double rawRisk = -(winning_risk + losing_risk) * 32.0;
 
-    // The risk utility is therefore d/dv^2 (1/(1+exp(-(v-a)/b)) -1/(1+exp(-(-v-a)/b)))
-    // -115200x/(x^2+3) = -345600(ab) / (a^2+3b^2) (multiplied by some constant) (second degree pade approximant)
-    int winning_risk = sigmoid_d2(v - a, b);
-    int losing_risk  = sigmoid_d2(v + a, b);
+    // Damp the effect close to equality scores to avoid oscillations when no Elo edge exists.
+    const double absValue  = std::abs(value);
+    const double equality  = absValue / (absValue + static_cast<double>(PawnValue));
 
-    return -(winning_risk + losing_risk) * 32;
+    // Smoothly fade the influence once the position is already decided.
+    double decidedScale = 1.0;
+    const double decidedThreshold = static_cast<double>(DecidedGameEvalThreshold);
+
+    if (absValue > decidedThreshold)
+        decidedScale *= decidedThreshold / absValue;
+
+    if (pos.game_ply() > DecidedGameMaxPly)
+        decidedScale *= static_cast<double>(DecidedGameMaxPly)
+                        / static_cast<double>(pos.game_ply());
+
+    const int pieceCount = pos.count<ALL_PIECES>();
+    if (pieceCount < DecidedGameMaxPieceCount)
+        decidedScale *= static_cast<double>(pieceCount)
+                        / static_cast<double>(DecidedGameMaxPieceCount);
+
+    decidedScale = std::clamp(decidedScale, 0.0, 1.0);
+
+    const double scaled = rawRisk * equality * decidedScale;
+
+    return static_cast<int>(std::llround(scaled));
 }
 
 // Add correctionHistory value to raw staticEval and guarantee evaluation
@@ -1280,8 +1301,13 @@ moves_loop:  // When in check, search starts here
 
         r -= std::abs(correctionValue) / 29696;
 
-        if (PvNode && std::abs(bestValue) <= 2000)
-            r -= risk_tolerance(pos, bestValue);
+        if (PvNode)
+        {
+            const int risk = risk_tolerance(pos, bestValue);
+
+            if (risk)
+                r -= risk;
+        }
 
         // Increase reduction for cut nodes
         if (cutNode)
