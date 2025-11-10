@@ -129,6 +129,19 @@ Discussions about Revolution take place mainly in the community
 [Discord server](https://discord.gg/GWDRS3kU6R). This is the best place to ask
 questions about the codebase and how to improve it.
 
+### Latest testing results
+
+The most recent fastchess gauntlet (DEV vs BASE, 10+0.1, 2 threads, 32 MB, UHO_Lichess_4852_v1.epd) produced the following summary:
+
+| Games | Wins | Losses | Draws | Score | Elo diff | LOS | Draw ratio | WL/DD ratio | Ptnml (0-2) |
+|-------|------|--------|-------|-------|----------|-----|------------|-------------|-------------|
+| 1500  | 394  | 371    | 735   | 50.77% (761.5/1500) | +5.33 ± 9.11 Elo<br>(+10.29 ± 17.58 nElo) | 87.43% | 50.27% | 1.03 | [5, 170, 377, 193, 5] |
+
+Additional match metrics:
+
+* Points ratio: 1.13
+* LLR: 0.28 (9.5%) within the [-2.94, 2.94] bounds
+
 ## Compiling Revolution
 
 Revolution 3.40-081125 has support for 32 or 64-bit CPUs, certain hardware instructions,
