@@ -146,7 +146,9 @@ Option::operator int() const {
 }
 
 Option::operator std::string() const {
-    assert(type == "string");
+
+    assert(type != "button");
+
     return currentValue;
 }
 
