@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -33,10 +33,8 @@ namespace Stockfish {
 bool CaseInsensitiveLess::operator()(const std::string& s1, const std::string& s2) const {
 
     return std::lexicographical_compare(
-      s1.begin(), s1.end(), s2.begin(), s2.end(), [](char c1, char c2) {
-          return std::tolower(static_cast<unsigned char>(c1))
-               < std::tolower(static_cast<unsigned char>(c2));
-      });
+      s1.begin(), s1.end(), s2.begin(), s2.end(),
+      [](char c1, char c2) { return std::tolower(c1) < std::tolower(c2); });
 }
 
 void OptionsMap::add_info_listener(InfoListener&& message_func) { info = std::move(message_func); }
@@ -54,19 +52,8 @@ void OptionsMap::setoption(std::istringstream& is) {
     while (is >> token)
         value += (value.empty() ? "" : " ") + token;
 
-    auto equals_ic = [](const std::string& lhs, const std::string& rhs) {
-        return !CaseInsensitiveLess()(lhs, rhs) && !CaseInsensitiveLess()(rhs, lhs);
-    };
-
     if (options_map.count(name))
-    {
         options_map[name] = value;
-
-        if (equals_ic(name, "MultiPV") && options_map.count("Analysis Lines"))
-            options_map["Analysis Lines"] = value;
-        else if (equals_ic(name, "Analysis Lines") && options_map.count("MultiPV"))
-            options_map["MultiPV"] = value;
-    }
     else
         sync_cout << "No such option: " << name << sync_endl;
 }
@@ -123,7 +110,7 @@ Option::Option(OnChange f) :
     max(0),
     on_change(std::move(f)) {}
 
-Option::Option(double v, int minv, int maxv, OnChange f) :
+Option::Option(int v, int minv, int maxv, OnChange f) :
     type("spin"),
     min(minv),
     max(maxv),
@@ -158,22 +145,6 @@ bool Option::operator==(const char* s) const {
 bool Option::operator!=(const char* s) const { return !(*this == s); }
 
 
-Option Option::with_info(std::string description) const {
-    Option copy(*this);
-    copy.infoText = std::move(description);
-    return copy;
-}
-
-Option& Option::set_info(std::string description) {
-    infoText = std::move(description);
-    return *this;
-}
-
-const std::string& Option::info() const { return infoText; }
-
-bool Option::has_info() const { return !infoText.empty(); }
-
-
 // Updates currentValue and triggers on_change() action. It's up to
 // the GUI to check for option's limits, but we could receive the new value
 // from the user by console window, so let's check the bounds anyway.
@@ -183,7 +154,7 @@ Option& Option::operator=(const std::string& v) {
 
     if ((type != "button" && type != "string" && v.empty())
         || (type == "check" && v != "true" && v != "false")
-        || (type == "spin" && (std::stof(v) < min || std::stof(v) > max)))
+        || (type == "spin" && (std::stoi(v) < min || std::stoi(v) > max)))
         return *this;
 
     if (type == "combo")
@@ -231,23 +202,12 @@ std::ostream& operator<<(std::ostream& os, const OptionsMap& om) {
                 }
 
                 else if (o.type == "spin")
-                    os << " default " << int(stof(o.defaultValue)) << " min " << o.min << " max "
+                    os << " default " << stoi(o.defaultValue) << " min " << o.min << " max "
                        << o.max;
 
                 break;
             }
 
     return os;
-}
-
-std::vector<std::pair<std::string, std::string>> OptionsMap::info_entries() const {
-    std::vector<std::pair<std::string, std::string>> entries;
-
-    for (size_t idx = 0; idx < options_map.size(); ++idx)
-        for (const auto& it : options_map)
-            if (it.second.idx == idx && it.second.has_info())
-                entries.emplace_back(it.first, it.second.info());
-
-    return entries;
 }
 }

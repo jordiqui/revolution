@@ -1,104 +1,60 @@
 <div align="center">
 
-  <h3>Revolution 3.40-081125</h3>
+  [![Stockfish][stockfish128-logo]][website-link]
 
-  A free and strong UCI chess engine derived from Stockfish 17.1.
+  <h3>Stockfish</h3>
+
+  A free and strong UCI chess engine.
   <br>
-  <strong>Developed, maintained, and improved by Jorge Ruiz together with the ChatGPT AI, with full credit to the Stockfish authors and contributors.</strong>
+  <strong>[Explore Stockfish docs »][wiki-link]</strong>
   <br>
   <br>
-  <a href="https://github.com/jorgeluisruiz/revolution/issues/new">Report bug</a>
+  [Report bug][issue-link]
   ·
-  <a href="https://github.com/jorgeluisruiz/revolution/discussions/new">Open a discussion</a>
+  [Open a discussion][discussions-link]
   ·
-  <a href="https://discord.gg/GWDRS3kU6R">Discord</a>
+  [Discord][discord-link]
   ·
-  <a href="https://revolution.org/blog">Blog</a>
+  [Blog][website-blog-link]
+
+  [![Build][build-badge]][build-link]
+  [![License][license-badge]][license-link]
+  <br>
+  [![Release][release-badge]][release-link]
+  [![Commits][commits-badge]][commits-link]
+  <br>
+  [![Website][website-badge]][website-link]
+  [![Fishtest][fishtest-badge]][fishtest-link]
+  [![Discord][discord-badge]][discord-link]
 
 </div>
 
-> **Revolution 3.40-081125** is a UCI chess engine derived from **Stockfish 17.1**. The
-> project is jointly authored by **Jorge Ruiz** and the **ChatGPT AI**, with
-> credits to the Stockfish authors and every contributor listed in
-> [AUTHORS](AUTHORS). This repository provides the complete source so the
-> community can collaborate on maintenance and future improvements.
-
-This release and all distributed binaries identify themselves as **Revolution 3.40-081125**.
-You should see that exact name (including the build tag `081125`) in the engine
-headers, UCI responses, and compiled executable filenames. If a GUI shows a
-different string, make sure it is loading the binaries built from this version
-of the source tree.
-
 ## Overview
 
-Revolution 3.40-081125 is a **free and strong UCI chess engine** that analyzes chess positions
-and computes the optimal moves while preserving full compatibility with popular
-front-ends.
+[Stockfish][website-link] is a **free and strong UCI chess engine** derived from
+Glaurung 2.1 that analyzes chess positions and computes the optimal moves.
 
-Revolution 3.40-081125 **does not include a graphical user interface** (GUI) and is normally
-paired with third-party front-ends such as Fritz 20 or Cutechess. It implements
-the Universal Chess Interface (UCI) protocol so those GUIs can discover it as
-**Revolution 3.40-081125** in their engine lists.
+Stockfish **does not include a graphical user interface** (GUI) that is required
+to display a chessboard and to make it easy to input moves. These GUIs are
+developed independently from Stockfish and are available online. **Read the
+documentation for your GUI** of choice for information about how to use
+Stockfish with it.
 
-### BrainLearn experience integration
-
-Revolution 3.40-081125 bundles the BrainLearn learning hash so it shares the same
-UCI options as BrainFish while persisting the data to `experience.exp`. Each
-entry in the file stores the following information (mirroring the in-memory
-BrainLearn transposition table):
-
-* best move in UCI format
-* board signature (hash key)
-* best move depth
-* best move score
-* best move performance, derived from the BrainLearn WDL model unless a custom
-  trainer provides its own value
-
-The engine loads `experience.exp` during startup, automatically merging any
-additional files that follow the `<fileType><qualityIndex>.exp` convention (for
-example `experience0.exp`, `experience1.exp`, …) and then deleting the merged
-files. Previous `.bin` learning files can be reused by simply renaming the
-extension to `.exp`.
-
-Learning is enabled whenever a new game begins or the position on the board has
-eight pieces or fewer. The hash table is updated when a new best score at depth
-≥ 4 plies is found according to the BrainLearn aspiration window. Because the
-data is written on `quit` or `stop`, engines that make heavy use of the feature
-should allow extra time for disk access.
-
-The following controls are available:
-
-* `Read only learning` – open the experience file without persisting changes.
-* `Self Q-learning` – enables the Q-learning update policy for self-play.
-* `Experience Book` – treats the experience file as a move book, prioritising
-  win probability, internal score, and depth (the `showexp` token displays the
-  stored moves for the current position).
-* `Experience Book Max Moves` – limits the number of book candidates (default
-  100).
-* `Experience Book Min Depth` – minimum search depth required for book use
-  (default 4).
-* `Concurrent Experience` – keeps per-instance experience files to avoid write
-  conflicts.
-* `quickresetexp` – recalculates the performance metric for every stored entry
-  using the latest BrainLearn WDL model.
-
-When performance needs to be realigned, send the `uci` token `quickresetexp` to
-the engine. The command reloads `experience.exp`, recomputes the performance for
-each move, and persists the updated values so they are used in future sessions.
+See also the Stockfish [documentation][wiki-usage-link] for further usage help.
 
 ## Files
 
-This distribution of Revolution 3.40-081125 consists of the following files:
+This distribution of Stockfish consists of the following files:
 
-  * [README.md](README.md), the file you are currently reading.
+  * [README.md][readme-link], the file you are currently reading.
 
-  * [Copying.txt](Copying.txt), a text file containing the GNU General Public
+  * [Copying.txt][license-link], a text file containing the GNU General Public
     License version 3.
 
-  * [AUTHORS](AUTHORS), a text file with the list of authors for Revolution 3.40-081125.
+  * [AUTHORS][authors-link], a text file with the list of authors for the project.
 
-  * [src](src), a subdirectory containing the full source code, including a
-    Makefile that can be used to compile Revolution 3.40-081125 on Unix-like systems.
+  * [src][src-link], a subdirectory containing the full source code, including a
+    Makefile that can be used to compile Stockfish on Unix-like systems.
 
   * a file with the .nnue extension, storing the neural network for the NNUE
     evaluation. Binary distributions will have this file embedded.
@@ -109,45 +65,32 @@ __See [Contributing Guide](CONTRIBUTING.md).__
 
 ### Donating hardware
 
-Improving Revolution 3.40-081125 requires a massive amount of testing. You can donate your
-hardware resources by installing the Revolution worker and joining the community
-channels to coordinate testing campaigns.
+Improving Stockfish requires a massive amount of testing. You can donate your
+hardware resources by installing the [Fishtest Worker][worker-link] and viewing
+the current tests on [Fishtest][fishtest-link].
 
 ### Improving the code
 
-In the [chessprogramming wiki](https://www.chessprogramming.org/Main_Page), many
-techniques used in Revolution 3.40-081125 are explained with a lot of background information.
-The [section on evaluation techniques](https://www.chessprogramming.org/Evaluation)
-describes many features and techniques used by modern engines.
+In the [chessprogramming wiki][programming-link], many techniques used in
+Stockfish are explained with a lot of background information.
+The [section on Stockfish][programmingsf-link] describes many features
+and techniques used by Stockfish. However, it is generic rather than
+focused on Stockfish's precise implementation.
 
-The engine testing is coordinated by the Revolution maintainers. If you want to
-help improve Revolution 3.40-081125, please read this
-[guideline](https://github.com/jorgeluisruiz/revolution/wiki/Getting-Started)
-first, where the basics of development are explained.
+The engine testing is done on [Fishtest][fishtest-link].
+If you want to help improve Stockfish, please read this [guideline][guideline-link]
+first, where the basics of Stockfish development are explained.
 
-Discussions about Revolution take place mainly in the community
-[Discord server](https://discord.gg/GWDRS3kU6R). This is the best place to ask
-questions about the codebase and how to improve it.
+Discussions about Stockfish take place these days mainly in the Stockfish
+[Discord server][discord-link]. This is also the best place to ask questions
+about the codebase and how to improve it.
 
-### Latest testing results
+## Compiling Stockfish
 
-The most recent fastchess gauntlet (DEV vs BASE, 10+0.1, 2 threads, 32 MB, UHO_Lichess_4852_v1.epd) produced the following summary:
-
-| Games | Wins | Losses | Draws | Score | Elo diff | LOS | Draw ratio | WL/DD ratio | Ptnml (0-2) |
-|-------|------|--------|-------|-------|----------|-----|------------|-------------|-------------|
-| 1500  | 394  | 371    | 735   | 50.77% (761.5/1500) | +5.33 ± 9.11 Elo<br>(+10.29 ± 17.58 nElo) | 87.43% | 50.27% | 1.03 | [5, 170, 377, 193, 5] |
-
-Additional match metrics:
-
-* Points ratio: 1.13
-* LLR: 0.28 (9.5%) within the [-2.94, 2.94] bounds
-
-## Compiling Revolution
-
-Revolution 3.40-081125 has support for 32 or 64-bit CPUs, certain hardware instructions,
+Stockfish has support for 32 or 64-bit CPUs, certain hardware instructions,
 big-endian machines such as Power PC, and other platforms.
 
-On Unix-like systems, it should be easy to compile Revolution 3.40-081125 directly from the
+On Unix-like systems, it should be easy to compile Stockfish directly from the
 source code with the included Makefile in the folder `src`. In general, it is
 recommended to run `make help` to see a list of make targets with corresponding
 descriptions. An example suitable for most Intel and AMD chips:
@@ -157,39 +100,62 @@ cd src
 make -j profile-build
 ```
 
-Detailed compilation instructions for all platforms can be found in the
-[documentation](https://github.com/jorgeluisruiz/revolution/wiki/Compilation). The
-wiki also has information about the
-[UCI commands](https://github.com/jorgeluisruiz/revolution/wiki/UCI-Commands)
-supported by Revolution.
+Detailed compilation instructions for all platforms can be found in our
+[documentation][wiki-compile-link]. Our wiki also has information about
+the [UCI commands][wiki-uci-link] supported by Stockfish.
 
 ## Terms of use
 
-Revolution 3.40-081125 is free and distributed under the
-[**GNU General Public License version 3**](Copying.txt) (GPL v3). Essentially,
+Stockfish is free and distributed under the
+[**GNU General Public License version 3**][license-link] (GPL v3). Essentially,
 this means you are free to do almost exactly what you want with the program,
 including distributing it among your friends, making it available for download
 from your website, selling it (either by itself or as part of some bigger
 software package), or using it as the starting point for a software project of
 your own.
 
-The only real limitation is that whenever you distribute Revolution 3.40-081125 in some way,
+The only real limitation is that whenever you distribute Stockfish in some way,
 you MUST always include the license and the full source code (or a pointer to
 where the source code can be found) to generate the exact binary you are
 distributing. If you make any changes to the source code, these changes must
 also be made available under GPL v3.
 
-## Credits
-
-Revolution 3.40-081125 is maintained by Jorge Ruiz in collaboration with the ChatGPT AI.
-The project gives full credit to the Stockfish authors and to every contributor
-listed in [AUTHORS](AUTHORS), and it continues to benefit from the innovations
-shared by the wider open-source chess community.
-
 ## Acknowledgements
 
-Revolution uses neural networks trained on
-[data provided by the Leela Chess Zero project](https://training.lczero.org/),
-which is made available under the
-[Open Database License](https://opendatacommons.org/licenses/odbl/) (ODbL).
+Stockfish uses neural networks trained on [data provided by the Leela Chess Zero
+project][lc0-data-link], which is made available under the [Open Database License][odbl-link] (ODbL).
 
+
+[authors-link]:       https://github.com/official-stockfish/Stockfish/blob/master/AUTHORS
+[build-link]:         https://github.com/official-stockfish/Stockfish/actions/workflows/stockfish.yml
+[commits-link]:       https://github.com/official-stockfish/Stockfish/commits/master
+[discord-link]:       https://discord.gg/GWDRS3kU6R
+[issue-link]:         https://github.com/official-stockfish/Stockfish/issues/new?assignees=&labels=&template=BUG-REPORT.yml
+[discussions-link]:   https://github.com/official-stockfish/Stockfish/discussions/new
+[fishtest-link]:      https://tests.stockfishchess.org/tests
+[guideline-link]:     https://github.com/official-stockfish/fishtest/wiki/Creating-my-first-test
+[license-link]:       https://github.com/official-stockfish/Stockfish/blob/master/Copying.txt
+[programming-link]:   https://www.chessprogramming.org/Main_Page
+[programmingsf-link]: https://www.chessprogramming.org/Stockfish
+[readme-link]:        https://github.com/official-stockfish/Stockfish/blob/master/README.md
+[release-link]:       https://github.com/official-stockfish/Stockfish/releases/latest
+[src-link]:           https://github.com/official-stockfish/Stockfish/tree/master/src
+[stockfish128-logo]:  https://stockfishchess.org/images/logo/icon_128x128.png
+[uci-link]:           https://backscattering.de/chess/uci/
+[website-link]:       https://stockfishchess.org
+[website-blog-link]:  https://stockfishchess.org/blog/
+[wiki-link]:          https://github.com/official-stockfish/Stockfish/wiki
+[wiki-compile-link]:  https://github.com/official-stockfish/Stockfish/wiki/Compiling-from-source
+[wiki-uci-link]:      https://github.com/official-stockfish/Stockfish/wiki/UCI-&-Commands
+[wiki-usage-link]:    https://github.com/official-stockfish/Stockfish/wiki/Download-and-usage
+[worker-link]:        https://github.com/official-stockfish/fishtest/wiki/Running-the-worker
+[lc0-data-link]:      https://storage.lczero.org/files/training_data
+[odbl-link]:          https://opendatacommons.org/licenses/odbl/odbl-10.txt
+
+[build-badge]:        https://img.shields.io/github/actions/workflow/status/official-stockfish/Stockfish/stockfish.yml?branch=master&style=for-the-badge&label=stockfish&logo=github
+[commits-badge]:      https://img.shields.io/github/commits-since/official-stockfish/Stockfish/latest?style=for-the-badge
+[discord-badge]:      https://img.shields.io/discord/435943710472011776?style=for-the-badge&label=discord&logo=Discord
+[fishtest-badge]:     https://img.shields.io/website?style=for-the-badge&down_color=red&down_message=Offline&label=Fishtest&up_color=success&up_message=Online&url=https%3A%2F%2Ftests.stockfishchess.org%2Ftests%2Ffinished
+[license-badge]:      https://img.shields.io/github/license/official-stockfish/Stockfish?style=for-the-badge&label=license&color=success
+[release-badge]:      https://img.shields.io/github/v/release/official-stockfish/Stockfish?style=for-the-badge&label=official%20release
+[website-badge]:      https://img.shields.io/website?style=for-the-badge&down_color=red&down_message=Offline&label=website&up_color=success&up_message=Online&url=https%3A%2F%2Fstockfishchess.org

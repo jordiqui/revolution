@@ -1,5 +1,5 @@
 import subprocess
-from typing import List, Optional
+from typing import List
 import os
 import collections
 import time
@@ -14,7 +14,7 @@ import pathlib
 import concurrent.futures
 import tempfile
 import shutil
-import urllib.request
+import requests
 
 CYAN_COLOR = "\033[36m"
 GRAY_COLOR = "\033[2m"
@@ -61,10 +61,7 @@ race:Stockfish::TranspositionTable::hashfull
     @staticmethod
     def unset_tsan_option():
         os.environ.pop("TSAN_OPTIONS", None)
-        try:
-            os.remove("tsan.supp")
-        except FileNotFoundError:
-            pass
+        os.remove(f"tsan.supp")
 
 
 class EPD:
@@ -99,10 +96,10 @@ class Syzygy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 tarball_path = os.path.join(tmpdirname, f"{file}.tar.gz")
 
-                with urllib.request.urlopen(url) as response, open(
-                    tarball_path, "wb"
-                ) as f:
-                    shutil.copyfileobj(response, f)
+                response = requests.get(url, stream=True)
+                with open(tarball_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
 
                 with tarfile.open(tarball_path, "r:gz") as tar:
                     tar.extractall(tmpdirname)
@@ -268,19 +265,11 @@ class MiniTestFramework:
 
     def __print_summary(self, duration: float):
         print(f"\n{WHITE_BOLD}Test Summary{RESET_COLOR}\n")
-        total_suites = self.passed_test_suites + self.failed_test_suites
         print(
-            (
-                f"    Test Suites: {GREEN_COLOR}{self.passed_test_suites} passed{RESET_COLOR}, "
-                f"{RED_COLOR}{self.failed_test_suites} failed{RESET_COLOR}, {total_suites} total"
-            )
+            f"    Test Suites: {GREEN_COLOR}{self.passed_test_suites} passed{RESET_COLOR}, {RED_COLOR}{self.failed_test_suites} failed{RESET_COLOR}, {self.passed_test_suites + self.failed_test_suites} total"
         )
-        total_tests = self.passed_tests + self.failed_tests
         print(
-            (
-                f"    Tests:       {GREEN_COLOR}{self.passed_tests} passed{RESET_COLOR}, "
-                f"{RED_COLOR}{self.failed_tests} failed{RESET_COLOR}, {total_tests} total"
-            )
+            f"    Tests:       {GREEN_COLOR}{self.passed_tests} passed{RESET_COLOR}, {RED_COLOR}{self.failed_tests} failed{RESET_COLOR}, {self.passed_tests + self.failed_tests} total"
         )
         print(f"    Time:        {duration}s\n")
 
@@ -291,17 +280,17 @@ class MiniTestFramework:
         print(f"    {GREEN_COLOR}✓{RESET_COLOR}{add}", flush=True)
 
 
-class Revolution:
+class Stockfish:
     def __init__(
         self,
         prefix: List[str],
         path: str,
-        args: Optional[List[str]] = None,
+        args: List[str] = [],
         cli: bool = False,
     ):
         self.path = path
         self.process = None
-        self.args = args or []
+        self.args = args
         self.cli = cli
         self.prefix = prefix
         self.output = []
@@ -311,7 +300,7 @@ class Revolution:
     def _check_process_alive(self):
         if not self.process or self.process.poll() is not None:
             print("\n".join(self.output))
-            raise RuntimeError("Revolution process has terminated")
+            raise RuntimeError("Stockfish process has terminated")
 
     def start(self):
         if self.cli:
@@ -342,7 +331,7 @@ class Revolution:
 
     def send_command(self, command: str):
         if not self.process:
-            raise RuntimeError("Revolution process is not started")
+            raise RuntimeError("Stockfish process is not started")
 
         self._check_process_alive()
 
@@ -384,7 +373,7 @@ class Revolution:
 
     def readline(self):
         if not self.process:
-            raise RuntimeError("Revolution process is not started")
+            raise RuntimeError("Stockfish process is not started")
 
         while True:
             self._check_process_alive()
