@@ -37,6 +37,118 @@ At load time Revolution automatically merges every file named according to the c
 
 For further documentation and community resources, visit the BrainLearn project page: <https://github.com/amchess/BrainLearn>. Revolution thanks the BrainLearn authors for making the experience-file integration possible.
 
+## Book management
+
+Revolution implements a flexible book management system inspired by Polyfish and BrainLearn, following the loading priority **BIN → CTG → live book**. Two book slots are available so that you can combine different opening sources or keep fallback material handy when your primary book runs out of moves.
+
+### CTG/BIN Book 1 File
+
+The filename of the first book, which can be either a Polyglot (`.bin`) or Chessbase (`.ctg`) book. To disable this book leave the option empty. If the book resides outside the engine directory, specify the full path; for example `C:\Path\To\My\Book.ctg` or `/home/username/path/to/book.bin`.
+
+### Book 1 Width
+
+Sets how many moves are considered from the book in the current position. Use `1` to always pick the top move. When the value is greater than `1`, the engine randomly chooses between the top **n** moves listed in the book entry.
+
+### Book 1 Depth
+
+Defines the maximum number of plies played from the book before switching to search.
+
+### (CTG) Book 1 Only Green
+
+Only applies to `.ctg` books. When `true`, Revolution restricts choices to book moves marked as Green. If no such move exists in the position, the engine falls back to regular search. This option has no effect when the selected book is Polyglot (`.bin`).
+
+### CTG/BIN Book 2 File
+
+Second book slot with the same behaviour as **Book 1 File**. Use it to layer a wider or specialised book after the main one.
+
+### Book 2 Width
+
+Same behaviour as **Book 1 Width**, but for the second book slot.
+
+### Book 2 Depth
+
+Same behaviour as **Book 1 Depth**, but for the second book slot.
+
+### (CTG) Book 2 Only Green
+
+Same behaviour as **(CTG) Book 1 Only Green**, but for the second book slot.
+
+### Book-related UCI commands
+
+Revolution supports every UCI command provided by BrainLearn; the full list is available in the upstream documentation. In addition, the following commands expose book functionality:
+
+- `book`: prints all moves available in the currently configured books along with statistics.
+- `position startpos` followed by `poly`: displays Polyglot-style book information for the starting position (or the position you supply).
+
+Example output from the starting position:
+
+```
+book
+position startpos
+poly
+
+ +---+---+---+---+---+---+---+---+
+ | r | n | b | q | k | b | n | r | 8
+ +---+---+---+---+---+---+---+---+
+ | p | p | p | p | p | p | p | p | 7
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 6
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 5
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 4
+ +---+---+---+---+---+---+---+---+
+ |   |   |   |   |   |   |   |   | 3
+ +---+---+---+---+---+---+---+---+
+ | P | P | P | P | P | P | P | P | 2
+ +---+---+---+---+---+---+---+---+
+ | R | N | B | Q | K | B | N | R | 1
+ +---+---+---+---+---+---+---+---+
+   a   b   c   d   e   f   g   h
+
+Fen: rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1
+Key: 8F8F01D4562F59FB
+Checkers:
+
+Polyglot book 1: MyNarrowBook.bin
+1 : e2e4 , count: 8822
+2 : d2d4 , count: 6644
+
+Polyglot book 2: MyWideBook.bin
+1 : e2e4 , count: 9768
+2 : d2d4 , count: 5347
+3 : g1f3 , count: 1034
+4 : c2c4 , count: 965
+5 : b2b3 , count: 99
+6 : f2f4 , count: 94
+7 : g2g3 , count: 76
+8 : b2b4 , count: 43
+9 : e2e3 , count: 32
+10: b1c3 , count: 32
+11: d2d3 , count: 13
+12: c2c3 , count: 12
+13: a2a3 , count: 10
+14: g2g4 , count: 9
+15: h2h3 , count: 3
+16: h2h4 , count: 3
+17: a2a4 , count: 1
+18: g1h3 , count: 1
+19: b1a3 , count: 1
+20: f2f3 , count: 1
+```
+
+### Notes about CTG books
+
+Chessbase does not publish official specifications for CTG books. Revolution therefore relies on community reverse engineering, primarily the documentation available at <https://github.com/amchess/BrainLearn>. The current implementation can probe CTG books for moves, but it is not identical to Chessbase products. Known limitations include:
+
+- Underpromotion is unsupported; every promotion defaults to a queen.
+- Positions with more than two queens are unsupported.
+- Green/Red classification is not fully accurate, so some green moves might be skipped.
+- Certain move annotations and engine recommendations can be read, but not all.
+- Move weights are reconstructed heuristically from available statistics (wins, draws, losses, annotations, and recommendations).
+
+Despite these limitations, the engine selects the best move in the vast majority of cases and offers a practical way to reuse existing CTG material. Use CTG support at your discretion.
+
 ## Files
 
 This distribution of Revolution consists of the following files:
