@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -19,7 +19,6 @@
 #include "memory.h"
 
 #include <cstdlib>
-#include <limits>
 
 #if __has_include("features.h")
     #include <features.h>
@@ -65,48 +64,19 @@ namespace Stockfish {
 // availability of aligned_alloc(). Memory allocated with std_aligned_alloc()
 // must be freed with std_aligned_free().
 
-namespace {
-
-size_t adjust_size_for_alignment(size_t alignment, size_t size, bool& overflowed) {
-    overflowed = false;
-
-    if (!alignment)
-        return size;
-
-    const size_t remainder = size % alignment;
-    if (!remainder)
-        return size;
-
-    const size_t increment = alignment - remainder;
-    if (increment > std::numeric_limits<size_t>::max() - size)
-    {
-        overflowed = true;
-        return 0;
-    }
-
-    return size + increment;
-}
-
-}  // namespace
-
 void* std_aligned_alloc(size_t alignment, size_t size) {
-    bool   overflowed   = false;
-    size_t adjustedSize = adjust_size_for_alignment(alignment, size, overflowed);
-    if (overflowed)
-        return nullptr;
-
 #if defined(_ISOC11_SOURCE)
-    return aligned_alloc(alignment, adjustedSize);
+    return aligned_alloc(alignment, size);
 #elif defined(POSIXALIGNEDALLOC)
     void* mem = nullptr;
-    posix_memalign(&mem, alignment, adjustedSize);
+    posix_memalign(&mem, alignment, size);
     return mem;
 #elif defined(_WIN32) && !defined(_M_ARM) && !defined(_M_ARM64)
-    return _mm_malloc(adjustedSize, alignment);
+    return _mm_malloc(size, alignment);
 #elif defined(_WIN32)
-    return _aligned_malloc(adjustedSize, alignment);
+    return _aligned_malloc(size, alignment);
 #else
-    return std::aligned_alloc(alignment, adjustedSize);
+    return std::aligned_alloc(alignment, size);
 #endif
 }
 

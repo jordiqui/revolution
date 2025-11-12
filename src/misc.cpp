@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -40,10 +40,7 @@ namespace Stockfish {
 namespace {
 
 // Version number or dev.
-// Keep this in sync with the README and build scripts so every artifact reports
-// the same Revolution 3.40-081125 release branding.
-constexpr std::string_view engine_name = "Revolution 3.40-081125";
-constexpr std::string_view version     = "release";
+constexpr std::string_view version = "dev";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -116,22 +113,20 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Revolution version.
+// Returns the full name of the current Stockfish version.
 //
 // For local dev compiles we try to append the commit SHA and
 // commit date from git. If that fails only the local compilation
 // date is set and "nogit" is specified:
-//      Revolution dev-YYYYMMDD-SHA
+//      Stockfish dev-YYYYMMDD-SHA
 //      or
-//      Revolution dev-YYYYMMDD-nogit
+//      Stockfish dev-YYYYMMDD-nogit
 //
-// For releases (non-dev builds) we use the fixed branded name.
+// For releases (non-dev builds) we only include the version number:
+//      Stockfish version
 std::string engine_version_info() {
     std::stringstream ss;
-    ss << engine_name;
-
-    if constexpr (version != "dev" && version != "release")
-        ss << ' ' << version;
+    ss << "Stockfish " << version << std::setfill('0');
 
     if constexpr (version == "dev")
     {
@@ -163,7 +158,7 @@ std::string engine_version_info() {
 
 std::string engine_info(bool to_uci) {
     return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "Jorge Ruiz with credits to ChatGPT, the Stockfish authors, and the Revolution development community (see AUTHORS file)";
+         + "the Stockfish developers (see AUTHORS file)";
 }
 
 
@@ -242,6 +237,9 @@ std::string compiler_info() {
 
     compiler += "\nCompilation settings       : ";
     compiler += (Is64Bit ? "64bit" : "32bit");
+#if defined(USE_AVX512ICL)
+    compiler += " AVX512ICL";
+#endif
 #if defined(USE_VNNI)
     compiler += " VNNI";
 #endif

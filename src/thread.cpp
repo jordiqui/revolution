@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -22,11 +22,11 @@
 #include <cassert>
 #include <deque>
 #include <memory>
-#include <new>
 #include <string>
 #include <unordered_map>
 #include <utility>
 
+#include "memory.h"
 #include "movegen.h"
 #include "search.h"
 #include "syzygy/tbprobe.h"
@@ -49,16 +49,13 @@ Thread::Thread(Search::SharedState&                    sharedState,
 
     wait_for_search_finished();
 
-    Search::ISearchManager* smRaw = sm.release();
-
-    run_custom_job([this, &binder, &sharedState, smRaw, n]() {
-        std::unique_ptr<Search::ISearchManager> localManager(smRaw);
+    run_custom_job([this, &binder, &sharedState, &sm, n]() {
         // Use the binder to [maybe] bind the threads to a NUMA node before doing
         // the Worker allocation. Ideally we would also allocate the SearchManager
         // here, but that's minor.
         this->numaAccessToken = binder();
-        this->worker = make_unique_large_page<Search::Worker>(
-          sharedState, std::move(localManager), n, this->numaAccessToken);
+        this->worker = make_unique_large_page<Search::Worker>(sharedState, std::move(sm), n,
+                                                              this->numaAccessToken);
     });
 
     wait_for_search_finished();

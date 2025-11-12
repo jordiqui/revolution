@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -121,7 +121,6 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
     };
 
     auto accumulators = std::make_unique<AccumulatorStack>();
-    accumulators->reset(pos, networks, caches);
 
     // We estimate the value of each piece by doing a differential evaluation from
     // the current base eval, simulating the removal of the piece from its square.
@@ -140,7 +139,7 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
             {
                 pos.remove_piece(sq);
 
-                accumulators->reset(pos, networks, caches);
+                accumulators->reset();
                 std::tie(psqt, positional) = networks.big.evaluate(pos, *accumulators, &caches.big);
                 Value eval                 = psqt + positional;
                 eval                       = pos.side_to_move() == WHITE ? eval : -eval;
@@ -157,7 +156,7 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
         ss << board[row] << '\n';
     ss << '\n';
 
-    accumulators->reset(pos, networks, caches);
+    accumulators->reset();
     auto t = networks.big.trace_evaluate(pos, *accumulators, &caches.big);
 
     ss << " NNUE network contributions "

@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -24,9 +24,7 @@
 #include <iosfwd>
 #include <memory>
 #include <ostream>
-#include <random>
 #include <sstream>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -45,8 +43,6 @@
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
-#include "learn/learn.h"
-#include "wdl/win_probability.h"
 
 namespace Stockfish {
 
@@ -106,28 +102,12 @@ Engine::Engine(std::optional<std::string> path) :
     options.add(  //
       "Ponder", Option(false));
 
-    constexpr auto MultiPVDescription =
-      "Sets the number of alternate lines of analysis to display, with a value of 1 showing only the best line.";
-
     options.add(  //
-      "MultiPV",
-      Option(1, 1, MAX_MOVES)
-        .with_info(MultiPVDescription));
-
-    options.add(  //
-      "Analysis Lines",
-      Option(1, 1, MAX_MOVES)
-        .with_info(
-          std::string(MultiPVDescription)
-            + " This alias ensures compatibility with GUIs that expose the control under a different name."));
+      "MultiPV", Option(1, 1, MAX_MOVES));
 
     options.add("Skill Level", Option(20, 0, 20));
 
     options.add("Move Overhead", Option(10, 0, 5000));
-
-    options.add("Minimum Thinking Time", Option(100, 0, 5000));
-
-    options.add("Slow Mover", Option(100, 10, 1000));
 
     options.add("nodestime", Option(0, 0, 10000));
 
@@ -165,53 +145,8 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
-    options.add("Read only learning", Option(false, [](const Option& o) {
-                    LD.set_readonly(o);
-                    return std::nullopt;
-                }));
-
-    options.add("Self Q-learning", Option(false, [this](const Option& o) {
-                    LD.set_learning_mode(get_options(), int(o) ? "Self" : "Standard");
-                    return std::nullopt;
-                }));
-
-    options.add("Experience Book", Option(false, [this](const Option&) {
-                    LD.init(get_options());
-                    return std::nullopt;
-                }));
-
-    options.add("Experience Book Max Moves", Option(100, 1, 100));
-
-    options.add("Experience Book Min Depth", Option(4, 1, 255));
-
-    options.add("Concurrent Experience", Option(false));
-
-    options.add(
-      "CTG/BIN Book 1 File",
-      Option("", [this](const Option&) {
-          bookManager.init(0, options);
-          return std::nullopt;
-      }));
-    options.add("Book 1 Width", Option(1, 1, 100));
-    options.add("Book 1 Depth", Option(100, 0, 200));
-    options.add("(CTG) Book 1 Only Green", Option(false));
-
-    options.add(
-      "CTG/BIN Book 2 File",
-      Option("", [this](const Option&) {
-          bookManager.init(1, options);
-          return std::nullopt;
-      }));
-    options.add("Book 2 Width", Option(1, 1, 100));
-    options.add("Book 2 Depth", Option(100, 0, 200));
-    options.add("(CTG) Book 2 Only Green", Option(false));
-
     load_networks();
     resize_threads();
-
-    const auto baseDir = !binaryDirectory.empty() ? binaryDirectory : CommandLine::get_working_directory();
-    bookManager.set_base_directory(baseDir);
-    bookManager.init(options);
 }
 
 std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
@@ -223,76 +158,6 @@ std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960
 void Engine::go(Search::LimitsType& limits) {
     assert(limits.perft == 0);
     verify_networks();
-
-    if (!limits.ponderMode && !limits.infinite && limits.perft == 0 && limits.mate == 0 && limits.nodes == 0
-        && limits.depth == 0)
-    {
-        auto bookMove = bookManager.probe(pos, options);
-
-        if (bookMove == Move::none() && int(options["Experience Book"])
-            && pos.game_ply() / 2 < int(options["Experience Book Max Moves"]))
-        {
-            Depth minDepth = Depth(int(options["Experience Book Min Depth"]));
-            auto  learningMoves = LD.probe(pos.key());
-
-            if (!learningMoves.empty())
-            {
-                LD.sortLearningMoves(learningMoves);
-
-                Depth bestDepth = learningMoves.front()->depth;
-                if (bestDepth >= minDepth)
-                {
-                    int   bestPerformance = learningMoves.front()->performance;
-                    Value bestScore       = learningMoves.front()->score;
-
-                    if (bestPerformance >= 50)
-                    {
-                        std::vector<LearningMove*> candidates;
-                        for (auto* move : learningMoves)
-                        {
-                            if (move->depth == bestDepth && move->performance == bestPerformance
-                                && move->score == bestScore)
-                                candidates.push_back(move);
-                            else
-                                break;
-                        }
-
-                        if (!candidates.empty())
-                        {
-                            std::mt19937                    gen(std::random_device{}());
-                            std::uniform_int_distribution<> dist(0, int(candidates.size()) - 1);
-                            bookMove = candidates[static_cast<std::size_t>(dist(gen))]->move;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (bookMove != Move::none())
-        {
-            bool allowed = true;
-
-            if (!limits.searchmoves.empty())
-            {
-                allowed = false;
-                for (const auto& token : limits.searchmoves)
-                {
-                    if (UCIEngine::to_move(pos, token) == bookMove)
-                    {
-                        allowed = true;
-                        break;
-                    }
-                }
-            }
-
-            if (allowed)
-            {
-                const auto best = UCIEngine::move(bookMove, pos.is_chess960());
-                updateContext.onBestmove(best, "");
-                return;
-            }
-        }
-    }
 
     threads.start_thinking(options, pos, states, limits);
 }
@@ -341,18 +206,6 @@ void Engine::set_position(const std::string& fen, const std::vector<std::string>
 
         if (m == Move::none())
             break;
-
-        if (LD.is_enabled() && LD.learning_mode() != LearningMode::Self && !LD.is_paused())
-        {
-            PersistedLearningMove plm;
-            plm.key                      = pos.key();
-            plm.learningMove.depth       = 0;
-            plm.learningMove.move        = m;
-            plm.learningMove.score       = VALUE_NONE;
-            plm.learningMove.performance = WDLModel::get_win_probability(Value(0), pos);
-
-            LD.add_new_learning(plm.key, plm.learningMove);
-        }
 
         states->emplace_back();
         pos.do_move(m, states->back());

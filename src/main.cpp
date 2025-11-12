@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -20,27 +20,23 @@
 #include <memory>
 
 #include "bitboard.h"
-#include "learn/learn.h"
 #include "misc.h"
+#include "nnue/features/full_threats.h"
 #include "position.h"
 #include "tune.h"
-#include "types.h"
 #include "uci.h"
-#include "wdl/win_probability.h"
 
 using namespace Stockfish;
 
 int main(int argc, char* argv[]) {
     std::cout << engine_info() << std::endl;
 
-    WDLModel::init();
-
     Bitboards::init();
     Position::init();
+    Eval::NNUE::Features::init_threat_offsets();
 
     auto uci = std::make_unique<UCIEngine>(argc, argv);
 
-    LD.init(uci->engine_options());
     Tune::init(uci->engine_options());
 
     uci->loop();

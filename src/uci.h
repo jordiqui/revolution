@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -33,7 +33,7 @@ namespace Stockfish {
 class Position;
 class Move;
 class Score;
-enum Square : int;
+enum Square : int8_t;
 using Value = int;
 
 class UCIEngine {
@@ -55,10 +55,8 @@ class UCIEngine {
     auto& engine_options() { return engine.get_options(); }
 
    private:
-    Engine       engine;
-    CommandLine  cli;
-    Position     pos;
-    StateListPtr states;
+    Engine      engine;
+    CommandLine cli;
 
     static void print_info_string(std::string_view str);
 

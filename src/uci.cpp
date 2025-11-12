@@ -1,13 +1,13 @@
 /*
-  Revolution, a UCI chess playing engine derived from Stockfish 17.1
+  Stockfish, a UCI chess playing engine derived from Glaurung 2.1
   Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
-  Revolution is free software: you can redistribute it and/or modify
+  Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation, either version 3 of the License, or
   (at your option) any later version.
 
-  Revolution is distributed in the hope that it will be useful,
+  Stockfish is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   GNU General Public License for more details.
@@ -22,12 +22,9 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
-#include <cstdlib>
-#include <deque>
 #include <iterator>
 #include <optional>
 #include <sstream>
-#include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
@@ -41,80 +38,10 @@
 #include "search.h"
 #include "types.h"
 #include "ucioption.h"
-#include "learn/learn.h"
-#include "wdl/win_probability.h"
 
 namespace Stockfish {
 
 constexpr auto BenchmarkCommand = "speedtest";
-
-namespace {
-
-constexpr std::string_view RevolutionLogoUtf8 =
-  R"(██████╗ ██╗   ██╗██╗     ██╗     ███████╗██╗███████╗██╗  ██╗
-██╔══██╗██║   ██║██║     ██║     ██╔════╝██║██╔════╝██║ ██╔╝
-██████╔╝██║   ██║██║     ██║     █████╗  ██║█████╗  █████╔╝
-██╔══██╗██║   ██║██║     ██║     ██╔══╝  ██║██╔══╝  ██╔═██╗
-██████╔╝╚██████╔╝███████╗███████╗███████╗██║███████╗██║  ██╗
-╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚══════╝╚═╝╚══════╝╚═╝  ╚═╝
-)";
-
-constexpr std::string_view RevolutionLogoAscii =
-  R"( ____        _ _ _     _     _
-|  _ \ _   _| | (_)___| |__ (_)_ __   ___
-| |_) | | | | | | / __| '_ \| | '_ \ / _ \
-|  __/| |_| | | | \__ \ | | | | | | |  __/
-|_|    \__,_|_|_|_|___/_| |_|_|_| |_|\___|
-)";
-
-std::string to_lower_ascii(std::string_view input) {
-    std::string lowered(input);
-
-    std::transform(lowered.begin(), lowered.end(), lowered.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
-
-    return lowered;
-}
-
-#if !defined(_WIN32)
-bool has_utf8_hint(std::string_view value) {
-    const auto lowered = to_lower_ascii(value);
-    return lowered.find("utf-8") != std::string::npos || lowered.find("utf8") != std::string::npos;
-}
-#endif
-
-std::string_view select_logo_from_environment() {
-    if (const char* style_env = std::getenv("REVOLUTION_LOGO_STYLE"))
-    {
-        const auto style = to_lower_ascii(style_env);
-
-        if (style == "none" || style == "off" || style == "disable" || style == "disabled")
-            return std::string_view();
-
-        if (style == "ascii" || style == "plain")
-            return RevolutionLogoAscii;
-
-        if (style == "utf8" || style == "utf-8" || style == "utf")
-            return RevolutionLogoUtf8;
-    }
-
-#if defined(_WIN32)
-    // Windows consoles often default to non-UTF-8 code pages. Unless the user opts in
-    // through the environment variable above, prefer the ASCII logo to avoid mojibake.
-    return RevolutionLogoAscii;
-#else
-    constexpr const char* kLocaleVars[] = {"LC_ALL", "LC_CTYPE", "LANG"};
-
-    for (const char* var : kLocaleVars)
-        if (const char* value = std::getenv(var); value && has_utf8_hint(value))
-            return RevolutionLogoUtf8;
-
-    return RevolutionLogoAscii;
-#endif
-}
-
-}  // namespace
 
 constexpr auto StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 template<typename... Ts>
@@ -139,16 +66,13 @@ void UCIEngine::print_info_string(std::string_view str) {
 
 UCIEngine::UCIEngine(int argc, char** argv) :
     engine(argv[0]),
-    cli(argc, argv),
-    pos(),
-    states(new std::deque<StateInfo>(1)) {
+    cli(argc, argv) {
 
     engine.get_options().add_info_listener([](const std::optional<std::string>& str) {
         if (str.has_value())
             print_info_string(*str);
     });
 
-    pos.set(StartFEN, false, &states->back());
     init_search_update_listeners();
 }
 
@@ -179,20 +103,7 @@ void UCIEngine::loop() {
         is >> std::skipws >> token;
 
         if (token == "quit" || token == "stop")
-        {
             engine.stop();
-
-            if (token == "quit" && LD.is_enabled() && !LD.is_paused())
-            {
-                engine.wait_for_search_finished();
-
-                if (LD.learning_mode() == LearningMode::Self)
-                    putQLearningTrajectoryIntoLearningTable();
-
-                if (!LD.is_readonly())
-                    LD.persist(engine.get_options());
-            }
-        }
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
         // So, 'ponderhit' is sent if pondering was done on the same move that the user
@@ -203,19 +114,10 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            const auto optionInfos = engine.get_options().info_entries();
-            const auto logo        = select_logo_from_environment();
-
             sync_cout << "id name " << engine_info(true) << "\n"
                       << engine.get_options() << sync_endl;
 
-            if (!logo.empty())
-                print_info_string(logo);
-
             sync_cout << "uciok" << sync_endl;
-
-            for (const auto& [name, description] : optionInfos)
-                print_info_string(std::string(name).append(": ").append(description));
         }
 
         else if (token == "setoption")
@@ -228,27 +130,9 @@ void UCIEngine::loop() {
             go(is);
         }
         else if (token == "position")
-        {
             position(is);
-        }
         else if (token == "ucinewgame")
-        {
-            if (LD.is_enabled())
-            {
-                if (LD.learning_mode() == LearningMode::Self)
-                    putQLearningTrajectoryIntoLearningTable();
-
-                if (!LD.is_readonly())
-                    LD.persist(engine.get_options());
-
-                setStartPoint();
-            }
-
             engine.search_clear();
-
-            states = StateListPtr(new std::deque<StateInfo>(1));
-            pos.set(StartFEN, engine.get_options()["UCI_Chess960"], &states->back());
-        }
         else if (token == "isready")
             sync_cout << "readyok" << sync_endl;
 
@@ -264,10 +148,6 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
-        else if (token == "showexp")
-            LD.show_exp(pos);
-        else if (token == "quickresetexp")
-            LD.quick_reset_exp();
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
@@ -284,12 +164,11 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nRevolution is a powerful chess engine for playing and analyzing games of chess."
-                 "\nIt is a derivative of Stockfish 17.1 maintained by Jorge Ruiz with credits to ChatGPT"
-                 "\nand is released as free software licensed under the GNU GPLv3 License."
-                 "\nRevolution is normally used with a graphical user interface (GUI) and implements"
+              << "\nStockfish is a powerful chess engine for playing and analyzing."
+                 "\nIt is released as free software licensed under the GNU GPLv3 License."
+                 "\nStockfish is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
-                 "\nFor further information, visit https://github.com/jorgeruiz/revolution"
+                 "\nFor any further information, visit https://github.com/official-stockfish/Stockfish#readme"
                  "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
               << sync_endl;
         else if (!token.empty() && token[0] != '#')
@@ -616,20 +495,42 @@ void UCIEngine::position(std::istringstream& is) {
     }
 
     engine.set_position(fen, moves);
+}
 
-    states = StateListPtr(new std::deque<StateInfo>(1));
-    pos.set(fen, engine.get_options()["UCI_Chess960"], &states->back());
+namespace {
 
-    for (const auto& move : moves)
-    {
-        auto m = UCIEngine::to_move(pos, move);
+struct WinRateParams {
+    double a;
+    double b;
+};
 
-        if (m == Move::none())
-            break;
+WinRateParams win_rate_params(const Position& pos) {
 
-        states->emplace_back();
-        pos.do_move(m, states->back());
-    }
+    int material = pos.count<PAWN>() + 3 * pos.count<KNIGHT>() + 3 * pos.count<BISHOP>()
+                 + 5 * pos.count<ROOK>() + 9 * pos.count<QUEEN>();
+
+    // The fitted model only uses data for material counts in [17, 78], and is anchored at count 58.
+    double m = std::clamp(material, 17, 78) / 58.0;
+
+    // Return a = p_a(material) and b = p_b(material), see github.com/official-stockfish/WDL_model
+    constexpr double as[] = {-13.50030198, 40.92780883, -36.82753545, 386.83004070};
+    constexpr double bs[] = {96.53354896, -165.79058388, 90.89679019, 49.29561889};
+
+    double a = (((as[0] * m + as[1]) * m + as[2]) * m) + as[3];
+    double b = (((bs[0] * m + bs[1]) * m + bs[2]) * m) + bs[3];
+
+    return {a, b};
+}
+
+// The win rate model is 1 / (1 + exp((a - eval) / b)), where a = p_a(material) and b = p_b(material).
+// It fits the LTC fishtest statistics rather accurately.
+int win_rate_model(Value v, const Position& pos) {
+
+    auto [a, b] = win_rate_params(pos);
+
+    // Return the win rate in per mille units, rounded to the nearest integer.
+    return int(0.5 + 1000 / (1 + std::exp((a - double(v)) / b)));
+}
 }
 
 std::string UCIEngine::format_score(const Score& s) {
@@ -658,7 +559,7 @@ int UCIEngine::to_cp(Value v, const Position& pos) {
     // (log(1/L - 1) - log(1/W - 1)) / (log(1/L - 1) + log(1/W - 1)).
     // Based on our win_rate_model, this simply yields v / a.
 
-    auto [a, b] = WDLModel::win_rate_params(pos);
+    auto [a, b] = win_rate_params(pos);
 
     return std::round(100 * int(v) / a);
 }
@@ -666,8 +567,8 @@ int UCIEngine::to_cp(Value v, const Position& pos) {
 std::string UCIEngine::wdl(Value v, const Position& pos) {
     std::stringstream ss;
 
-    int wdl_w = WDLModel::win_rate_model(v, pos);
-    int wdl_l = WDLModel::win_rate_model(-v, pos);
+    int wdl_w = win_rate_model(v, pos);
+    int wdl_l = win_rate_model(-v, pos);
     int wdl_d = 1000 - wdl_w - wdl_l;
     ss << wdl_w << " " << wdl_d << " " << wdl_l;
 
@@ -701,9 +602,7 @@ std::string UCIEngine::move(Move m, bool chess960) {
 
 
 std::string UCIEngine::to_lower(std::string str) {
-    std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) {
-        return static_cast<char>(std::tolower(c));
-    });
+    std::transform(str.begin(), str.end(), str.begin(), [](auto c) { return std::tolower(c); });
 
     return str;
 }
@@ -731,11 +630,11 @@ void UCIEngine::on_update_full(const Engine::InfoFull& info, bool showWDL) {
        << " multipv " << info.multiPV             //
        << " score " << format_score(info.score);  //
 
-    if (showWDL)
-        ss << " wdl " << info.wdl;
-
     if (!info.bound.empty())
         ss << " " << info.bound;
+
+    if (showWDL)
+        ss << " wdl " << info.wdl;
 
     ss << " nodes " << info.nodes        //
        << " nps " << info.nps            //
