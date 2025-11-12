@@ -43,6 +43,7 @@
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
+#include "learn/learn.h"
 
 namespace Stockfish {
 
@@ -67,6 +68,8 @@ Engine::Engine(std::optional<std::string> path) :
                                            NN::EmbeddedNNUEType::SMALL))) {
 
     pos.set(StartFEN, false, &states->back());
+
+    LD.set_storage_directory(binaryDirectory);
 
     options.add(  //
       "Debug Log File", Option("", [](const Option& o) {
@@ -148,6 +151,25 @@ Engine::Engine(std::optional<std::string> path) :
           load_small_network(o);
           return std::nullopt;
       }));
+
+    options.add(
+      "Read only learning", Option(false, [](const Option& o) {
+          LD.set_readonly(static_cast<bool>(int(o)));
+          return std::nullopt;
+      }));
+
+    options.add("Self Q-learning", Option(false, [this](const Option& o) {
+                    LD.set_learning_mode(get_options(), int(o) ? "Self" : "Standard");
+                    return std::nullopt;
+                }));
+
+    options.add("Experience Book", Option(false, [this](const Option&) {
+                    LD.init(get_options());
+                    return std::nullopt;
+                }));
+
+    options.add("Experience Book Max Moves", Option(100, 1, 100));
+    options.add("Experience Book Min Depth", Option(4, 1, 255));
 
     load_networks();
     resize_threads();

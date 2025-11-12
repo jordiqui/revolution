@@ -49,8 +49,33 @@
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
+#include "learn/learn.h"
+#include "wdl/win_probability.h"
 
 namespace Stockfish {
+
+namespace {
+
+inline bool is_game_decided(const Position& pos, Value lastScore) {
+    static constexpr Value DecidedGameEvalThreshold = PawnValue * 5;
+    static constexpr int   DecidedGameMaxPly        = 150;
+    static constexpr int   DecidedGameMaxPieceCount = 5;
+
+    if (is_valid(lastScore) && std::abs(lastScore) > DecidedGameEvalThreshold)
+        return true;
+
+    if (pos.game_ply() > DecidedGameMaxPly)
+        return true;
+
+    if (pos.count<ALL_PIECES>() < DecidedGameMaxPieceCount)
+        return true;
+
+    return false;
+}
+
+}  // namespace
+
+thread_local std::vector<QLearningMove> qLearningTrajectory;
 
 namespace TB = Tablebases;
 
@@ -180,6 +205,8 @@ void Search::Worker::start_searching() {
                             main_manager()->originalTimeAdjust);
     tt.new_search();
 
+    Move bookMove = Move::none();
+
     if (rootMoves.empty())
     {
         rootMoves.emplace_back(Move::none());
@@ -188,8 +215,61 @@ void Search::Worker::start_searching() {
     }
     else
     {
-        threads.start_searching();  // start non-main threads
-        iterative_deepening();      // main thread start searching
+        bool think = true;
+
+        if (!(limits.infinite || limits.mate || limits.depth || limits.nodes || limits.perft)
+            && !main_manager()->ponder)
+        {
+            if ((bool) options["Experience Book"] && LD.is_enabled()
+                && rootPos.game_ply() / 2 < int(options["Experience Book Max Moves"]))
+            {
+                const Depth                        expBookMinDepth = Depth(options["Experience Book Min Depth"]);
+                std::vector<LearningMove*>          learningMoves  = LD.probe(rootPos.key());
+                if (!learningMoves.empty())
+                {
+                    LD.sortLearningMoves(learningMoves);
+                    const Depth bestDepth = learningMoves.front()->depth;
+
+                    if (bestDepth >= expBookMinDepth)
+                    {
+                        const int   bestPerformance = learningMoves.front()->performance;
+                        const Value bestScore       = learningMoves.front()->score;
+
+                        if (bestPerformance >= 50)
+                        {
+                            for (const auto& move : learningMoves)
+                            {
+                                if (move->depth == bestDepth && move->performance == bestPerformance
+                                    && move->score == bestScore)
+                                {
+                                    bookMove = move->move;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (bookMove != Move::none()
+                && std::find(rootMoves.begin(), rootMoves.end(), bookMove) != rootMoves.end())
+            {
+                think = false;
+
+                for (auto&& th : threads)
+                {
+                    auto it = std::find(th->worker->rootMoves.begin(), th->worker->rootMoves.end(), bookMove);
+                    if (it != th->worker->rootMoves.end())
+                        std::swap(th->worker->rootMoves[0], *it);
+                }
+            }
+        }
+
+        if (think)
+        {
+            threads.start_searching();  // start non-main threads
+            iterative_deepening();      // main thread start searching
+        }
     }
 
     // When we reach the maximum depth, we can arrive here without a raise of
@@ -236,6 +316,48 @@ void Search::Worker::start_searching() {
 
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
     main_manager()->updates.onBestmove(bestmove, ponder);
+
+    if (bookMove == Move::none())
+    {
+        if (bestThread->completedDepth > Depth(4) && LD.is_enabled() && !LD.is_paused()
+            && bestThread->rootMoves[0].pv[0] != Move::none())
+        {
+            PersistedLearningMove plm;
+            plm.key                = rootPos.key();
+            plm.learningMove.depth = bestThread->completedDepth;
+            plm.learningMove.move  = bestThread->rootMoves[0].pv[0];
+            plm.learningMove.score = bestThread->rootMoves[0].score;
+            plm.learningMove.performance = WDLModel::get_win_probability(plm.learningMove.score, rootPos);
+
+            if (LD.learning_mode() == LearningMode::Self)
+            {
+                if (const LearningMove* existing = LD.probe_move(plm.key, plm.learningMove.move))
+                    plm.learningMove.score = existing->score;
+
+                QLearningMove qLearningMove;
+                qLearningMove.persistedLearningMove = plm;
+                const int material = rootPos.count<PAWN>() + 3 * rootPos.count<KNIGHT>()
+                                    + 3 * rootPos.count<BISHOP>() + 5 * rootPos.count<ROOK>()
+                                    + 9 * rootPos.count<QUEEN>();
+                qLearningMove.materialClamp = std::clamp(material, 17, 78);
+                qLearningTrajectory.push_back(qLearningMove);
+            }
+            else
+                LD.add_new_learning(plm.key, plm.learningMove);
+        }
+
+        if (is_game_decided(rootPos, bestThread->rootMoves[0].score) && LD.is_enabled()
+            && !LD.is_paused())
+        {
+            if (LD.learning_mode() == LearningMode::Self)
+                putQLearningTrajectoryIntoLearningTable();
+
+            if (!LD.is_readonly())
+                LD.persist(options);
+
+            LD.pause();
+        }
+    }
 }
 
 // Main iterative deepening loop. It calls search()
@@ -2173,6 +2295,42 @@ bool RootMove::extract_ponder_from_tt(const TranspositionTable& tt, Position& po
 
     pos.undo_move(pv[0]);
     return pv.size() > 1;
+}
+
+
+void putQLearningTrajectoryIntoLearningTable() {
+    constexpr double learning_rate = 0.5;
+    constexpr double gamma         = 0.99;
+
+    if (qLearningTrajectory.size() <= 1)
+    {
+        qLearningTrajectory.clear();
+        return;
+    }
+
+    for (std::size_t index = qLearningTrajectory.size(); index-- > 1;)
+    {
+        LearningMove prevLearningMove =
+          qLearningTrajectory[index - 1].persistedLearningMove.learningMove;
+        const LearningMove currentLearningMove =
+          qLearningTrajectory[index].persistedLearningMove.learningMove;
+
+        const double updatedScore = double(prevLearningMove.score) * (1.0 - learning_rate)
+                                   + learning_rate * (gamma * double(currentLearningMove.score));
+        prevLearningMove.score = Value(std::clamp<int>(std::lround(updatedScore), -VALUE_INFINITE, VALUE_INFINITE));
+        prevLearningMove.performance = WDLModel::get_win_probability_by_material(
+          prevLearningMove.score, qLearningTrajectory[index - 1].materialClamp);
+
+        LD.add_new_learning(qLearningTrajectory[index - 1].persistedLearningMove.key,
+                            prevLearningMove);
+    }
+
+    qLearningTrajectory.clear();
+}
+
+void setStartPoint() {
+    qLearningTrajectory.clear();
+    LD.resume();
 }
 
 

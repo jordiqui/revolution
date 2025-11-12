@@ -370,6 +370,9 @@ struct ConthistBonus {
 
 }  // namespace Search
 
+void putQLearningTrajectoryIntoLearningTable();
+void setStartPoint();
+
 }  // namespace Stockfish
 
 #endif  // #ifndef SEARCH_H_INCLUDED
