@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-	EXE = stockfish.exe
+        EXE = revolution-3.50-131125.exe
 else
-	EXE = stockfish
+        EXE = revolution-3.50-131125
 endif
 
 ### Installation dir definitions
