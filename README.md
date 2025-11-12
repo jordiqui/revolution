@@ -12,6 +12,31 @@ Revolution is a free and strong UCI chess engine derived from Stockfish that ana
 
 Like Stockfish, Revolution does not include a graphical user interface. To use the engine you need a UCI-compatible GUI such as Fritz, Arena, Cute Chess, or similar. Consult the documentation of your preferred GUI for instructions on how to load Revolution.
 
+## BrainLearn experience file integration
+
+Revolution integrates the BrainLearn persistent hash learning system so that the engine can reuse knowledge collected from previous games. The learning data is saved in an `experience.exp` file that stores one or more positions using the following BrainLearn-defined structure:
+
+1. best move
+2. board signature (hash key)
+3. best move depth
+4. best move score
+5. best move performance (by default derived from score and depth, and adjustable through learning tools that support this specification)
+
+The `experience.exp` file is loaded into an internal hash table when the engine starts and is updated whenever BrainLearn receives a `quit` or `stop` UCI command. Learning is active from the start of each game and whenever eight or fewer pieces remain on the board. Positions whose best score is found at a depth of at least four plies—following the BrainLearn aspiration window—are written back to the experience file.
+
+At load time Revolution automatically merges every file named according to the convention `<fileType><qualityIndex>.exp`, where `fileType` is `experience` and `qualityIndex` is an integer beginning at 0 (0 represents the best quality as assigned by the user). Legacy `.bin` experience files can be used by renaming them with the `.exp` extension, which frees the `.bin` extension for standard opening books.
+
+### Learning-related UCI options
+
+- **Read only learning** (boolean, default `false`): prevents the engine from updating the experience file.
+- **Self Q-learning** (boolean, default `false`): switches the learning algorithm to the BrainLearn Q-learning mode that is optimised for self-play scenarios.
+- **Experience Book** (boolean, default `false`): allows the engine to consult the experience file as an opening book. Moves are chosen by prioritising maximum win probability, then internal score, and finally search depth. The `showexp` UCI token can be used to list available moves in the current position.
+- **Experience Book Max Moves** (integer, default `100`, minimum `1`, maximum `100`): limits the number of candidate moves read from the experience book.
+- **Experience Book Min Depth** (integer, default `4`, minimum `1`, maximum `255`): sets the minimum stored depth for moves to qualify for book selection.
+- **quickresetexp** (UCI token): aligns the stored performance values with the defaults when the learning file needs to be reset quickly.
+
+For further documentation and community resources, visit the BrainLearn project page: <https://github.com/amchess/BrainLearn>. Revolution thanks the BrainLearn authors for making the experience-file integration possible.
+
 ## Files
 
 This distribution of Revolution consists of the following files:
