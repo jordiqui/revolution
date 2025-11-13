@@ -4,18 +4,27 @@
 #include "ctg/ctg.h"
 #include "book.h"
 
+#include <cctype>
+#include <filesystem>
+
 namespace Stockfish {
 namespace Book {
 /*static*/ Book* Book::create_book(const std::string& filename) {
-    size_t extIndex = filename.find_last_of('.');
-    if (extIndex == std::string::npos)
+    const auto extension = std::filesystem::path(filename).extension().string();
+
+    if (extension.empty())
         return nullptr;
 
-    std::string ext = filename.substr(extIndex + 1);
+    std::string normalized = extension;
+    if (!normalized.empty() && normalized.front() == '.')
+        normalized.erase(0, 1);
+    std::transform(normalized.begin(), normalized.end(), normalized.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
 
-    if (ext == "ctg" || ext == "cto" || ext == "ctb")
+    if (normalized == "ctg" || normalized == "cto" || normalized == "ctb")
         return new CTG::CtgBook();
-    else if (ext == "bin")
+    else if (normalized == "bin")
         return new Polyglot::PolyglotBook();
     else
         return nullptr;
