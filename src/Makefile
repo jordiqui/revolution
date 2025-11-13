@@ -58,19 +58,23 @@ SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
         nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/network.cpp \
         nnue/features/half_ka_v2_hm.cpp nnue/features/full_threats.cpp \
         learn/learn.cpp wdl/win_probability.cpp \
-        engine.cpp score.cpp memory.cpp
+        engine.cpp score.cpp memory.cpp \
+        book/book.cpp book/book_manager.cpp book/book_utils.cpp book/file_mapping.cpp \
+        book/polyglot/polyglot.cpp book/ctg/ctg.cpp
 
 HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.h \
-		nnue/nnue_misc.h nnue/features/half_ka_v2_hm.h nnue/features/full_threats.h \
-		nnue/layers/affine_transform.h nnue/layers/affine_transform_sparse_input.h \
-		nnue/layers/clipped_relu.h nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h \
-		nnue/nnue_architecture.h nnue/nnue_common.h nnue/nnue_feature_transformer.h nnue/simd.h \
-		position.h search.h syzygy/tbprobe.h thread.h thread_win32_osx.h timeman.h \
-		tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h
+                nnue/nnue_misc.h nnue/features/half_ka_v2_hm.h nnue/features/full_threats.h \
+                nnue/layers/affine_transform.h nnue/layers/affine_transform_sparse_input.h \
+                nnue/layers/clipped_relu.h nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h \
+                nnue/nnue_architecture.h nnue/nnue_common.h nnue/nnue_feature_transformer.h nnue/simd.h \
+                position.h search.h syzygy/tbprobe.h thread.h thread_win32_osx.h timeman.h \
+                tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h \
+                book/book.h book/book_manager.h book/book_utils.h book/file_mapping.h \
+                book/polyglot/polyglot.h book/ctg/ctg.h
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 
-VPATH = syzygy:nnue:nnue/features:learn:wdl
+VPATH = syzygy:nnue:nnue/features:learn:wdl:book:book/polyglot:book/ctg
 
 ### ==========================================================================
 ### Section 2. High-level Configuration

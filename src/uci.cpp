@@ -182,6 +182,10 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
+        else if (token == "book")
+            engine.show_book_moves(pos);
+        else if (token == "poly")
+            engine.show_polyglot_moves(pos);
         else if (token == "showexp")
             LD.show_exp(pos);
         else if (token == "quickresetexp")
