@@ -29,7 +29,8 @@ std::string unquote(std::string s) {
 
 std::filesystem::path make_path(const std::string& path) {
     std::string cleaned = unquote(path);
-    std::replace(cleaned.begin(), cleaned.end(), '\\', std::filesystem::path::preferred_separator);
+    std::replace(cleaned.begin(), cleaned.end(), '\\',
+                 static_cast<char>(std::filesystem::path::preferred_separator));
     std::filesystem::path p(cleaned);
 
     if (p.is_relative())
