@@ -44,6 +44,7 @@
 #include "uci.h"
 #include "ucioption.h"
 #include "learn/learn.h"
+#include "book/book_utils.h"
 
 namespace Stockfish {
 
@@ -70,6 +71,7 @@ Engine::Engine(std::optional<std::string> path) :
     pos.set(StartFEN, false, &states->back());
 
     LD.set_storage_directory(binaryDirectory);
+    bookManager.set_base_directory(binaryDirectory);
 
     options.add(  //
       "Debug Log File", Option("", [](const Option& o) {
@@ -152,6 +154,19 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
+    for (int i = 0; i < BookManager::NumberOfBooks; ++i)
+    {
+        const int index = i + 1;
+        options.add(::Stockfish::Book::format_option_key("CTG/BIN Book %d File", index),
+                    Option("", [this, i](const Option&) {
+                        bookManager.init(i, options);
+                        return std::nullopt;
+                    }));
+        options.add(::Stockfish::Book::format_option_key("Book %d Width", index), Option(1, 1, 100));
+        options.add(::Stockfish::Book::format_option_key("Book %d Depth", index), Option(255, 1, 255));
+        options.add(::Stockfish::Book::format_option_key("(CTG) Book %d Only Green", index), Option(false));
+    }
+
     options.add(
       "Read only learning", Option(false, [](const Option& o) {
           LD.set_readonly(static_cast<bool>(int(o)));
@@ -173,6 +188,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     load_networks();
     resize_threads();
+    bookManager.init(options);
 }
 
 std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
@@ -266,7 +282,7 @@ void Engine::set_numa_config_from_option(const std::string& o) {
 
 void Engine::resize_threads() {
     threads.wait_for_search_finished();
-    threads.set(numaContext.get_numa_config(), {options, threads, tt, networks}, updateContext);
+    threads.set(numaContext.get_numa_config(), {options, threads, tt, networks, bookManager}, updateContext);
 
     // Reallocate the hash with the new threadpool size
     set_tt_size(options["Hash"]);
@@ -361,6 +377,14 @@ void Engine::trace_eval() const {
 
 const OptionsMap& Engine::get_options() const { return options; }
 OptionsMap&       Engine::get_options() { return options; }
+
+void Engine::show_book_moves(const Position& position) {
+    bookManager.show_moves(position, options);
+}
+
+void Engine::show_polyglot_moves(const Position& position) {
+    bookManager.show_polyglot(position, options);
+}
 
 std::string Engine::fen() const { return pos.fen(); }
 

@@ -180,6 +180,7 @@ Search::Worker::Worker(SharedState&                    sharedState,
     threads(sharedState.threads),
     tt(sharedState.tt),
     networks(sharedState.networks),
+    bookManager(sharedState.bookManager),
     refreshTable(networks[token]) {
     clear();
 }
@@ -220,11 +221,13 @@ void Search::Worker::start_searching() {
         if (!(limits.infinite || limits.mate || limits.depth || limits.nodes || limits.perft)
             && !main_manager()->ponder)
         {
-            if ((bool) options["Experience Book"] && LD.is_enabled()
+            bookMove = bookManager.probe(rootPos, options);
+
+            if (bookMove == Move::none() && (bool) options["Experience Book"] && LD.is_enabled()
                 && rootPos.game_ply() / 2 < int(options["Experience Book Max Moves"]))
             {
-                const Depth                        expBookMinDepth = Depth(options["Experience Book Min Depth"]);
-                std::vector<LearningMove*>          learningMoves  = LD.probe(rootPos.key());
+                const Depth               expBookMinDepth = Depth(options["Experience Book Min Depth"]);
+                std::vector<LearningMove*> learningMoves  = LD.probe(rootPos.key());
                 if (!learningMoves.empty())
                 {
                     LD.sortLearningMoves(learningMoves);

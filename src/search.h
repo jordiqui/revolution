@@ -32,6 +32,7 @@
 #include <vector>
 
 #include "history.h"
+#include "book/book_manager.h"
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_accumulator.h"
@@ -136,16 +137,19 @@ struct SharedState {
     SharedState(const OptionsMap&                                         optionsMap,
                 ThreadPool&                                               threadPool,
                 TranspositionTable&                                       transpositionTable,
-                const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& nets) :
+                const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& nets,
+                BookManager&                                              manager) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
-        networks(nets) {}
+        networks(nets),
+        bookManager(manager) {}
 
     const OptionsMap&                                         options;
     ThreadPool&                                               threads;
     TranspositionTable&                                       tt;
     const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& networks;
+    BookManager&                                              bookManager;
 };
 
 class Worker;
@@ -353,6 +357,7 @@ class Worker {
     ThreadPool&                                               threads;
     TranspositionTable&                                       tt;
     const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& networks;
+    BookManager&                                              bookManager;
 
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
