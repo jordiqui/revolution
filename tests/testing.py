@@ -216,13 +216,18 @@ class MiniTestFramework:
             t0 = time.time()
 
             with redirect_stdout(buffer):
-                if hasattr(test_instance, "beforeEach"):
-                    test_instance.beforeEach()
+                after_each = getattr(test_instance, "afterEach", None)
+                before_each_succeeded = not hasattr(test_instance, "beforeEach")
 
-                getattr(test_instance, method)()
+                try:
+                    if not before_each_succeeded:
+                        test_instance.beforeEach()
+                        before_each_succeeded = True
 
-                if hasattr(test_instance, "afterEach"):
-                    test_instance.afterEach()
+                    getattr(test_instance, method)()
+                finally:
+                    if after_each and before_each_succeeded:
+                        after_each()
 
             duration = time.time() - t0
 
