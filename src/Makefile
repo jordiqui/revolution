@@ -38,12 +38,10 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
-ENGINE = Revolution-3.60-181125
-
 ifeq ($(target_windows),yes)
-        EXE = $(ENGINE).exe
+        EXE = stockfish.exe
 else
-        EXE = $(ENGINE)
+        EXE = stockfish
 endif
 
 ### Installation dir definitions
@@ -887,8 +885,8 @@ endif
 ### ==========================================================================
 
 help:
-        @echo "" && \
-        echo "To compile $(ENGINE), type: " && \
+	@echo "" && \
+	echo "To compile stockfish, type: " && \
 	echo "" && \
 	echo "make -j target [ARCH=arch] [COMP=compiler] [COMPCXX=cxx]" && \
 	echo "" && \
@@ -1005,17 +1003,17 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-        @rm -f $(ENGINE) $(ENGINE).exe $(EXE) *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
 
 # clean auxiliary profiling files
 profileclean:
-        @rm -rf profdir
-        @rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
-        @rm -f $(ENGINE).profdata *.profraw
-        @rm -f $(ENGINE).*args*
-        @rm -f $(ENGINE).*lt*
-        @rm -f $(ENGINE).res
-        @rm -f ./-lstdc++.res
+	@rm -rf profdir
+	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
+	@rm -f stockfish.profdata *.profraw
+	@rm -f stockfish.*args*
+	@rm -f stockfish.*lt*
+	@rm -f stockfish.res
+	@rm -f ./-lstdc++.res
 
 # evaluation network (nnue)
 net:
@@ -1112,11 +1110,11 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-        $(XCRUN) $(LLVM_PROFDATA) merge -output=$(ENGINE).profdata *.profraw
-        $(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-        EXTRACXXFLAGS='-fprofile-use=$(ENGINE).profdata' \
-        EXTRALDFLAGS='-fprofile-use ' \
-        all
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXTRACXXFLAGS='-fprofile-use=stockfish.profdata' \
+	EXTRALDFLAGS='-fprofile-use ' \
+	all
 
 gcc-profile-make:
 	@mkdir -p profdir
@@ -1140,11 +1138,11 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-        $(XCRUN) $(LLVM_PROFDATA) merge -output=$(ENGINE).profdata *.profraw
-        $(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-        EXTRACXXFLAGS='-fprofile-instr-use=$(ENGINE).profdata' \
-        EXTRALDFLAGS='-fprofile-use ' \
-        all
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
+	EXTRALDFLAGS='-fprofile-use ' \
+	all
 
 .depend: $(SRCS)
 	-@$(CXX) $(DEPENDFLAGS) -MM $(SRCS) > $@ 2> /dev/null
