@@ -174,9 +174,6 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
                                      AccumulatorStack&                       accumulatorStack,
                                      AccumulatorCaches::Cache<FTDimensions>* cache) const {
 
-    if (!initialized)
-        return {Value(0), Value(0)};
-
     constexpr uint64_t alignment = CacheLineSize;
 
     alignas(alignment)
@@ -217,7 +214,8 @@ void Network<Arch, Transformer>::verify(std::string                             
 
             f(msg);
         }
-        return;
+
+        exit(EXIT_FAILURE);
     }
 
     if (f)
@@ -237,9 +235,6 @@ NnueEvalTrace
 Network<Arch, Transformer>::trace_evaluate(const Position&                         pos,
                                            AccumulatorStack&                       accumulatorStack,
                                            AccumulatorCaches::Cache<FTDimensions>* cache) const {
-
-    if (!initialized)
-        return {};
 
     constexpr uint64_t alignment = CacheLineSize;
 
