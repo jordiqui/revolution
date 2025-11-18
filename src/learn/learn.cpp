@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <system_error>
 
 #include "../misc.h"
 #include "../uci.h"
@@ -39,9 +40,21 @@ LearningData::~LearningData() { clear(); }
 
 void LearningData::set_storage_directory(std::string path) {
     if (path.empty())
+    {
         storageRoot.clear();
-    else
+        return;
+    }
+
+    try
+    {
         storageRoot = std::filesystem::path(std::move(path));
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        storageRoot.clear();
+        std::cerr << "info string Failed to set experience storage directory: " << e.what()
+                  << std::endl;
+    }
 }
 
 std::filesystem::path LearningData::resolve_path(const std::string& filename) const {
@@ -213,8 +226,16 @@ void LearningData::init(OptionsMap& o) {
     for (int i = 0;; ++i)
     {
         const auto candidate = resolve_path("experience" + std::to_string(i) + ".exp");
-        if (!std::filesystem::exists(candidate))
+        std::error_code candidateExistsEc;
+        if (!std::filesystem::exists(candidate, candidateExistsEc))
             break;
+
+        if (candidateExistsEc)
+        {
+            std::cerr << "info string Cannot check experience file <" << candidate.string()
+                      << ">: " << candidateExistsEc.message() << std::endl;
+            break;
+        }
 
         if (load(candidate))
             auxiliaryFiles.push_back(candidate);
@@ -306,9 +327,31 @@ void LearningData::persist(const OptionsMap& options) {
     const auto tempExperienceFilename = resolve_path("experience_new.exp");
 
     if (!experienceFilename.parent_path().empty())
-        std::filesystem::create_directories(experienceFilename.parent_path());
+    {
+        std::error_code mkdirEc;
+        std::filesystem::create_directories(experienceFilename.parent_path(), mkdirEc);
+
+        if (mkdirEc)
+        {
+            std::cerr << "info string Failed to create directory for experience file <"
+                      << experienceFilename.parent_path().string()
+                      << ">: " << mkdirEc.message() << std::endl;
+            return;
+        }
+    }
     if (!tempExperienceFilename.parent_path().empty())
-        std::filesystem::create_directories(tempExperienceFilename.parent_path());
+    {
+        std::error_code mkdirEc;
+        std::filesystem::create_directories(tempExperienceFilename.parent_path(), mkdirEc);
+
+        if (mkdirEc)
+        {
+            std::cerr << "info string Failed to create directory for experience file <"
+                      << tempExperienceFilename.parent_path().string()
+                      << ">: " << mkdirEc.message() << std::endl;
+            return;
+        }
+    }
 
     std::ofstream outputFile(tempExperienceFilename, std::ofstream::trunc | std::ofstream::binary);
     if (!outputFile)
