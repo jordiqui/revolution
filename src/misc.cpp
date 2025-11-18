@@ -42,6 +42,8 @@ constexpr std::string_view kEngineNameShort    = "Revolution-3.60-181125";
 constexpr std::string_view kEngineDisplayName  = "Revolution-3.60-181125 - UCI chess engine";
 constexpr std::string_view kEngineUciHeader    =
     "Revolution-3.60 Developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
+constexpr std::string_view kEngineAnalysisTag =
+    "Revolution-3.60-181125 (update scripts Revolution-3.60-181125)";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -116,7 +118,7 @@ class Logger {
 
 // Returns the short public identification string for the Revolution engine.
 std::string engine_version_info() {
-    return std::string(kEngineNameShort);
+    return std::string(kEngineAnalysisTag);
 }
 
 std::string engine_info(bool to_uci) {
