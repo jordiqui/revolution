@@ -36,6 +36,7 @@
 #include "thread.h"
 #include "tt.h"
 #include "ucioption.h"
+#include "book/book_manager.h"
 
 namespace Stockfish {
 
@@ -96,6 +97,9 @@ class Engine {
     const OptionsMap& get_options() const;
     OptionsMap&       get_options();
 
+    void show_book_moves(const Position& position);
+    void show_polyglot_moves(const Position& position);
+
     int get_hashfull(int maxAge = 0) const;
 
     std::string                            fen() const;
@@ -116,6 +120,7 @@ class Engine {
     StateListPtr states;
 
     OptionsMap                                         options;
+    BookManager                                        bookManager;
     ThreadPool                                         threads;
     TranspositionTable                                 tt;
     LazyNumaReplicatedSystemWide<Eval::NNUE::Networks> networks;
