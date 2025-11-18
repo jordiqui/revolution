@@ -41,6 +41,7 @@ namespace {
 constexpr std::string_view kEngineNameShort    = "Revolution-3.60-181125";
 constexpr std::string_view kEngineDisplayName  = "Revolution-3.60-181125 - UCI chess engine";
 constexpr std::string_view kEngineUciHeader    = kEngineNameShort;
+constexpr std::string_view kEngineAuthor       = "Jorge Ruiz, Stockfish developers";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -126,6 +127,11 @@ std::string engine_info(bool to_uci) {
         return std::string(kEngineUciHeader);
 
     return std::string(kEngineDisplayName) + "\n" + std::string(kAuthorLine);
+}
+
+// Returns the authors string used in the UCI handshake.
+std::string engine_author_info() {
+    return std::string(kEngineAuthor);
 }
 
 
