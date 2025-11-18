@@ -45,16 +45,19 @@ void LearningData::set_storage_directory(std::string path) {
         return;
     }
 
-    try
-    {
-        storageRoot = std::filesystem::path(std::move(path));
-    }
-    catch (const std::filesystem::filesystem_error& e)
+    std::filesystem::path newStorageRoot(std::move(path));
+    std::error_code       ec;
+    std::filesystem::status(newStorageRoot, ec);
+
+    if (ec)
     {
         storageRoot.clear();
-        std::cerr << "info string Failed to set experience storage directory: " << e.what()
+        std::cerr << "info string Failed to set experience storage directory: " << ec.message()
                   << std::endl;
+        return;
     }
+
+    storageRoot = std::move(newStorageRoot);
 }
 
 std::filesystem::path LearningData::resolve_path(const std::string& filename) const {
