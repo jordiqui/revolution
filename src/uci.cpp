@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <deque>
 #include <cmath>
 #include <cstdint>
 #include <iterator>
@@ -39,7 +38,6 @@
 #include "search.h"
 #include "types.h"
 #include "ucioption.h"
-#include "learn/learn.h"
 
 namespace Stockfish {
 
@@ -88,10 +86,6 @@ void UCIEngine::init_search_update_listeners() {
 }
 
 void UCIEngine::loop() {
-    Position     pos;
-    StateListPtr states(new std::deque<StateInfo>(1));
-    pos.set(StartFEN, false, &states->back());
-
     std::string token, cmd;
 
     for (int i = 1; i < cli.argc; ++i)
@@ -109,20 +103,7 @@ void UCIEngine::loop() {
         is >> std::skipws >> token;
 
         if (token == "quit" || token == "stop")
-        {
             engine.stop();
-
-            if (LD.is_enabled() && !LD.is_paused())
-            {
-                engine.wait_for_search_finished();
-
-                if (LD.learning_mode() == LearningMode::Self)
-                    putQLearningTrajectoryIntoLearningTable();
-
-                if (!LD.is_readonly())
-                    LD.persist(engine.get_options());
-            }
-        }
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
         // So, 'ponderhit' is sent if pondering was done on the same move that the user
@@ -134,7 +115,6 @@ void UCIEngine::loop() {
         else if (token == "uci")
         {
             sync_cout << "id name " << engine_info(true) << "\n"
-                      << "id author " << engine_author_info() << "\n"
                       << engine.get_options() << sync_endl;
 
             sync_cout << "uciok" << sync_endl;
@@ -150,24 +130,9 @@ void UCIEngine::loop() {
             go(is);
         }
         else if (token == "position")
-        {
             position(is);
-            pos.set(engine.fen(), engine.get_options()["UCI_Chess960"], &states->back());
-        }
         else if (token == "ucinewgame")
-        {
-            if (LD.is_enabled())
-            {
-                if (LD.learning_mode() == LearningMode::Self)
-                    putQLearningTrajectoryIntoLearningTable();
-
-                if (!LD.is_readonly())
-                    LD.persist(engine.get_options());
-
-                setStartPoint();
-            }
             engine.search_clear();
-        }
         else if (token == "isready")
             sync_cout << "readyok" << sync_endl;
 
@@ -183,14 +148,6 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
-        else if (token == "book")
-            engine.show_book_moves(pos);
-        else if (token == "poly")
-            engine.show_polyglot_moves(pos);
-        else if (token == "showexp")
-            LD.show_exp(pos);
-        else if (token == "quickresetexp")
-            LD.quick_reset_exp();
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
@@ -207,7 +164,7 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nRevolution-3.60-181125 is a UCI chess engine derived from Stockfish."
+              << "\nrevolution-3.50-131125 is a UCI chess engine derived from Stockfish."
                  "\nIt is released as free software licensed under the GNU GPLv3 License."
                  "\nRevolution UCI Chess Engines develops structural changes and explores new ideas"
                  "\nto improve the project while complying with the applicable license requirements."

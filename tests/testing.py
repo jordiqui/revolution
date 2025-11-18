@@ -14,8 +14,7 @@ import pathlib
 import concurrent.futures
 import tempfile
 import shutil
-import urllib.request
-from urllib.error import URLError
+import requests
 
 CYAN_COLOR = "\033[36m"
 GRAY_COLOR = "\033[2m"
@@ -97,13 +96,10 @@ class Syzygy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 tarball_path = os.path.join(tmpdirname, f"{file}.tar.gz")
 
-                try:
-                    with urllib.request.urlopen(url) as response, open(
-                        tarball_path, "wb"
-                    ) as f:
-                        shutil.copyfileobj(response, f)
-                except URLError as exc:
-                    raise RuntimeError("Failed to download syzygy tables") from exc
+                response = requests.get(url, stream=True)
+                with open(tarball_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
 
                 with tarfile.open(tarball_path, "r:gz") as tar:
                     tar.extractall(tmpdirname)
@@ -216,18 +212,13 @@ class MiniTestFramework:
             t0 = time.time()
 
             with redirect_stdout(buffer):
-                after_each = getattr(test_instance, "afterEach", None)
-                before_each_succeeded = not hasattr(test_instance, "beforeEach")
+                if hasattr(test_instance, "beforeEach"):
+                    test_instance.beforeEach()
 
-                try:
-                    if not before_each_succeeded:
-                        test_instance.beforeEach()
-                        before_each_succeeded = True
+                getattr(test_instance, method)()
 
-                    getattr(test_instance, method)()
-                finally:
-                    if after_each and before_each_succeeded:
-                        after_each()
+                if hasattr(test_instance, "afterEach"):
+                    test_instance.afterEach()
 
             duration = time.time() - t0
 

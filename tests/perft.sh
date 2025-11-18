@@ -12,49 +12,50 @@ trap 'error ${LINENO}' ERR
 
 echo "perft testing started"
 
+EXPECT_SCRIPT=$(mktemp)
+
+cat << 'EOF' > $EXPECT_SCRIPT
+#!/usr/bin/expect -f
+set timeout 120
+lassign [lrange $argv 0 4] pos depth result chess960 logfile
+log_file -noappend $logfile
+spawn ./stockfish
+if {$chess960 == "true"} {
+  send "setoption name UCI_Chess960 value true\n"
+}
+send "position $pos\ngo perft $depth\n"
+expect {
+  "Nodes searched: $result" {}
+  timeout {puts "TIMEOUT: Expected $result nodes"; exit 1}
+  eof {puts "EOF: Stockfish crashed"; exit 2}
+}
+send "quit\n"
+expect eof
+EOF
+
+chmod +x $EXPECT_SCRIPT
+
 run_test() {
   local pos="$1"
   local depth="$2"
   local expected="$3"
   local chess960="$4"
   local tmp_file=$(mktemp)
-  local command_file=$(mktemp)
 
   echo -n "Testing depth $depth: ${pos:0:40}... "
 
-  {
-    echo "uci"
-    if $chess960; then
-      echo "setoption name UCI_Chess960 value true"
-    fi
-    echo "position $pos"
-    echo "go perft $depth"
-    echo "quit"
-  } > "$command_file"
-
-  if OUTPUT=$(timeout 120 ./stockfish < "$command_file" 2>"$tmp_file"); then
-    if echo "$OUTPUT" | grep -q "Nodes searched: $expected"; then
-      echo "OK"
-      rm -f "$tmp_file" "$command_file"
-      return
-    else
-      echo "FAILED (unexpected output)"
-    fi
+  if $EXPECT_SCRIPT "$pos" "$depth" "$expected" "$chess960" "$tmp_file" > /dev/null 2>&1; then
+    echo "OK"
+    rm -f "$tmp_file"
   else
-    status=$?
-    if [ $status -eq 124 ]; then
-      echo "FAILED (timeout)"
-    else
-      echo "FAILED (exit code: $status)"
-    fi
+    local exit_code=$?
+    echo "FAILED (exit code: $exit_code)"
+    echo "===== Output for failed test ====="
+    cat "$tmp_file"
+    echo "=================================="
+    rm -f "$tmp_file"
+    TESTS_FAILED=1
   fi
-
-  echo "===== Output for failed test ====="
-  cat "$tmp_file"
-  echo "$OUTPUT"
-  echo "=================================="
-  rm -f "$tmp_file" "$command_file"
-  TESTS_FAILED=1
 }
 
 # standard positions
@@ -83,6 +84,7 @@ run_test "fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19" 4
 run_test "fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19" 5 79014522 "true"
 run_test "fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19" 6 2998685421 "true"
 
+rm -f $EXPECT_SCRIPT
 echo "perft testing completed"
 
 if [ $TESTS_FAILED -ne 0 ]; then
