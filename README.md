@@ -12,6 +12,39 @@ Revolution is a free and strong UCI chess engine derived from Stockfish that ana
 
 Like Stockfish, Revolution does not include a graphical user interface. To use the engine you need a UCI-compatible GUI such as Fritz, Arena, Cute Chess, or similar. Consult the documentation of your preferred GUI for instructions on how to load Revolution.
 
+## Cluster (MPI) support
+
+Revolution includes a cluster-enabled build that distributes the search across multiple computers by using the Message Passing Interface (MPI). It follows a hybrid MPI design: one MPI process runs per computer while each process spawns threads that share memory locally. Use the **Threads** UCI option to control the total number of search threads; Revolution automatically balances threads between computers even if their CPU counts differ. Running on a cluster is an advanced feature and assumes familiarity with MPI tooling and passwordless SSH where applicable.
+
+### Example: MPICH on Linux
+
+If MPICH is installed on four Linux hosts named `host1`, `host2`, `host3`, and `host4`, launch Revolution like this:
+
+```
+mpiexec -hosts host1,host2,host3,host4 /path/to/revolution
+```
+
+Ensure that `/path/to/revolution` is reachable on every host (either via a shared network path or by installing the engine in the same location on each machine) and that `host1` can SSH into the other hosts without a password.
+
+### Example: MS-MPI on Windows
+
+On two Windows machines `host1` and `host2` with MS-MPI installed:
+
+1. Log in as the same user on all machines.
+2. Add firewall exceptions that allow `mpiexec` and `smpd` (in `C:\\Program Files\\Microsoft MPI\\Bin`) to communicate.
+3. Start an elevated command prompt on each machine and run `smpd -d 0`.
+4. Install Revolution in the same directory on all machines.
+5. From `host1`, start the engine with:
+
+   ```
+   cd C:\\path\\to\\revolution
+   mpiexec -hosts 2 host1 host2 revolution.exe
+   ```
+
+### Using the cluster build in GUIs
+
+Some GUIs let you attach an engine together with the full `mpiexec` command shown above. If your GUI does not expose command-line parameters, create a wrapper that forwards the appropriate `mpiexec` invocation. On Linux a one-line shell script is sufficient; on Windows you can use a small helper executable (for example, a `runcmd.exe` wrapper that reads the `mpiexec` command from `runcmd.txt`).
+
 ## BrainLearn experience file integration
 
 Revolution integrates the BrainLearn persistent hash learning system so that the engine can reuse knowledge collected from previous games. The learning data is saved in an `experience.exp` file that stores one or more positions using the following BrainLearn-defined structure:
