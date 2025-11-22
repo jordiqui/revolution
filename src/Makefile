@@ -39,9 +39,9 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-        EXE = revolution-3.50-131125.exe
+        EXE = Revolution-3.60-221125.exe
 else
-        EXE = revolution-3.50-131125
+        EXE = Revolution-3.60-221125
 endif
 
 ### Installation dir definitions
