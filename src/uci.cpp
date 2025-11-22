@@ -206,7 +206,8 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nrevolution-3.50-131125 is a UCI chess engine derived from Stockfish."
+              << "\nRevolution-3.60-221125 (update scripts Revolution-3.60-221125) is a UCI chess engine"
+                 " derived from Stockfish."
                  "\nIt is released as free software licensed under the GNU GPLv3 License."
                  "\nRevolution UCI Chess Engines develops structural changes and explores new ideas"
                  "\nto improve the project while complying with the applicable license requirements."
