@@ -134,6 +134,14 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
             }
         }
     }
+
+    if (std::string(evalFile.current) != evalfilePath)
+    {
+        sync_cout << "WARNING: Unable to load network file '" << evalfilePath
+                  << "'. Falling back to a zeroed placeholder network." << sync_endl;
+
+        use_dummy_network(evalfilePath);
+    }
 }
 
 
@@ -297,6 +305,19 @@ void Network<Arch, Transformer>::load_internal() {
         evalFile.current        = evalFile.defaultName;
         evalFile.netDescription = description.value();
     }
+}
+
+
+template<typename Arch, typename Transformer>
+void Network<Arch, Transformer>::use_dummy_network(const std::string& evalfilePath) {
+    initialize();
+
+    featureTransformer = Transformer{};
+    for (auto& layerstack : network)
+        layerstack = Arch{};
+
+    evalFile.current        = evalfilePath;
+    evalFile.netDescription = "Zero placeholder network";
 }
 
 
