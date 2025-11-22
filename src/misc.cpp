@@ -39,9 +39,8 @@ namespace {
 
 // Revolution engine identification strings.
 constexpr std::string_view kEngineNameShort = "Revolution-3.60-221125";
-constexpr std::string_view kEngineDisplayName =
-    "Revolution-3.60-221125 (update scripts Revolution-3.60-221125)";
-constexpr std::string_view kEngineHeader = "Revolution-3.60";
+constexpr std::string_view kEngineDisplayName = "Revolution-3.60-221125";
+constexpr std::string_view kEngineHeader = "Revolution-3.60-221125";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
