@@ -170,6 +170,16 @@ make -j profile-build
 
 Run `make help` inside `src` to see all available build targets and configuration options.
 
+### Building for AMD Hawk Point CPUs with FMA3
+
+Las CPU AMD con nombre en clave **Hawk Point** admiten la instrucción FMA3, lo que permite compilar binarios optimizados para este motor. Para generar un binario compatible con estas CPU usando `clang++` y el enlazador `lld`, ejecuta desde el directorio `src`:
+
+```
+make -j profile-build ARCH=x86-64-FMA3 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"
+```
+
+El objetivo `ARCH=x86-64-FMA3` habilita las instrucciones FMA3 necesarias para aprovechar el hardware de Hawk Point.
+
 ## Contributing
 
 Contributions follow the Stockfish development process. Please review `CONTRIBUTING.md` for guidelines and use the public testing infrastructure (Fishtest) when applicable.
