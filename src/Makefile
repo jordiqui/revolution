@@ -509,11 +509,15 @@ ifeq ($(COMP),icx)
 endif
 
 ifeq ($(COMP),clang)
-	comp=clang
-	CXX=clang++
-	ifeq ($(target_windows),yes)
-		CXX=x86_64-w64-mingw32-clang++
-	endif
+        comp=clang
+        CXX=clang++
+        ifeq ($(target_windows),yes)
+                ifeq ($(shell which x86_64-w64-mingw32-clang++ 2> /dev/null),)
+                        $(warning *** x86_64-w64-mingw32-clang++ not found, falling back to clang++ ***)
+                else
+                        CXX=x86_64-w64-mingw32-clang++
+                endif
+        endif
 
 	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-prototypes \
 	            -Wconditional-uninitialized
