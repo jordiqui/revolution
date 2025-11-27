@@ -134,7 +134,7 @@ endif
 # the user can override with `make ARCH=x86-64-avx512icl SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
                  x86-64-avx512icl x86-64-vnni512 x86-64-avx512 x86-64-avxvnni \
-                 x86-64-bmi2 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
+                 x86-64-bmi2 x86-64-avx2 x86-64-FMA3 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
                  x86-64 x86-32-sse41-popcnt x86-32-sse2 x86-32 ppc-64 ppc-64-altivec ppc-64-vsx ppc-32 e2k \
                  armv7 armv7-neon armv8 armv8-dotprod apple-silicon general-64 general-32 riscv64 \
                  loongarch64 loongarch64-lsx loongarch64-lasx))
@@ -160,6 +160,7 @@ avxvnni = no
 avx512 = no
 vnni512 = no
 avx512icl = no
+fma3 = no
 altivec = no
 vsx = no
 neon = no
@@ -233,18 +234,28 @@ ifeq ($(findstring -modern,$(ARCH)),-modern)
 endif
 
 ifeq ($(findstring -avx2,$(ARCH)),-avx2)
-	popcnt = yes
-	sse = yes
-	sse2 = yes
-	ssse3 = yes
-	sse41 = yes
-	avx2 = yes
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+        avx2 = yes
+endif
+
+ifeq ($(findstring -FMA3,$(ARCH)),-FMA3)
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+        avx2 = yes
+        fma3 = yes
 endif
 
 ifeq ($(findstring -avxvnni,$(ARCH)),-avxvnni)
-	popcnt = yes
-	sse = yes
-	sse2 = yes
+        popcnt = yes
+        sse = yes
+        sse2 = yes
 	ssse3 = yes
 	sse41 = yes
 	avx2 = yes
@@ -498,11 +509,15 @@ ifeq ($(COMP),icx)
 endif
 
 ifeq ($(COMP),clang)
-	comp=clang
-	CXX=clang++
-	ifeq ($(target_windows),yes)
-		CXX=x86_64-w64-mingw32-clang++
-	endif
+        comp=clang
+        CXX=clang++
+        ifeq ($(target_windows),yes)
+                ifeq ($(shell which x86_64-w64-mingw32-clang++ 2> /dev/null),)
+                        $(warning *** x86_64-w64-mingw32-clang++ not found, falling back to clang++ ***)
+                else
+                        CXX=x86_64-w64-mingw32-clang++
+                endif
+        endif
 
 	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-prototypes \
 	            -Wconditional-uninitialized
@@ -714,17 +729,21 @@ endif
 
 ### 3.6 SIMD architectures
 ifeq ($(avx2),yes)
-	CXXFLAGS += -DUSE_AVX2
-	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-		CXXFLAGS += -mavx2 -mbmi
-	endif
+        CXXFLAGS += -DUSE_AVX2
+        ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+                CXXFLAGS += -mavx2 -mbmi
+        endif
+endif
+
+ifeq ($(fma3),yes)
+        CXXFLAGS += -mfma -DUSE_FMA3
 endif
 
 ifeq ($(avxvnni),yes)
-	CXXFLAGS += -DUSE_VNNI -DUSE_AVXVNNI
-	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-		CXXFLAGS += -mavxvnni
-	endif
+        CXXFLAGS += -DUSE_VNNI -DUSE_AVXVNNI
+        ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+                CXXFLAGS += -mavxvnni
+        endif
 endif
 
 ifeq ($(avx512),yes)
@@ -909,11 +928,12 @@ help:
 	echo "x86-64-avx512icl        > x86 64-bit with minimum avx512 support of Intel Ice Lake or AMD Zen 4" && \
 	echo "x86-64-vnni512          > x86 64-bit with vnni 512bit support" && \
 	echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
-	echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
-	echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
-	echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
-	echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
-	echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
+        echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
+        echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
+        echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
+        echo "x86-64-FMA3             > x86 64-bit with avx2 and fma3 support" && \
+        echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
+        echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
 	echo "x86-64-ssse3            > x86 64-bit with ssse3 support" && \
 	echo "x86-64-sse3-popcnt      > x86 64-bit with sse3 compile and popcnt support" && \
 	echo "x86-64                  > x86 64-bit generic (with sse2 support)" && \
@@ -1046,15 +1066,16 @@ config-sanity: net
 	echo "pext: '$(pext)'" && \
 	echo "sse: '$(sse)'" && \
 	echo "mmx: '$(mmx)'" && \
-	echo "sse2: '$(sse2)'" && \
-	echo "ssse3: '$(ssse3)'" && \
-	echo "sse41: '$(sse41)'" && \
-	echo "avx2: '$(avx2)'" && \
-	echo "avxvnni: '$(avxvnni)'" && \
-	echo "avx512: '$(avx512)'" && \
-	echo "vnni512: '$(vnni512)'" && \
-	echo "avx512icl: '$(avx512icl)'" && \
-	echo "altivec: '$(altivec)'" && \
+        echo "sse2: '$(sse2)'" && \
+        echo "ssse3: '$(ssse3)'" && \
+        echo "sse41: '$(sse41)'" && \
+        echo "avx2: '$(avx2)'" && \
+        echo "fma3: '$(fma3)'" && \
+        echo "avxvnni: '$(avxvnni)'" && \
+        echo "avx512: '$(avx512)'" && \
+        echo "vnni512: '$(vnni512)'" && \
+        echo "avx512icl: '$(avx512icl)'" && \
+        echo "altivec: '$(altivec)'" && \
 	echo "vsx: '$(vsx)'" && \
 	echo "neon: '$(neon)'" && \
 	echo "dotprod: '$(dotprod)'" && \
@@ -1083,15 +1104,16 @@ config-sanity: net
 	(test "$(pext)" = "yes" || test "$(pext)" = "no") && \
 	(test "$(sse)" = "yes" || test "$(sse)" = "no") && \
 	(test "$(mmx)" = "yes" || test "$(mmx)" = "no") && \
-	(test "$(sse2)" = "yes" || test "$(sse2)" = "no") && \
-	(test "$(ssse3)" = "yes" || test "$(ssse3)" = "no") && \
-	(test "$(sse41)" = "yes" || test "$(sse41)" = "no") && \
-	(test "$(avx2)" = "yes" || test "$(avx2)" = "no") && \
-	(test "$(avx512)" = "yes" || test "$(avx512)" = "no") && \
-	(test "$(vnni512)" = "yes" || test "$(vnni512)" = "no") && \
-	(test "$(avx512icl)" = "yes" || test "$(avx512icl)" = "no") && \
-	(test "$(altivec)" = "yes" || test "$(altivec)" = "no") && \
-	(test "$(vsx)" = "yes" || test "$(vsx)" = "no") && \
+        (test "$(sse2)" = "yes" || test "$(sse2)" = "no") && \
+        (test "$(ssse3)" = "yes" || test "$(ssse3)" = "no") && \
+        (test "$(sse41)" = "yes" || test "$(sse41)" = "no") && \
+        (test "$(avx2)" = "yes" || test "$(avx2)" = "no") && \
+        (test "$(fma3)" = "yes" || test "$(fma3)" = "no") && \
+        (test "$(avx512)" = "yes" || test "$(avx512)" = "no") && \
+        (test "$(vnni512)" = "yes" || test "$(vnni512)" = "no") && \
+        (test "$(avx512icl)" = "yes" || test "$(avx512icl)" = "no") && \
+        (test "$(altivec)" = "yes" || test "$(altivec)" = "no") && \
+        (test "$(vsx)" = "yes" || test "$(vsx)" = "no") && \
 	(test "$(neon)" = "yes" || test "$(neon)" = "no") && \
 	(test "$(lsx)" = "yes" || test "$(lsx)" = "no") && \
 	(test "$(lasx)" = "yes" || test "$(lasx)" = "no") && \
