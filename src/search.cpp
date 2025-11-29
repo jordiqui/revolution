@@ -290,6 +290,9 @@ void Search::Worker::start_searching() {
     // Wait until all threads have finished
     threads.wait_for_search_finished();
 
+    if (mainThread)
+        mainThread->tm.update_statistics(threads.nodes_searched(), mainThread->tm.elapsed_time());
+
     // When playing in 'nodes as time' mode, subtract the searched nodes from
     // the available ones before exiting.
     if (limits.npmsec)
@@ -604,6 +607,28 @@ void Search::Worker::iterative_deepening() {
 
             timeReduction = 0.66 + 0.85 / (0.98 + std::exp(-k * (completedDepth - center)));
 
+            double decayDampener = 1.0;
+            double fastTimeGuard = 1.0;
+            double moveBudget    = double(mainThread->tm.optimum());
+
+            if (moveBudget < 500)
+            {
+                decayDampener = 0.55;
+                fastTimeGuard = 1.18;
+            }
+            else if (moveBudget < 1500)
+            {
+                decayDampener = 0.75;
+                fastTimeGuard = 1.10;
+            }
+            else if (moveBudget < 6000)
+            {
+                decayDampener = 0.90;
+                fastTimeGuard = 1.04;
+            }
+
+            timeReduction = 1.0 + (timeReduction - 1.0) * decayDampener;
+
             double reduction = (1.43 + mainThread->previousTimeReduction) / (2.28 * timeReduction);
 
             double bestMoveInstability = 1.02 + 2.14 * totBestMoveChanges / threads.size();
@@ -611,7 +636,7 @@ void Search::Worker::iterative_deepening() {
             double highBestMoveEffort = completedDepth >= 10 && nodesEffort >= 93337 ? 0.75 : 1.0;
 
             double totalTime = mainThread->tm.optimum() * fallingEval * reduction
-                             * bestMoveInstability * highBestMoveEffort;
+                             * bestMoveInstability * highBestMoveEffort * fastTimeGuard;
 
             // Cap used time in case of a single legal move for a better viewer experience
             if (rootMoves.size() == 1)
