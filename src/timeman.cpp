@@ -31,6 +31,23 @@ namespace Stockfish {
 TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
 
+void TimeManagement::update_statistics(uint64_t nodes, TimePoint elapsed) {
+    if (elapsed <= 0)
+        return;
+
+    double currentNps = 1000.0 * nodes / std::max<int64_t>(int64_t(1), elapsed);
+
+    if (currentNps > 0)
+    {
+        rollingNps = rollingNps == 0.0 ? currentNps : 0.25 * currentNps + 0.75 * rollingNps;
+
+        TimePoint granularity = TimePoint(std::lround(512000.0 / rollingNps));
+        latencyEstimate       = latencyEstimate == 0
+                                    ? granularity
+                                    : TimePoint((3 * latencyEstimate + granularity) / 4);
+    }
+}
+
 void TimeManagement::clear() {
     availableNodes = -1;  // When in 'nodes as time' mode
 }
@@ -59,7 +76,23 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[us] == 0)
         return;
 
-    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
+    TimePoint baseOverhead = TimePoint(options["Move Overhead"]);
+
+    // Adapt the effective overhead based on observed engine speed and measured latency
+    TimePoint adaptiveOverhead = baseOverhead;
+
+    if (rollingNps > 0.0)
+    {
+        TimePoint checkGranularity = TimePoint(std::lround(512000.0 / rollingNps));
+        adaptiveOverhead += checkGranularity;
+    }
+
+    if (latencyEstimate > 0)
+        adaptiveOverhead = std::max(adaptiveOverhead, latencyEstimate + baseOverhead / 2);
+
+    adaptiveOverhead = std::max(adaptiveOverhead, TimePoint(options["Minimum Thinking Time"] / 50));
+
+    TimePoint moveOverhead = adaptiveOverhead;
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
