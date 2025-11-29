@@ -264,6 +264,7 @@ class TestInteractive(metaclass=OrderedClassMembers):
 
         self.stockfish.check_output(callback)
 
+
     def test_ucinewgame_and_go_depth_9(self):
         self.stockfish.send_command("ucinewgame")
         self.stockfish.send_command("setoption name UCI_ShowWDL value true")
@@ -414,8 +415,12 @@ class TestInteractive(metaclass=OrderedClassMembers):
         self.stockfish.send_command("setoption name Skill Level value 20")
 
 
+codex/compare-lmr-implementation-with-recent-stockfish
+class TestTacticalNodes(metaclass=OrderedClassMembers):
+=======
 class TestClockSimulation(metaclass=OrderedClassMembers):
 
+main
     def beforeAll(self):
         self.stockfish = Stockfish()
 
@@ -427,6 +432,42 @@ class TestClockSimulation(metaclass=OrderedClassMembers):
         assert postfix_check(self.stockfish.get_output()) == True
         self.stockfish.clear_output()
 
+codex/compare-lmr-implementation-with-recent-stockfish
+    def _nodes_for(self, fen: str, depth: int) -> int:
+        self.stockfish.send_command("ucinewgame")
+        self.stockfish.send_command(f"position fen {fen}")
+
+        info = {"nodes": None}
+
+        def callback(output: str):
+            if output.startswith("info depth") and "nodes" in output:
+                parts = output.split()
+                info["nodes"] = int(parts[parts.index("nodes") + 1])
+
+            if output.startswith("bestmove"):
+                return True
+
+            return False
+
+        self.stockfish.send_command(f"go depth {depth}")
+        self.stockfish.check_output(callback)
+
+        assert info["nodes"] is not None
+        return info["nodes"]
+
+    def test_node_regression_koltanowski_mate(self):
+        # Tactical mate threat after sacrificed material
+        fen = "2r3k1/5ppp/p2p1q2/1p1Pp3/1Pn1P3/3BB1P1/PP3PBP/3RQ1K1 w - - 0 1"
+        nodes = self._nodes_for(fen, depth=6)
+
+        assert 1000 <= nodes <= 80000
+
+    def test_node_regression_taimanov_trap(self):
+        fen = "r1bqkbnr/1pp2ppp/p1np4/4p3/2B1P3/2NP1N2/PPP2PPP/R1BQK2R w KQkq - 2 5"
+        nodes = self._nodes_for(fen, depth=7)
+
+        assert 2000 <= nodes <= 120000
+=======
     def simulate_clock(self, wtime, btime, winc=0, binc=0, movestogo=0):
         self.stockfish.send_command("ucinewgame")
         self.stockfish.send_command("position startpos")
@@ -450,6 +491,7 @@ class TestClockSimulation(metaclass=OrderedClassMembers):
 
     def test_rapid_clock_increment(self):
         self.simulate_clock(30000, 30000, winc=500, binc=500, movestogo=30)
+ main
 
 
 class TestSyzygy(metaclass=OrderedClassMembers):
@@ -548,7 +590,11 @@ if __name__ == "__main__":
     framework = MiniTestFramework()
 
     # Each test suite will be ran inside a temporary directory
+codex/compare-lmr-implementation-with-recent-stockfish
+    framework.run([TestCLI, TestInteractive, TestTacticalNodes, TestSyzygy])
+=======
     framework.run([TestCLI, TestInteractive, TestClockSimulation, TestSyzygy])
+main
 
     EPD.delete_bench_epd()
     TSAN.unset_tsan_option()
