@@ -49,6 +49,22 @@ further discussion._
 - Provide a clear and concise description of the changes in the pull request
   description.
 
+### Benchmark checklist
+
+To keep performance changes reproducible, please run through the following
+checklist before merging engine-facing work:
+
+- Build a fresh binary with the intended compiler flags (e.g. `make build`) to
+  ensure reproducibility.
+- Run `./stockfish bench` and capture the reported nodes per second for the
+  target hardware.
+- Execute the self-play harness (`scripts/run_selfplay_matches.py`) to generate
+  fishtest-compatible PGNs and per-game metrics (average nps, evaluation drift,
+  and TT hit rate). Include the JSON/CSV artifacts in CI or attach them to the
+  pull request description.
+- Verify the engine outputs are deterministic under the provided time/depth
+  controls and adjust the match parameters if needed for the tested platform.
+
 _First time contributors should add their name to [AUTHORS](./AUTHORS)._
 
 _Stockfish's development is not focused on adding new features. Thus any pull
