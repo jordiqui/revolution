@@ -4,6 +4,7 @@ import sys
 import subprocess
 import pathlib
 import os
+import time
 
 from testing import (
     EPD,
@@ -414,7 +415,12 @@ class TestInteractive(metaclass=OrderedClassMembers):
         self.stockfish.send_command("setoption name Skill Level value 20")
 
 
+codex/compare-lmr-implementation-with-recent-stockfish
 class TestTacticalNodes(metaclass=OrderedClassMembers):
+=======
+class TestClockSimulation(metaclass=OrderedClassMembers):
+
+main
     def beforeAll(self):
         self.stockfish = Stockfish()
 
@@ -426,6 +432,7 @@ class TestTacticalNodes(metaclass=OrderedClassMembers):
         assert postfix_check(self.stockfish.get_output()) == True
         self.stockfish.clear_output()
 
+codex/compare-lmr-implementation-with-recent-stockfish
     def _nodes_for(self, fen: str, depth: int) -> int:
         self.stockfish.send_command("ucinewgame")
         self.stockfish.send_command(f"position fen {fen}")
@@ -460,6 +467,31 @@ class TestTacticalNodes(metaclass=OrderedClassMembers):
         nodes = self._nodes_for(fen, depth=7)
 
         assert 2000 <= nodes <= 120000
+=======
+    def simulate_clock(self, wtime, btime, winc=0, binc=0, movestogo=0):
+        self.stockfish.send_command("ucinewgame")
+        self.stockfish.send_command("position startpos")
+
+        go_command = f"go wtime {wtime} btime {btime} winc {winc} binc {binc}"
+        if movestogo:
+            go_command += f" movestogo {movestogo}"
+
+        start_time = time.time()
+        self.stockfish.send_command(go_command)
+        self.stockfish.starts_with("bestmove")
+
+        elapsed_ms = (time.time() - start_time) * 1000
+        assert elapsed_ms < 5000
+
+    def test_bullet_clock(self):
+        self.simulate_clock(3000, 3000, movestogo=40)
+
+    def test_blitz_clock_with_increment(self):
+        self.simulate_clock(12000, 12000, winc=200, binc=200, movestogo=40)
+
+    def test_rapid_clock_increment(self):
+        self.simulate_clock(30000, 30000, winc=500, binc=500, movestogo=30)
+ main
 
 
 class TestSyzygy(metaclass=OrderedClassMembers):
@@ -558,7 +590,11 @@ if __name__ == "__main__":
     framework = MiniTestFramework()
 
     # Each test suite will be ran inside a temporary directory
+codex/compare-lmr-implementation-with-recent-stockfish
     framework.run([TestCLI, TestInteractive, TestTacticalNodes, TestSyzygy])
+=======
+    framework.run([TestCLI, TestInteractive, TestClockSimulation, TestSyzygy])
+main
 
     EPD.delete_bench_epd()
     TSAN.unset_tsan_option()

@@ -44,6 +44,9 @@ class LearningData {
     void               resume();
     [[nodiscard]] bool is_paused() const { return isPaused; }
 
+    [[nodiscard]] bool has_load_errors() const { return !loadErrors.empty(); }
+    [[nodiscard]] const std::vector<std::string>& get_load_errors() const { return loadErrors; }
+
     void quick_reset_exp();
     void set_learning_mode(OptionsMap& options, const std::string& mode);
     [[nodiscard]] LearningMode learning_mode() const;
@@ -65,7 +68,14 @@ class LearningData {
     static void               show_exp(const Position& pos);
 
    private:
+    static constexpr std::streamsize ExperienceEntrySize    = sizeof(PersistedLearningMove);
+    static constexpr int             ExperienceFileVersion  = 1;
     bool                        load(const std::filesystem::path& filename);
+    [[nodiscard]] bool         validate_file_size(const std::filesystem::path& filename,
+                                                  std::ifstream&               stream,
+                                                  std::streamoff               fileSize);
+    void                       record_load_error(const std::string& message);
+    void                       report_load_errors(const std::string& command) const;
     void                        insert_or_update(PersistedLearningMove* plm, bool qLearning);
     [[nodiscard]] std::filesystem::path resolve_path(const std::string& filename) const;
 
@@ -74,6 +84,7 @@ class LearningData {
     bool                                         isReadOnly;
     bool                                         needPersisting;
     LearningMode                                 learningMode;
+    std::vector<std::string>                     loadErrors;
     std::unordered_multimap<Key, LearningMove*>  HT;
     std::vector<void*>                           mainDataBuffers;
     std::vector<void*>                           newMovesDataBuffers;

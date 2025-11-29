@@ -170,6 +170,19 @@ make -j profile-build
 
 Run `make help` inside `src` to see all available build targets and configuration options.
 
+### Matriz de builds y enlazador
+
+Revolution sigue la matriz de arquitecturas de Stockfish y permite compilar los perfiles principales con **gcc** o **clang**, usando el enlazador por defecto o `lld` cuando se trabaja con Clang. Ejemplos representativos:
+
+| Perfil | Compilador | Enlazador | Ejemplo |
+| --- | --- | --- | --- |
+| `x86-64-v2` (SSE4.1/POPCNT) | gcc | `bfd` (predeterminado) | `make -j build ARCH=x86-64-v2 COMP=gcc` |
+| `x86-64-v3` (AVX2/BMI2/FMA3) | clang | `lld` | `make -j build ARCH=x86-64-v3 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` |
+| `x86-64-v4` (AVX-512 base) | clang | `lld` | `make -j build ARCH=x86-64-v4 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` |
+| `x86-64-avx512icl` (AVX-512 + VNNI) | gcc | `bfd` | `make -j build ARCH=x86-64-avx512icl COMP=gcc` |
+
+El comando `make ci-local` (desde `src`) compila los perfiles x86-64 principales con gcc y clang para detectar rápidamente roturas específicas de arquitectura antes de subir cambios.
+
 ### Building for AMD Hawk Point CPUs with FMA3
 
 Las CPU AMD con nombre en clave **Hawk Point** admiten la instrucción FMA3, lo que permite compilar binarios optimizados para este motor. Para generar un binario compatible con estas CPU usando `clang++` y el enlazador `lld`, ejecuta desde el directorio `src`:
