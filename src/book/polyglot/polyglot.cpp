@@ -369,23 +369,33 @@ void PolyglotBook::get_moves(const Position& pos, std::vector<PolyglotBookMove>&
 
         //Skip moves with zero count!
         if (e.count == 0)
+        {
+            ++stats.ignoredEntries;
             continue;
+        }
 
         Move move = make_move(e);
+        bool matched = false;
         for (const auto& m : MoveList<LEGAL>(pos))
         {
             if (move.raw() == (m.raw() ^ m.type_of()))
             {
                 bookMoves.push_back(PolyglotBookMove(e, m));
+                matched = true;
+                ++stats.validMoves;
             }
         }
+
+        if (!matched)
+            ++stats.ignoredEntries;
     }
 }
 
 PolyglotBook::PolyglotBook() :
     filename(),
     bookData(nullptr),
-    bookDataLength(0) {}
+    bookDataLength(0),
+    stats() {}
 
 PolyglotBook::~PolyglotBook() { close(); }
 
@@ -398,6 +408,7 @@ void PolyglotBook::close() {
     bookData       = nullptr;
     bookDataLength = 0;
     filename.clear();
+    stats = LoadStats();
 }
 
 bool PolyglotBook::open(const std::string& f) {
@@ -436,6 +447,7 @@ bool PolyglotBook::open(const std::string& f) {
     bookDataLength = fm.data_size();
     bookData       = (unsigned char*) inData;
     filename       = f;
+    stats          = LoadStats();
 
     //Close the book file
     fm.unmap();

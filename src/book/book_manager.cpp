@@ -13,6 +13,7 @@ namespace Stockfish {
 
 BookManager::BookManager() {
     books.fill(nullptr);
+    liveBookFallback = false;
 }
 
 BookManager::~BookManager() {
@@ -27,6 +28,8 @@ void BookManager::set_base_directory(const std::string& directory) {
 void BookManager::init(const OptionsMap& options) {
     for (int i = 0; i < NumberOfBooks; ++i)
         init(i, options);
+
+    update_fallback_status(options);
 }
 
 void BookManager::init(int index, const OptionsMap& options) {
@@ -39,20 +42,28 @@ void BookManager::init(int index, const OptionsMap& options) {
     const std::string file = std::string(options[optionKey]);
 
     if (Book::is_empty_filename(file))
+    {
+        update_fallback_status(options);
         return;
+    }
 
     const std::string resolved = Book::map_path(file);
     std::unique_ptr<Book::Book> candidate(Book::Book::create_book(resolved));
     if (!candidate)
     {
         sync_cout << "info string Unknown book type: " << file << sync_endl;
+        update_fallback_status(options);
         return;
     }
 
     if (!candidate->open(resolved))
+    {
+        update_fallback_status(options);
         return;
+    }
 
     books[index] = candidate.release();
+    liveBookFallback = false;
 }
 
 Move BookManager::probe(const Position& pos, const OptionsMap& options) const {
@@ -92,9 +103,15 @@ void BookManager::show_moves(const Position& pos, const OptionsMap& options) con
         {
             std::cout << "Book " << i + 1 << " (" << books[i]->type() << "): "
                       << std::string(options[fileKey]) << std::endl;
+            const auto stats = books[i]->load_stats();
+            std::cout << "  Load stats: valid moves " << stats.validMoves
+                      << ", ignored entries " << stats.ignoredEntries << std::endl;
             books[i]->show_moves(pos);
         }
     }
+
+    if (liveBookFallback)
+        std::cout << "Live book fallback active" << std::endl;
 }
 
 void BookManager::show_polyglot(const Position& pos, const OptionsMap& options) const {
@@ -114,6 +131,47 @@ void BookManager::show_polyglot(const Position& pos, const OptionsMap& options) 
 
     if (!hasPolyglot)
         std::cout << "No Polyglot books loaded" << std::endl;
+}
+
+void BookManager::update_fallback_status(const OptionsMap& options) {
+    bool anyRequested = false;
+    for (int i = 0; i < NumberOfBooks; ++i)
+    {
+        const auto optionKey = ::Stockfish::Book::format_option_key("CTG/BIN Book %d File", i + 1);
+        if (!Book::is_empty_filename(std::string(options[optionKey])))
+            anyRequested = true;
+    }
+
+    bool hasBook = false;
+    for (auto* book : books)
+    {
+        if (book)
+        {
+            hasBook = true;
+            break;
+        }
+    }
+
+    if (!hasBook && anyRequested && !liveBookFallback)
+    {
+        liveBookFallback = true;
+        sync_cout << "info string All CTG/BIN books failed, falling back to live book" << sync_endl;
+    }
+    else if (hasBook)
+        liveBookFallback = false;
+}
+
+void BookManager::set_book_for_testing(int index, Book::Book* book) {
+    assert(index < NumberOfBooks);
+
+    delete books[index];
+    books[index] = book;
+
+    bool hasBook = false;
+    for (auto* b : books)
+        hasBook |= (b != nullptr);
+
+    liveBookFallback = !hasBook;
 }
 
 }  // namespace Stockfish

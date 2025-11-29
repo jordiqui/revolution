@@ -1,6 +1,7 @@
 #ifndef BOOK_H_INCLUDED
 #define BOOK_H_INCLUDED
 #include <cassert>
+#include <cstddef>
 #include <cstring>
 
 #include "../movegen.h"
@@ -8,6 +9,11 @@ namespace Stockfish {
 class BookManager;
 
 namespace Book {
+struct LoadStats {
+    std::size_t validMoves     = 0;
+    std::size_t ignoredEntries = 0;
+};
+
 namespace {
 static const union {
     uint32_t i;
@@ -75,6 +81,8 @@ class Book {
 
     virtual Move probe(const Position& pos, size_t width, bool onlyGreen) const = 0;
     virtual void show_moves(const Position& pos) const                          = 0;
+
+    virtual LoadStats load_stats() const { return LoadStats(); }
 };
 }
 }
