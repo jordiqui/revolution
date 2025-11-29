@@ -63,24 +63,22 @@ bool LearningData::load(const std::filesystem::path& filename) {
     std::ifstream in(filename, std::ios::in | std::ios::binary);
 
     if (!in.is_open())
+    {
+        record_load_error("Unable to open experience file <" + filename.string() + ">");
         return false;
+    }
 
     in.seekg(0, std::ios::end);
     const std::streamoff fileSize = in.tellg();
 
-    if (fileSize <= 0 || fileSize % sizeof(PersistedLearningMove) != 0)
-    {
-        std::cerr << "info string The file <" << filename.string() << "> with size <" << fileSize
-                  << "> is not a valid experience file" << std::endl;
+    if (!validate_file_size(filename, in, fileSize))
         return false;
-    }
 
     void* fileData = std::malloc(static_cast<size_t>(fileSize));
     if (!fileData)
     {
-        std::cerr << "info string Failed to allocate <" << fileSize
-                  << "> bytes to read experience file <" << filename.string() << ">"
-                  << std::endl;
+        record_load_error("Failed to allocate <" + std::to_string(fileSize)
+                           + "> bytes to read experience file <" + filename.string() + ">");
         return false;
     }
 
@@ -89,9 +87,8 @@ bool LearningData::load(const std::filesystem::path& filename) {
     if (!in)
     {
         std::free(fileData);
-
-        std::cerr << "info string Failed to read <" << fileSize
-                  << "> bytes from experience file <" << filename.string() << ">" << std::endl;
+        record_load_error("Failed to read <" + std::to_string(fileSize)
+                           + "> bytes from experience file <" + filename.string() + ">");
         return false;
     }
 
@@ -108,6 +105,56 @@ bool LearningData::load(const std::filesystem::path& filename) {
         insert_or_update(persisted, qLearning);
 
     return true;
+}
+
+bool LearningData::validate_file_size(const std::filesystem::path& filename,
+                                      std::ifstream&               stream,
+                                      std::streamoff               fileSize) {
+    if (fileSize <= 0)
+    {
+        record_load_error("The file <" + filename.string() + "> is empty or inaccessible");
+        return false;
+    }
+
+    if (fileSize % ExperienceEntrySize != 0)
+    {
+        record_load_error("The file <" + filename.string() + "> with size <"
+                           + std::to_string(fileSize)
+                           + "> does not match experience format v" + std::to_string(ExperienceFileVersion)
+                           + " (entry size " + std::to_string(ExperienceEntrySize) + ")");
+        return false;
+    }
+
+    const auto entryCount = static_cast<std::streamoff>(fileSize / ExperienceEntrySize);
+    if (entryCount == 0)
+    {
+        record_load_error("The file <" + filename.string() + "> does not contain entries for"
+                           " experience format v" + std::to_string(ExperienceFileVersion));
+        return false;
+    }
+
+    if (!stream)
+    {
+        record_load_error("Unable to read size of experience file <" + filename.string() + ">");
+        return false;
+    }
+
+    return true;
+}
+
+void LearningData::record_load_error(const std::string& message) {
+    loadErrors.push_back(message);
+    std::cerr << "info string " << message << std::endl;
+}
+
+void LearningData::report_load_errors(const std::string& command) const {
+    if (loadErrors.empty())
+        return;
+
+    std::cerr << "info string One or more experience files could not be loaded during '" << command
+              << "'" << std::endl;
+    for (const auto& error : loadErrors)
+        std::cerr << "info string  - " << error << std::endl;
 }
 
 inline bool should_update(const LearningMove existing_move, const LearningMove learning_move) {
@@ -194,12 +241,15 @@ void LearningData::clear() {
     for (void* p : newMovesDataBuffers)
         std::free(p);
     newMovesDataBuffers.clear();
+
+    loadErrors.clear();
 }
 
 void LearningData::init(OptionsMap& o) {
     OptionsMap& options = o;
 
     clear();
+    loadErrors.clear();
     learningMode = identify_learning_mode(options["Self Q-learning"] ? "Self" : "Standard");
 
     load(resolve_path("experience.exp"));
@@ -233,13 +283,17 @@ void LearningData::init(OptionsMap& o) {
 }
 
 void LearningData::quick_reset_exp() {
+    loadErrors.clear();
     const auto experiencePath = resolve_path("experience.exp");
     std::cout << "Loading experience file: " << experiencePath.string() << std::endl;
 
     std::ifstream file(experiencePath, std::ifstream::binary | std::ifstream::ate);
     if (!file)
     {
-        std::cerr << "Failed to load experience file" << std::endl;
+        record_load_error("Failed to open experience file <" + experiencePath.string()
+                           + "> during quickresetexp");
+        std::cerr << "Failed to load experience file " << experiencePath.string() << std::endl;
+        report_load_errors("quickresetexp");
         return;
     }
 
@@ -253,7 +307,9 @@ void LearningData::quick_reset_exp() {
 
     if (!load(experiencePath))
     {
-        std::cerr << "Failed to load experience file" << std::endl;
+        std::cerr << "Failed to load experience file " << experiencePath.string()
+                  << " during quickresetexp" << std::endl;
+        report_load_errors("quickresetexp");
         return;
     }
 
@@ -326,17 +382,30 @@ void LearningData::persist(const OptionsMap& options) {
         if (persisted.learningMove.depth > Depth(0))
             outputFile.write(reinterpret_cast<const char*>(&persisted), sizeof(persisted));
     }
+    outputFile.flush();
     outputFile.close();
 
-    std::error_code removeEc;
-    std::filesystem::remove(experienceFilename, removeEc);
+    if (!outputFile)
+    {
+        std::cerr << "info string Failed to write temporary experience file: "
+                  << tempExperienceFilename.string() << std::endl;
+        std::error_code cleanupEc;
+        std::filesystem::remove(tempExperienceFilename, cleanupEc);
+        return;
+    }
 
     std::error_code renameEc;
     std::filesystem::rename(tempExperienceFilename, experienceFilename, renameEc);
     if (renameEc)
-        std::cerr << "info string Failed to rename temporary experience file: "
+    {
+        std::cerr << "info string Failed to atomically replace experience file: "
                   << tempExperienceFilename.string() << " -> " << experienceFilename.string()
-                  << std::endl;
+                  << " : " << renameEc.message() << std::endl;
+
+        std::error_code cleanupEc;
+        std::filesystem::remove(tempExperienceFilename, cleanupEc);
+        return;
+    }
 
     needPersisting = false;
 }
@@ -434,6 +503,10 @@ void LearningData::sortLearningMoves(std::vector<LearningMove*>& learningMoves) 
 void LearningData::show_exp(const Position& pos) {
     sync_cout << pos << std::endl;
     std::cout << "Experience: ";
+
+    if (LD.has_load_errors())
+        LD.report_load_errors("showexp");
+
     std::vector<LearningMove*> learningMoves = LD.probe(pos.key());
     if (learningMoves.empty())
     {
