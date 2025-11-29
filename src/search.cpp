@@ -195,6 +195,8 @@ void Search::Worker::start_searching() {
 
     accumulatorStack.reset();
 
+    SearchManager* mainThread = (is_mainthread() ? main_manager() : nullptr);
+
     // Non-main threads go directly to iterative_deepening()
     if (!is_mainthread())
     {
