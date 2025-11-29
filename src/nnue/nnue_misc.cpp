@@ -157,7 +157,7 @@ trace(Position& pos, const Eval::NNUE::Networks& networks, Eval::NNUE::Accumulat
     ss << '\n';
 
     accumulators->reset();
-    auto t = networks.big.trace_evaluate(pos, *accumulators, &caches.big);
+    auto t = networks.big.trace_evaluate(pos, *accumulators, caches.big);
 
     ss << " NNUE network contributions "
        << (pos.side_to_move() == WHITE ? "(White to move)" : "(Black to move)") << std::endl

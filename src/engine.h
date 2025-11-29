@@ -29,6 +29,7 @@
 #include <vector>
 
 #include "nnue/network.h"
+#include "benchmark.h"
 #include "numa.h"
 #include "position.h"
 #include "search.h"
@@ -92,6 +93,7 @@ class Engine {
 
     // utility functions
 
+    Benchmark::EvalPerftResult eval_perft(Depth depth) const;
     void trace_eval() const;
 
     const OptionsMap& get_options() const;

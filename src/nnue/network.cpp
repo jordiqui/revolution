@@ -21,7 +21,9 @@
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
+#include <iomanip>
 #include <optional>
+#include <sstream>
 #include <type_traits>
 #include <vector>
 
@@ -83,6 +85,15 @@ EmbeddedNNUE get_embedded(EmbeddedNNUEType type) {
 
 namespace Stockfish::Eval::NNUE {
 
+bool NetMetadata::compatible() const {
+    const bool versionSupported = version == Version || version == ExtendedVersion;
+    const bool quantizationSupported =
+      quantization.empty() || quantization == "int16" || quantization == "s8" || quantization == "int8"
+      || quantization == "s16";
+
+    return versionSupported && quantizationSupported;
+}
+
 
 namespace Detail {
 
@@ -119,23 +130,44 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
     if (evalfilePath.empty())
         evalfilePath = evalFile.defaultName;
 
+    bool loaded = false;
+
     for (const auto& directory : dirs)
     {
         if (std::string(evalFile.current) != evalfilePath)
         {
             if (directory != "<internal>")
             {
-                load_user_net(directory, evalfilePath);
+                auto result = load_user_net(directory, evalfilePath);
+                loaded      = result.loaded && result.compatible;
             }
 
             if (directory == "<internal>" && evalfilePath == std::string(evalFile.defaultName))
             {
-                load_internal();
+                auto result = load_internal();
+                loaded      = loaded || (result.loaded && result.compatible);
             }
+
+            if (loaded)
+                break;
         }
     }
 
-    if (std::string(evalFile.current) != evalfilePath)
+    if (!loaded && evalfilePath != std::string(evalFile.defaultName))
+    {
+        auto fallback = load_internal();
+        if (fallback.loaded && fallback.compatible)
+        {
+            loaded = true;
+            sync_cout << "WARNING: External network '" << evalfilePath
+                      << "' is not compatible (version " << std::hex << fallback.metadata.version
+                      << std::dec << "). Falling back to embedded network '" << evalFile.defaultName
+                      << "'." << sync_endl;
+            lastAttempt = fallback;
+        }
+    }
+
+    if (!loaded)
     {
         sync_cout << "WARNING: Unable to load network file '" << evalfilePath
                   << "'. Falling back to a zeroed placeholder network." << sync_endl;
@@ -180,7 +212,7 @@ template<typename Arch, typename Transformer>
 NetworkOutput
 Network<Arch, Transformer>::evaluate(const Position&                         pos,
                                      AccumulatorStack&                       accumulatorStack,
-                                     AccumulatorCaches::Cache<FTDimensions>* cache) const {
+                                     AccumulatorCaches::Cache<FTDimensions>& cache) const {
 
     constexpr uint64_t alignment = CacheLineSize;
 
@@ -191,7 +223,7 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
 
     const int  bucket = (pos.count<ALL_PIECES>() - 1) / 4;
     const auto psqt =
-      featureTransformer.transform(pos, accumulatorStack, cache, transformedFeatures, bucket);
+      featureTransformer.transform(pos, accumulatorStack, &cache, transformedFeatures, bucket);
     const auto positional = network[bucket].propagate(transformedFeatures);
     return {static_cast<Value>(psqt / OutputScale), static_cast<Value>(positional / OutputScale)};
 }
@@ -242,7 +274,7 @@ template<typename Arch, typename Transformer>
 NnueEvalTrace
 Network<Arch, Transformer>::trace_evaluate(const Position&                         pos,
                                            AccumulatorStack&                       accumulatorStack,
-                                           AccumulatorCaches::Cache<FTDimensions>* cache) const {
+                                           AccumulatorCaches::Cache<FTDimensions>& cache) const {
 
     constexpr uint64_t alignment = CacheLineSize;
 
@@ -255,8 +287,8 @@ Network<Arch, Transformer>::trace_evaluate(const Position&                      
     t.correctBucket = (pos.count<ALL_PIECES>() - 1) / 4;
     for (IndexType bucket = 0; bucket < LayerStacks; ++bucket)
     {
-        const auto materialist =
-          featureTransformer.transform(pos, accumulatorStack, cache, transformedFeatures, bucket);
+        const auto materialist = featureTransformer.transform(pos, accumulatorStack, &cache,
+                                                             transformedFeatures, bucket);
         const auto positional = network[bucket].propagate(transformedFeatures);
 
         t.psqt[bucket]       = static_cast<Value>(materialist / OutputScale);
@@ -268,21 +300,33 @@ Network<Arch, Transformer>::trace_evaluate(const Position&                      
 
 
 template<typename Arch, typename Transformer>
-void Network<Arch, Transformer>::load_user_net(const std::string& dir,
-                                               const std::string& evalfilePath) {
-    std::ifstream stream(dir + evalfilePath, std::ios::binary);
-    auto          description = load(stream);
+LoadedNetworkInfo Network<Arch, Transformer>::load_user_net(const std::string& dir,
+                                                           const std::string& evalfilePath) {
+    std::ifstream   stream(dir + evalfilePath, std::ios::binary);
+    LoadedNetworkInfo info = load(stream);
 
-    if (description.has_value())
+    if (info.loaded && info.compatible)
     {
         evalFile.current        = evalfilePath;
-        evalFile.netDescription = description.value();
+        evalFile.netDescription = info.description;
+        evalFile.version        = info.metadata.version;
+        evalFile.extendedHeader = info.metadata.extendedHeader;
+        evalFile.quantization   = info.metadata.quantization;
+        evalFile.format         = info.metadata.format;
     }
+    else if (info.loaded && !info.compatible)
+    {
+        sync_cout << "WARNING: Network '" << evalfilePath
+                  << "' uses unsupported format (version " << std::hex
+                  << info.metadata.version << std::dec << ")" << sync_endl;
+    }
+
+    return info;
 }
 
 
 template<typename Arch, typename Transformer>
-void Network<Arch, Transformer>::load_internal() {
+LoadedNetworkInfo Network<Arch, Transformer>::load_internal() {
     // C++ way to prepare a buffer for a memory stream
     class MemoryBuffer: public std::basic_streambuf<char> {
        public:
@@ -298,13 +342,19 @@ void Network<Arch, Transformer>::load_internal() {
                         size_t(embedded.size));
 
     std::istream stream(&buffer);
-    auto         description = load(stream);
+    auto         info = load(stream);
 
-    if (description.has_value())
+    if (info.loaded && info.compatible)
     {
         evalFile.current        = evalFile.defaultName;
-        evalFile.netDescription = description.value();
+        evalFile.netDescription = info.description;
+        evalFile.version        = info.metadata.version;
+        evalFile.extendedHeader = info.metadata.extendedHeader;
+        evalFile.quantization   = info.metadata.quantization;
+        evalFile.format         = info.metadata.format;
     }
+
+    return info;
 }
 
 
@@ -318,6 +368,10 @@ void Network<Arch, Transformer>::use_dummy_network(const std::string& evalfilePa
 
     evalFile.current        = evalfilePath;
     evalFile.netDescription = "Zero placeholder network";
+    evalFile.version        = 0;
+    evalFile.extendedHeader = false;
+    evalFile.quantization   = "";
+    evalFile.format         = "";
 }
 
 
@@ -339,11 +393,15 @@ bool Network<Arch, Transformer>::save(std::ostream&      stream,
 
 
 template<typename Arch, typename Transformer>
-std::optional<std::string> Network<Arch, Transformer>::load(std::istream& stream) {
+LoadedNetworkInfo Network<Arch, Transformer>::load(std::istream& stream) {
     initialize();
-    std::string description;
+    LoadedNetworkInfo info{};
 
-    return read_parameters(stream, description) ? std::make_optional(description) : std::nullopt;
+    if (!stream)
+        return info;
+
+    read_parameters(stream, info);
+    return info;
 }
 
 
@@ -365,17 +423,56 @@ std::size_t Network<Arch, Transformer>::get_content_hash() const {
 template<typename Arch, typename Transformer>
 bool Network<Arch, Transformer>::read_header(std::istream&  stream,
                                              std::uint32_t* hashValue,
-                                             std::string*   desc) const {
+                                             std::string*   desc,
+                                             NetMetadata&   metadata) const {
     std::uint32_t version, size;
 
-    version    = read_little_endian<std::uint32_t>(stream);
-    *hashValue = read_little_endian<std::uint32_t>(stream);
-    size       = read_little_endian<std::uint32_t>(stream);
-    if (!stream || version != Version)
+    version           = read_little_endian<std::uint32_t>(stream);
+    *hashValue        = read_little_endian<std::uint32_t>(stream);
+    size              = read_little_endian<std::uint32_t>(stream);
+    metadata.version  = version & ~ExtendedVersionFlag;
+    metadata.extendedHeader = (version & ExtendedVersionFlag) != 0u;
+
+    if (!stream)
         return false;
+
     desc->resize(size);
     stream.read(&(*desc)[0], size);
-    return !stream.fail();
+
+    if (!stream)
+        return false;
+
+    if (metadata.extendedHeader)
+    {
+        std::uint32_t extendedSize = read_little_endian<std::uint32_t>(stream);
+        if (!stream)
+            return false;
+
+        if (extendedSize > 0 && extendedSize <= 4096)
+        {
+            std::string extendedPayload(extendedSize, '\0');
+            stream.read(extendedPayload.data(), extendedPayload.size());
+
+            std::istringstream metaStream(extendedPayload);
+            std::string        line;
+            while (std::getline(metaStream, line))
+            {
+                auto separator = line.find('=');
+                if (separator == std::string::npos)
+                    continue;
+
+                auto key   = line.substr(0, separator);
+                auto value = line.substr(separator + 1);
+
+                if (key == "quantization")
+                    metadata.quantization = value;
+                else if (key == "format")
+                    metadata.format = value;
+            }
+        }
+    }
+
+    return true;
 }
 
 
@@ -393,13 +490,15 @@ bool Network<Arch, Transformer>::write_header(std::ostream&      stream,
 
 
 template<typename Arch, typename Transformer>
-bool Network<Arch, Transformer>::read_parameters(std::istream& stream,
-                                                 std::string&  netDescription) {
+bool Network<Arch, Transformer>::read_parameters(std::istream& stream, LoadedNetworkInfo& info) {
     std::uint32_t hashValue;
-    if (!read_header(stream, &hashValue, &netDescription))
+    if (!read_header(stream, &hashValue, &info.description, info.metadata))
         return false;
-    if (hashValue != Network::hash)
+
+    info.compatible = info.metadata.compatible() && hashValue == Network::hash;
+    if (!info.compatible)
         return false;
+
     if (!Detail::read_parameters(stream, featureTransformer))
         return false;
     for (std::size_t i = 0; i < LayerStacks; ++i)
@@ -407,7 +506,9 @@ bool Network<Arch, Transformer>::read_parameters(std::istream& stream,
         if (!Detail::read_parameters(stream, network[i]))
             return false;
     }
-    return stream && stream.peek() == std::ios::traits_type::eof();
+
+    info.loaded = stream && stream.peek() == std::ios::traits_type::eof();
+    return info.loaded;
 }
 
 

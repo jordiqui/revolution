@@ -17,9 +17,15 @@
 */
 
 #include "benchmark.h"
+#include "evaluate.h"
 #include "numa.h"
+#include "nnue/nnue_accumulator.h"
+#include "movegen.h"
+#include "position.h"
 
 #include <cstdlib>
+#include <chrono>
+#include <functional>
 #include <fstream>
 #include <iostream>
 #include <vector>
@@ -376,6 +382,53 @@ const std::vector<std::vector<std::string>> BenchmarkPositions = {
 
 namespace Stockfish::Benchmark {
 
+EvalPerftResult eval_perft(const std::string& fen,
+                           Depth              depth,
+                           bool               isChess960,
+                           const Eval::NNUE::Networks& networks) {
+
+    EvalPerftResult result{};
+    StateInfo       st;
+    Position        pos;
+
+    pos.set(fen, isChess960, &st);
+
+    Eval::NNUE::AccumulatorCaches caches(networks);
+    Eval::NNUE::AccumulatorStack  stack;
+    stack.reset();
+
+    auto start = std::chrono::steady_clock::now();
+
+    std::function<void(Position&, Depth)> walk = [&](Position& position, Depth remaining) {
+        StateInfo child;
+
+        for (const auto& m : MoveList<LEGAL>(position))
+        {
+            DirtyBoardData dirty = position.do_move(m, child, position.gives_check(m), nullptr);
+            stack.push(dirty);
+
+            if (remaining <= 1)
+            {
+                ++result.nodes;
+                ++result.evaluations;
+                result.evalSum += Eval::evaluate(networks, position, stack, caches, 0);
+            }
+            else
+                walk(position, remaining - 1);
+
+            position.undo_move(m);
+            stack.pop();
+        }
+    };
+
+    walk(pos, depth);
+
+    auto end        = std::chrono::steady_clock::now();
+    result.elapsedMs = std::chrono::duration<double, std::milli>(end - start).count();
+
+    return result;
+}
+
 // Builds a list of UCI commands to be run by bench. There
 // are five parameters: TT size in MB, number of search threads that
 // should be used, the limit value spent for each position, a file name
@@ -399,7 +452,12 @@ std::vector<std::string> setup_bench(const std::string& currentFen, std::istream
     std::string fenFile   = (is >> token) ? token : "default";
     std::string limitType = (is >> token) ? token : "depth";
 
-    go = limitType == "eval" ? "eval" : "go " + limitType + " " + limit;
+    if (limitType == "eval")
+        go = "eval";
+    else if (limitType == "perfteval")
+        go = "perfteval " + limit;
+    else
+        go = "go " + limitType + " " + limit;
 
     if (fenFile == "default")
         fens = Defaults;

@@ -18,6 +18,8 @@
 
 #include "engine.h"
 
+#include "benchmark.h"
+
 #include <algorithm>
 #include <cassert>
 #include <deque>
@@ -364,6 +366,10 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
 }
 
 // utility functions
+
+Benchmark::EvalPerftResult Engine::eval_perft(Depth depth) const {
+    return Benchmark::eval_perft(pos.fen(), depth, options["UCI_Chess960"], *networks);
+}
 
 void Engine::trace_eval() const {
     StateListPtr trace_states(new std::deque<StateInfo>(1));
