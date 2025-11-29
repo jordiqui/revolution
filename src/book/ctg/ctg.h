@@ -20,6 +20,7 @@ class CtgBook: public Book {
     uint32_t    pageLowerBound;
     uint32_t    pageUpperBound;
     bool        isOpen;
+    mutable LoadStats   stats;
 
    private:
     bool decode(const Position& pos, CtgPositionData& positionData) const;
@@ -60,6 +61,8 @@ class CtgBook: public Book {
     virtual Move probe(const Position& pos, size_t width, bool onlyGreen) const;
 
     virtual void show_moves(const Position& pos) const;
+
+    virtual LoadStats load_stats() const { return stats; }
 };
 }
 }

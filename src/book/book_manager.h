@@ -16,6 +16,9 @@ class BookManager {
 
    private:
     std::array<Book::Book*, NumberOfBooks> books;
+    bool                                   liveBookFallback;
+
+    void update_fallback_status(const OptionsMap& options);
 
    public:
     BookManager();
@@ -31,6 +34,8 @@ class BookManager {
     Move probe(const Position& pos, const OptionsMap& options) const;
     void show_moves(const Position& pos, const OptionsMap& options) const;
     void show_polyglot(const Position& pos, const OptionsMap& options) const;
+
+    void set_book_for_testing(int index, Book::Book* book);
 };
 
 }  // namespace Stockfish

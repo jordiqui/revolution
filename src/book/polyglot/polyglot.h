@@ -15,6 +15,7 @@ class PolyglotBook: public Book {
     std::string    filename;
     unsigned char* bookData;
     size_t         bookDataLength;
+    mutable LoadStats stats;
 
    private:
     unsigned char* data() const;
@@ -40,6 +41,8 @@ class PolyglotBook: public Book {
     virtual Move probe(const Position& pos, size_t width, bool onlyGreen) const;
 
     void show_moves(const Position& pos) const;
+
+    virtual LoadStats load_stats() const { return stats; }
 };
 }
 }

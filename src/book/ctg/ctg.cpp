@@ -941,12 +941,16 @@ void CtgBook::get_moves(const Position&        pos,
 
                     //Add to list
                     ctgMoveList.push_back(ctgMove);
+                    ++stats.validMoves;
                     break;
                 }
             }
 
-            assert(ctgMove.sf_move() != Move::none());
+            if (ctgMove.sf_move() == Move::none())
+                ++stats.ignoredEntries;
         }
+        else
+            ++stats.ignoredEntries;
     }
 
     //Calculate move weights
@@ -958,7 +962,8 @@ CtgBook::CtgBook() :
     ctg(),
     pageLowerBound(0),
     pageUpperBound(0),
-    isOpen(false) {}
+    isOpen(false),
+    stats() {}
 
 CtgBook::~CtgBook() { close(); }
 
@@ -1013,6 +1018,7 @@ bool CtgBook::open(const std::string& f) {
     ctb.unmap();
 
     isOpen = true;
+    stats  = LoadStats();
 
     sync_cout << "info string CTG Book [" << ctgFile << "] opened successfully" << sync_endl;
     return true;
@@ -1026,6 +1032,7 @@ void CtgBook::close() {
     pageUpperBound = 0;
 
     isOpen = false;
+    stats  = LoadStats();
 }
 
 bool CtgBook::is_open() const { return isOpen; }
