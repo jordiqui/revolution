@@ -51,6 +51,22 @@ enum class EmbeddedNNUEType {
 
 using NetworkOutput = std::tuple<Value, Value>;
 
+struct NetMetadata {
+    std::uint32_t version        = 0;
+    bool          extendedHeader = false;
+    std::string   quantization;
+    std::string   format;
+
+    bool compatible() const;
+};
+
+struct LoadedNetworkInfo {
+    std::string description;
+    NetMetadata metadata;
+    bool        loaded      = false;
+    bool        compatible  = false;
+};
+
 // The network must be a trivial type, i.e. the memory must be in-line.
 // This is required to allow sharing the network via shared memory, as
 // there is no way to run destructors.
@@ -76,28 +92,28 @@ class Network {
 
     NetworkOutput evaluate(const Position&                         pos,
                            AccumulatorStack&                       accumulatorStack,
-                           AccumulatorCaches::Cache<FTDimensions>* cache) const;
+                           AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
 
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,
                                  AccumulatorStack&                       accumulatorStack,
-                                 AccumulatorCaches::Cache<FTDimensions>* cache) const;
+                                 AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
    private:
-   void load_user_net(const std::string&, const std::string&);
-   void load_internal();
+   LoadedNetworkInfo load_user_net(const std::string&, const std::string&);
+   LoadedNetworkInfo load_internal();
     void use_dummy_network(const std::string& evalfilePath);
 
     void initialize();
 
-    bool                       save(std::ostream&, const std::string&, const std::string&) const;
-    std::optional<std::string> load(std::istream&);
+    bool              save(std::ostream&, const std::string&, const std::string&) const;
+    LoadedNetworkInfo load(std::istream&);
 
-    bool read_header(std::istream&, std::uint32_t*, std::string*) const;
+    bool read_header(std::istream&, std::uint32_t*, std::string*, NetMetadata&) const;
     bool write_header(std::ostream&, std::uint32_t, const std::string&) const;
 
-    bool read_parameters(std::istream&, std::string&);
+    bool read_parameters(std::istream&, LoadedNetworkInfo&);
     bool write_parameters(std::ostream&, const std::string&) const;
 
     // Input feature converter

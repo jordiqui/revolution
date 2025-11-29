@@ -281,8 +281,9 @@ void UCIEngine::bench(std::istream& args) {
 
     std::vector<std::string> list = Benchmark::setup_bench(engine.fen(), args);
 
-    num = count_if(list.begin(), list.end(),
-                   [](const std::string& s) { return s.find("go ") == 0 || s.find("eval") == 0; });
+    num = count_if(list.begin(), list.end(), [](const std::string& s) {
+        return s.find("go ") == 0 || s.find("eval") == 0 || s.find("perfteval") == 0;
+    });
 
     TimePoint elapsed = now();
 
@@ -312,6 +313,17 @@ void UCIEngine::bench(std::istream& args) {
             }
             else
                 engine.trace_eval();
+        }
+        else if (token == "perfteval")
+        {
+            std::cerr << "\nPosition: " << cnt++ << '/' << num << " (" << engine.fen() << ")"
+                      << std::endl;
+            int depth = 1;
+            is >> depth;
+            auto stats = engine.eval_perft(static_cast<Depth>(depth));
+            nodes += stats.nodes;
+            std::cerr << "perft-eval depth " << depth << ": " << stats.nodes << " nodes, "
+                      << stats.evaluations << " evals in " << stats.elapsedMs << " ms" << std::endl;
         }
         else if (token == "setoption")
             setoption(is);
