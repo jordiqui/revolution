@@ -133,8 +133,8 @@ endif
 # explicitly check for the list of supported architectures (as listed with make help),
 # the user can override with `make ARCH=x86-64-avx512icl SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
-                 x86-64-avx512icl x86-64-vnni512 x86-64-avx512 x86-64-avxvnni \
-                 x86-64-bmi2 x86-64-avx2 x86-64-FMA3 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
+                 x86-64-avx512icl x86-64-vnni512 x86-64-avx512 x86-64-v4 x86-64-avxvnni \
+                 x86-64-v3 x86-64-bmi2 x86-64-avx2 x86-64-FMA3 x86-64-v2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
                  x86-64 x86-32-sse41-popcnt x86-32-sse2 x86-32 ppc-64 ppc-64-altivec ppc-64-vsx ppc-32 e2k \
                  armv7 armv7-neon armv8 armv8-dotprod apple-silicon general-64 general-32 riscv64 \
                  loongarch64 loongarch64-lsx loongarch64-lasx))
@@ -226,11 +226,30 @@ endif
 ifeq ($(findstring -modern,$(ARCH)),-modern)
         $(warning *** ARCH=$(ARCH) is deprecated, defaulting to ARCH=x86-64-sse41-popcnt. Execute `make help` for a list of available architectures. ***)
         $(shell sleep 5)
-	popcnt = yes
-	sse = yes
-	sse2 = yes
-	ssse3 = yes
-	sse41 = yes
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+endif
+
+ifeq ($(ARCH),x86-64-v2)
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+endif
+
+ifeq ($(ARCH),x86-64-v3)
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+        avx2 = yes
+        fma3 = yes
+        pext = yes
 endif
 
 ifeq ($(findstring -avx2,$(ARCH)),-avx2)
@@ -274,14 +293,25 @@ ifeq ($(findstring -bmi2,$(ARCH)),-bmi2)
 endif
 
 ifeq ($(findstring -avx512,$(ARCH)),-avx512)
-	popcnt = yes
-	sse = yes
-	sse2 = yes
-	ssse3 = yes
-	sse41 = yes
-	avx2 = yes
-	pext = yes
-	avx512 = yes
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+        avx2 = yes
+        pext = yes
+        avx512 = yes
+endif
+
+ifeq ($(ARCH),x86-64-v4)
+        popcnt = yes
+        sse = yes
+        sse2 = yes
+        ssse3 = yes
+        sse41 = yes
+        avx2 = yes
+        pext = yes
+        avx512 = yes
 endif
 
 ifeq ($(findstring -vnni512,$(ARCH)),-vnni512)
@@ -925,12 +955,15 @@ help:
 	echo "Supported archs:" && \
 	echo "" && \
 	echo "native                  > select the best architecture for the host processor (default)" && \
-	echo "x86-64-avx512icl        > x86 64-bit with minimum avx512 support of Intel Ice Lake or AMD Zen 4" && \
-	echo "x86-64-vnni512          > x86 64-bit with vnni 512bit support" && \
-	echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
+        echo "x86-64-avx512icl        > x86 64-bit with minimum avx512 support of Intel Ice Lake or AMD Zen 4" && \
+        echo "x86-64-vnni512          > x86 64-bit with vnni 512bit support" && \
+        echo "x86-64-v4               > x86 64-bit with avx512 baseline support" && \
+        echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
         echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
-        echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
+        echo "x86-64-v3               > x86 64-bit with avx2/bmi2/fma3 baseline" && \
         echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
+        echo "x86-64-v2               > x86 64-bit with sse4.1/popcnt baseline" && \
+        echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
         echo "x86-64-FMA3             > x86 64-bit with avx2 and fma3 support" && \
         echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
         echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
@@ -983,22 +1016,32 @@ ifneq ($(SUPPORTED_ARCH), true)
 endif
 
 
-.PHONY: help analyze build profile-build strip install clean net \
-	objclean profileclean config-sanity \
-	icx-profile-use icx-profile-make \
-	gcc-profile-use gcc-profile-make \
-	clang-profile-use clang-profile-make FORCE \
-	format analyze
+.PHONY: help analyze build ci-local profile-build strip install clean net \
+        objclean profileclean config-sanity \
+        icx-profile-use icx-profile-make \
+        gcc-profile-use gcc-profile-make \
+        clang-profile-use clang-profile-make FORCE \
+        format analyze
 
 analyze: net config-sanity objclean
 	$(MAKE) -k ARCH=$(ARCH) COMP=$(COMP) $(OBJS)
 
 build: net config-sanity
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
+        $(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
+
+ci-local: net
+        @archs="x86-64-v2 x86-64-v3 x86-64-v4 x86-64-avx512 x86-64-avx512icl x86-64-avxvnni"; \
+        comps="gcc clang"; \
+        for comp in $$comps; do \
+                for arch in $$archs; do \
+                        echo "==> Building $$arch with $$comp"; \
+                        $(MAKE) ARCH=$$arch COMP=$$comp build -j1 >/dev/null; \
+                done; \
+        done
 
 profile-build: net config-sanity objclean profileclean
-	@echo ""
-	@echo "Step 1/4. Building instrumented executable ..."
+        @echo ""
+        @echo "Step 1/4. Building instrumented executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
