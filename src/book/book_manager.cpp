@@ -3,6 +3,7 @@
 #include <cassert>
 #include <iostream>
 #include <memory>
+#include <type_traits>
 
 #include "book_manager.h"
 #include "book_utils.h"
@@ -10,6 +11,22 @@
 #include "polyglot/polyglot.h"
 
 namespace Stockfish {
+
+namespace {
+
+template<typename T>
+T get_option_or(const OptionsMap& options, const std::string& key, T defaultValue)
+{
+    if (!options.count(key))
+        return defaultValue;
+
+    if constexpr (std::is_same_v<T, std::string>)
+        return std::string(options[key]);
+    else
+        return static_cast<T>(options[key]);
+}
+
+}  // namespace
 
 BookManager::BookManager() {
     books.fill(nullptr);
@@ -39,7 +56,7 @@ void BookManager::init(int index, const OptionsMap& options) {
     books[index] = nullptr;
 
     const auto optionKey   = ::Stockfish::Book::format_option_key("CTG/BIN Book %d File", index + 1);
-    const std::string file = std::string(options[optionKey]);
+    const std::string file = get_option_or<std::string>(options, optionKey, "");
 
     if (Book::is_empty_filename(file))
     {
@@ -75,14 +92,15 @@ Move BookManager::probe(const Position& pos, const OptionsMap& options) const {
             continue;
 
         const auto depthKey = ::Stockfish::Book::format_option_key("Book %d Depth", i + 1);
-        if (int(options[depthKey]) < moveNumber)
+        if (get_option_or<int>(options, depthKey, 0) < moveNumber)
             continue;
 
         const auto widthKey = ::Stockfish::Book::format_option_key("Book %d Width", i + 1);
         const auto greenKey = ::Stockfish::Book::format_option_key("(CTG) Book %d Only Green", i + 1);
 
-        const Move move = books[i]->probe(pos, size_t(int(options[widthKey])),
-                                          bool(options[greenKey]));
+        const Move move = books[i]->probe(pos,
+                                          size_t(get_option_or<int>(options, widthKey, 1)),
+                                          static_cast<bool>(get_option_or<int>(options, greenKey, 0)));
         if (move != Move::none())
             return move;
     }
@@ -138,7 +156,7 @@ void BookManager::update_fallback_status(const OptionsMap& options) {
     for (int i = 0; i < NumberOfBooks; ++i)
     {
         const auto optionKey = ::Stockfish::Book::format_option_key("CTG/BIN Book %d File", i + 1);
-        if (!Book::is_empty_filename(std::string(options[optionKey])))
+        if (!Book::is_empty_filename(get_option_or<std::string>(options, optionKey, "")))
             anyRequested = true;
     }
 
