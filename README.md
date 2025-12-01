@@ -170,6 +170,16 @@ make -j profile-build
 
 Run `make help` inside `src` to see all available build targets and configuration options.
 
+### Windows (MSYS2) prerequisites for Clang builds
+
+To run `make -j profile-build ARCH=x86-64-sse41-popcnt COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` without toolchain errors on Windows, install the MSYS2 packages that provide Clang, LLD, and `make` in the **clang64** shell:
+
+```bash
+pacman -S --needed mingw-w64-clang-x86_64-toolchain mingw-w64-clang-x86_64-make git
+```
+
+The `mingw-w64-clang-x86_64-toolchain` meta-package bundles `clang++` and `lld`, while `mingw-w64-clang-x86_64-make` supplies `make` for the MinGW environment. Using the `clang64` shell ensures the correct paths are set so the build command succeeds without additional flags.
+
 ### Matriz de builds y enlazador
 
 Revolution sigue la matriz de arquitecturas de Stockfish y permite compilar los perfiles principales con **gcc** o **clang**, usando el enlazador por defecto o `lld` cuando se trabaja con Clang. Ejemplos representativos:
