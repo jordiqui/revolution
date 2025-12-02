@@ -488,11 +488,15 @@ DEPENDFLAGS = $(ENV_DEPENDFLAGS) -std=c++17
 LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS)
 
 ifeq ($(COMP),)
-	COMP=gcc
+COMP=gcc
 endif
 
+# Ensure the lowercase helper variable is set before it is consulted in
+# platform-specific branches.
+comp ?= $(COMP)
+
 ifeq ($(COMP),gcc)
-	comp=gcc
+comp=gcc
 	CXX=g++
 	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-declarations -Wstack-usage=128000
 
