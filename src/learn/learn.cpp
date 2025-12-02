@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <system_error>
 
 #include "../misc.h"
 #include "../uci.h"
@@ -365,9 +366,30 @@ void LearningData::persist(const OptionsMap& options) {
     const auto tempExperienceFilename = resolve_path("experience_new.exp");
 
     if (!experienceFilename.parent_path().empty())
-        std::filesystem::create_directories(experienceFilename.parent_path());
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(experienceFilename.parent_path(), ec);
+        if (ec)
+        {
+            std::cerr << "info string Failed to prepare experience directory: "
+                      << experienceFilename.parent_path().string() << " : " << ec.message()
+                      << std::endl;
+            return;
+        }
+    }
+
     if (!tempExperienceFilename.parent_path().empty())
-        std::filesystem::create_directories(tempExperienceFilename.parent_path());
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(tempExperienceFilename.parent_path(), ec);
+        if (ec)
+        {
+            std::cerr << "info string Failed to prepare temporary experience directory: "
+                      << tempExperienceFilename.parent_path().string() << " : " << ec.message()
+                      << std::endl;
+            return;
+        }
+    }
 
     std::ofstream outputFile(tempExperienceFilename, std::ofstream::trunc | std::ofstream::binary);
     if (!outputFile)
