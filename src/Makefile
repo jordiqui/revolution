@@ -1076,10 +1076,10 @@ profile-build: net config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make); \
 	echo ""; \
 	echo "Step 2/4. Running benchmark for pgo-build ..."; \
-	$(PGOBENCH) > PGOBENCH.out 2>&1; \
-	tail -n 4 PGOBENCH.out; \
-	echo ""; \
-	echo "Step 3/4. Building optimized executable ..."; \
+        LLVM_PROFILE_FILE=stockfish-%p.profraw $(PGOBENCH) > PGOBENCH.out 2>&1; \
+        tail -n 4 PGOBENCH.out; \
+        echo ""; \
+        echo "Step 3/4. Building optimized executable ..."; \
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean; \
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_use); \
 	echo ""; \
@@ -1210,11 +1210,11 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-use=stockfish.profdata' \
-	EXTRALDFLAGS='-fprofile-use ' \
-	all
+        $(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
+        $(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+        EXTRACXXFLAGS='-fprofile-use=stockfish.profdata' \
+        EXTRALDFLAGS='-fprofile-use ' \
+        all
 
 gcc-profile-make:
 	@mkdir -p profdir
@@ -1238,11 +1238,11 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
-	EXTRALDFLAGS='-fprofile-use ' \
-	all
+        $(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
+        $(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+        EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
+        EXTRALDFLAGS='-fprofile-use ' \
+        all
 
 .depend: $(SRCS)
 	-@$(CXX) $(DEPENDFLAGS) -MM $(SRCS) > $@ 2> /dev/null
