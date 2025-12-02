@@ -1027,7 +1027,7 @@ analyze: net config-sanity objclean
 	$(MAKE) -k ARCH=$(ARCH) COMP=$(COMP) $(OBJS)
 
 build: net config-sanity
-        $(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
 
 ci-local: net
         @archs="x86-64-v2 x86-64-v3 x86-64-v4 x86-64-avx512 x86-64-avx512icl x86-64-avxvnni"; \
@@ -1040,8 +1040,8 @@ ci-local: net
         done
 
 profile-build: net config-sanity objclean profileclean
-        @echo ""
-        @echo "Step 1/4. Building instrumented executable ..."
+	@echo ""
+	@echo "Step 1/4. Building instrumented executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
