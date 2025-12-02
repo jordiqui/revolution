@@ -180,6 +180,14 @@ pacman -S --needed mingw-w64-clang-x86_64-toolchain mingw-w64-clang-x86_64-make 
 
 The `mingw-w64-clang-x86_64-toolchain` meta-package bundles `clang++` and `lld`, while `mingw-w64-clang-x86_64-make` supplies `make` for the MinGW environment. Using the `clang64` shell ensures the correct paths are set so the build command succeeds without additional flags.
 
+When running `profile-build` for Windows targets, Wine must also be available so the instrumented binary can execute during profile-guided optimization. Install Wine in the `clang64` environment with:
+
+```bash
+pacman -S --needed mingw-w64-clang-x86_64-wine
+```
+
+If Wine is installed elsewhere, set `WINE_PATH` to the wine executable so `make -j profile-build` can locate it.
+
 ### Matriz de builds y enlazador
 
 Revolution sigue la matriz de arquitecturas de Stockfish y permite compilar los perfiles principales con **gcc** o **clang**, usando el enlazador por defecto o `lld` cuando se trabaja con Clang. Ejemplos representativos:
