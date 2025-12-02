@@ -1204,17 +1204,11 @@ misc.o: FORCE
 FORCE:
 
 clang-profile-make:
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-generate ' \
-	EXTRALDFLAGS=' -fprofile-generate' \
-	all
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXTRACXXFLAGS='-fprofile-generate ' EXTRALDFLAGS=' -fprofile-generate' all
 
 clang-profile-use:
 	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-use=stockfish.profdata -Wno-profile-instr-unprofiled' \
-	EXTRALDFLAGS='-fprofile-use ' \
-	all
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXTRACXXFLAGS='-fprofile-use=stockfish.profdata -Wno-profile-instr-unprofiled' EXTRALDFLAGS='-fprofile-use ' all
 
 gcc-profile-make:
 	@mkdir -p profdir
