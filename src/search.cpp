@@ -206,7 +206,8 @@ void Search::Worker::start_searching() {
                             main_manager()->originalTimeAdjust);
     tt.new_search();
 
-    Move bookMove = Move::none();
+    SearchManager* mainThread = main_manager();
+    Move bookMove             = Move::none();
 
     if (rootMoves.empty())
     {
