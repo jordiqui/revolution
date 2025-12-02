@@ -170,8 +170,9 @@ make -j profile-build
 
 Run `make help` inside `src` to see all available build targets and configuration options.
 
-By default, `make` now builds a portable `x86-64-v2` binary (SSE4.1/POPCNT) so release artifacts run on CPUs without AVX2/FMA3.
-Specify `ARCH=native` if you are compiling for your own machine and want to enable every instruction set your processor supports.
+By default, `make` now builds a portable `x86-64-sse41-popcnt` binary so release artifacts run even on older Xeon systems without
+SSE4.2, AVX2, or FMA3. Specify `ARCH=native` if you are compiling for your own machine and want to enable every instruction set
+your processor supports.
 
 ### Windows (MSYS2) prerequisites for Clang builds
 
