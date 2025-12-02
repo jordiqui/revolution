@@ -1053,6 +1053,10 @@ ci-local: net
 	done
 
 profile-build: net config-sanity objclean profileclean
+	@if [ "$(target_windows)" = "yes" ] && [ -z "$(WINE_PATH)" ]; then \
+		echo "Error: profile-build for Windows targets requires Wine. Set WINE_PATH or install wine."; \
+		exit 1; \
+	fi
 	@echo ""
 	@echo "Step 1/4. Building instrumented executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
