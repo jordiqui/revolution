@@ -122,7 +122,7 @@ VPATH = syzygy:nnue:nnue/features:learn:wdl:book:book/polyglot:book/ctg
 
 ### 2.1. General and architecture defaults
 
-DEFAULT_ARCH := x86-64-v2
+DEFAULT_ARCH := x86-64-sse41-popcnt
 
 ifeq ($(ARCH),)
    ARCH = $(DEFAULT_ARCH)
