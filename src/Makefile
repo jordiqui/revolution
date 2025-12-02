@@ -1053,10 +1053,17 @@ ci-local: net
 	done
 
 profile-build: net config-sanity objclean profileclean
+ codex/disable-wine-for-linux-builds-da8kwd
 	@if [ "$(target_windows)" = "yes" ] && [ -z "$(WINE_PATH)" ] && [ "$(KERNEL)" = "Linux" ]; then \
 	echo "Error: profile-build for Windows targets requires Wine on Linux hosts. Set WINE_PATH or install wine."; \
 	exit 1; \
 	fi
+=======
+@if [ "$(target_windows)" = "yes" ] && [ -z "$(WINE_PATH)" ] && [ "$(KERNEL)" = "Linux" ]; then \
+echo "Error: profile-build for Windows targets requires Wine on Linux hosts. Set WINE_PATH or install wine."; \
+exit 1; \
+fi
+main
 	@echo ""
 	@echo "Step 1/4. Building instrumented executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
