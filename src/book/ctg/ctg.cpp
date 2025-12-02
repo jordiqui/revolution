@@ -788,34 +788,34 @@ bool CtgBook::lookup_position(CtgPositionData& positionData) const {
 }
 
 void CtgBook::get_stats(const CtgPositionData& positionData,
-                        CtgMoveStats&          moveStats,
+                        CtgMoveStats&          stats,
                         bool                   isMove) const {
     const unsigned char* posPageData = positionData.positionPage;
     posPageData += *posPageData;
     posPageData += 3;
 
     //Win-loss-draw
-    moveStats.win  = (posPageData[0] << 16) | (posPageData[1] << 8) | posPageData[2];
-    moveStats.loss = (posPageData[3] << 16) | (posPageData[4] << 8) | posPageData[5];
-    moveStats.draw = (posPageData[6] << 16) | (posPageData[7] << 8) | posPageData[8];
+    stats.win  = (posPageData[0] << 16) | (posPageData[1] << 8) | posPageData[2];
+    stats.loss = (posPageData[3] << 16) | (posPageData[4] << 8) | posPageData[5];
+    stats.draw = (posPageData[6] << 16) | (posPageData[7] << 8) | posPageData[8];
 
     if (positionData.invert)
     {
-        int temp      = moveStats.win;
-        moveStats.win = moveStats.loss;
-        moveStats.loss = temp;
+        int temp   = stats.win;
+        stats.win  = stats.loss;
+        stats.loss = temp;
     }
 
     //Rating
     posPageData += 9 + 4 + 7;
-    moveStats.ratingDiv = (posPageData[0] << 16) | (posPageData[1] << 8) | posPageData[2];
-    moveStats.ratingSum =
+    stats.ratingDiv = (posPageData[0] << 16) | (posPageData[1] << 8) | posPageData[2];
+    stats.ratingSum =
       (posPageData[3] << 24) | (posPageData[4] << 16) | (posPageData[5] << 8) | posPageData[6];
 
     if (!isMove)
         return;
 
-    CtgMove& ctgMove = (CtgMove&) moveStats;
+    CtgMove& ctgMove = (CtgMove&) stats;
 
     //Recommendations
     ctgMove.recommendation = CtgMoveRecommendation(

@@ -39,9 +39,7 @@ set_arch_loongarch64() {
 
 # Set the file CPU x86_64 architecture
 set_arch_x86_64() {
-  if [ "$vendor_id" = "AuthenticAMD" ] && check_flags 'avx512f' 'avx512bw' 'avx512dq' 'avx512vl' 'avx2' 'bmi2'; then
-    true_arch='x86-64-zen4'
-  elif check_flags 'avx512f' 'avx512cd' 'avx512vl' 'avx512dq' 'avx512bw' 'avx512ifma' 'avx512vbmi' 'avx512vbmi2' 'avx512vpopcntdq' 'avx512bitalg' 'avx512vnni' 'vpclmulqdq' 'gfni' 'vaes'; then
+  if check_flags 'avx512f' 'avx512cd' 'avx512vl' 'avx512dq' 'avx512bw' 'avx512ifma' 'avx512vbmi' 'avx512vbmi2' 'avx512vpopcntdq' 'avx512bitalg' 'avx512vnni' 'vpclmulqdq' 'gfni' 'vaes'; then
     true_arch='x86-64-avx512icl'
   elif check_flags 'avx512vnni' 'avx512dq' 'avx512f' 'avx512bw' 'avx512vl'; then
     true_arch='x86-64-vnni512'
@@ -100,8 +98,6 @@ case $uname_s in
     case $uname_m in
       'x86_64')
         file_os='ubuntu'
-        vendor_id=$(awk '/^vendor_id/{print $3; exit}' /proc/cpuinfo)
-        cpu_family=$(awk '/^cpu family/{print $4; exit}' /proc/cpuinfo)
         check_znver_1_2
         set_arch_x86_64
         ;;
@@ -146,8 +142,6 @@ case $uname_s in
     ;;
   'CYGWIN'*|'MINGW'*|'MSYS'*) # Windows x86_64system with POSIX compatibility layer
     get_flags
-    vendor_id=$(awk '/^vendor_id/{print $3; exit}' /proc/cpuinfo)
-    cpu_family=$(awk '/^cpu family/{print $4; exit}' /proc/cpuinfo)
     check_znver_1_2
     set_arch_x86_64
     file_os='windows'

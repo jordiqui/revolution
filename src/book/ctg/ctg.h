@@ -34,9 +34,7 @@ class CtgBook: public Book {
     uint32_t gen_position_hash(CtgPositionData& positionData) const;
     bool     lookup_position(CtgPositionData& positionData) const;
 
-    void get_stats(const CtgPositionData& positionData,
-                   CtgMoveStats&          moveStats,
-                   bool                   isMove) const;
+    void get_stats(const CtgPositionData& positionData, CtgMoveStats& stats, bool isMove) const;
     Move get_pseudo_move(const CtgPositionData& positionData, int moveNum) const;
     bool get_move(const Position&        pos,
                   const CtgPositionData& positionData,

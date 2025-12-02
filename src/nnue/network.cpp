@@ -161,9 +161,9 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
             loaded = true;
             sync_cout << "WARNING: External network '" << evalfilePath
                       << "' is not compatible (version " << std::hex << fallback.metadata.version
-                      << std::dec << "). Falling back to embedded network '"
-                      << std::string(evalFile.defaultName)
+                      << std::dec << "). Falling back to embedded network '" << evalFile.defaultName
                       << "'." << sync_endl;
+            lastAttempt = fallback;
         }
     }
 
@@ -174,12 +174,6 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
 
         use_dummy_network(evalfilePath);
     }
-}
-
-
-template<typename Arch, typename Transformer>
-bool Network<Arch, Transformer>::has_weights() const noexcept {
-    return initialized && evalFile.netDescription != "Zero placeholder network";
 }
 
 

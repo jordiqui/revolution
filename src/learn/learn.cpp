@@ -6,7 +6,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <system_error>
 
 #include "../misc.h"
 #include "../uci.h"
@@ -61,14 +60,11 @@ bool LearningData::load(const std::filesystem::path& filename) {
     if (filename.empty())
         return false;
 
-    if (!std::filesystem::exists(filename))
-        return false;
-
     std::ifstream in(filename, std::ios::in | std::ios::binary);
 
     if (!in.is_open())
     {
-        record_load_error("Unable to open existing experience file <" + filename.string() + ">");
+        record_load_error("Unable to open experience file <" + filename.string() + ">");
         return false;
     }
 
@@ -366,30 +362,9 @@ void LearningData::persist(const OptionsMap& options) {
     const auto tempExperienceFilename = resolve_path("experience_new.exp");
 
     if (!experienceFilename.parent_path().empty())
-    {
-        std::error_code ec;
-        std::filesystem::create_directories(experienceFilename.parent_path(), ec);
-        if (ec)
-        {
-            std::cerr << "info string Failed to prepare experience directory: "
-                      << experienceFilename.parent_path().string() << " : " << ec.message()
-                      << std::endl;
-            return;
-        }
-    }
-
+        std::filesystem::create_directories(experienceFilename.parent_path());
     if (!tempExperienceFilename.parent_path().empty())
-    {
-        std::error_code ec;
-        std::filesystem::create_directories(tempExperienceFilename.parent_path(), ec);
-        if (ec)
-        {
-            std::cerr << "info string Failed to prepare temporary experience directory: "
-                      << tempExperienceFilename.parent_path().string() << " : " << ec.message()
-                      << std::endl;
-            return;
-        }
-    }
+        std::filesystem::create_directories(tempExperienceFilename.parent_path());
 
     std::ofstream outputFile(tempExperienceFilename, std::ofstream::trunc | std::ofstream::binary);
     if (!outputFile)

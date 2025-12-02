@@ -19,10 +19,6 @@
 #ifndef SHM_LINUX_H_INCLUDED
 #define SHM_LINUX_H_INCLUDED
 
-#ifndef _POSIX_C_SOURCE
-    #define _POSIX_C_SOURCE 200809L
-#endif
-
 #include <atomic>
 #include <cassert>
 #include <cerrno>
@@ -44,7 +40,6 @@
 #include <sys/file.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #if defined(__NetBSD__) || defined(__DragonFly__) || defined(__linux__)
