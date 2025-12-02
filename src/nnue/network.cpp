@@ -178,6 +178,12 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
 
 
 template<typename Arch, typename Transformer>
+bool Network<Arch, Transformer>::has_weights() const noexcept {
+    return initialized && evalFile.netDescription != "Zero placeholder network";
+}
+
+
+template<typename Arch, typename Transformer>
 bool Network<Arch, Transformer>::save(const std::optional<std::string>& filename) const {
     std::string actualFilename;
     std::string msg;
