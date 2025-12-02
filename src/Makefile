@@ -1067,20 +1067,25 @@ profile-build: net config-sanity objclean profileclean
 	echo "Error: profile-build for Windows targets requires Wine on Linux hosts. Set WINE_PATH or install wine."; \
 	exit 1; \
 	fi
-	@echo ""
-	@echo "Step 1/4. Building instrumented executable ..."
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
-	@echo ""
-	@echo "Step 2/4. Running benchmark for pgo-build ..."
-	$(PGOBENCH) > PGOBENCH.out 2>&1
-	tail -n 4 PGOBENCH.out
-	@echo ""
-	@echo "Step 3/4. Building optimized executable ..."
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_use)
-	@echo ""
-	@echo "Step 4/4. Deleting profile data ..."
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profileclean
+	@if [ -z "$$(find . -maxdepth 1 -name '*.nnue' -size +0c -print -quit)" ]; then \
+	echo "NNUE network files are missing or empty; running a regular build instead of profile-build."; \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) build; \
+	else \
+	echo ""; \
+	echo "Step 1/4. Building instrumented executable ..."; \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make); \
+	echo ""; \
+	echo "Step 2/4. Running benchmark for pgo-build ..."; \
+	$(PGOBENCH) > PGOBENCH.out 2>&1; \
+	tail -n 4 PGOBENCH.out; \
+	echo ""; \
+	echo "Step 3/4. Building optimized executable ..."; \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean; \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_use); \
+	echo ""; \
+		echo "Step 4/4. Deleting profile data ..."; \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profileclean; \
+	fi
 
 strip:
 	$(STRIP) $(EXE)
