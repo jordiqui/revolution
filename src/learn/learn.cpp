@@ -60,11 +60,14 @@ bool LearningData::load(const std::filesystem::path& filename) {
     if (filename.empty())
         return false;
 
+    if (!std::filesystem::exists(filename))
+        return false;
+
     std::ifstream in(filename, std::ios::in | std::ios::binary);
 
     if (!in.is_open())
     {
-        record_load_error("Unable to open experience file <" + filename.string() + ">");
+        record_load_error("Unable to open existing experience file <" + filename.string() + ">");
         return false;
     }
 
