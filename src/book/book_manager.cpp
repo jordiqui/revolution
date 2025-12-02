@@ -170,12 +170,15 @@ void BookManager::update_fallback_status(const OptionsMap& options) {
         }
     }
 
-    if (!hasBook && anyRequested && !liveBookFallback)
+    if (!hasBook && anyRequested)
     {
-        liveBookFallback = true;
-        sync_cout << "info string All CTG/BIN books failed, falling back to live book" << sync_endl;
+        if (!liveBookFallback)
+        {
+            liveBookFallback = true;
+            sync_cout << "info string All CTG/BIN books failed, falling back to live book" << sync_endl;
+        }
     }
-    else if (hasBook)
+    else
         liveBookFallback = false;
 }
 
