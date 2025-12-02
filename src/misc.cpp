@@ -38,9 +38,9 @@ namespace Stockfish {
 namespace {
 
 // Revolution engine identification strings.
-constexpr std::string_view kEngineNameShort = "Revolution-3.80-021225";
-constexpr std::string_view kEngineDisplayName = "Revolution-3.80-021225";
-constexpr std::string_view kEngineHeader = "Revolution-3.80-021225";
+constexpr std::string_view kEngineNameShort = "Revolution-3.760-291125";
+constexpr std::string_view kEngineDisplayName = "Revolution-3.70-291125";
+constexpr std::string_view kEngineHeader = "Revolution-3.70-291125";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We

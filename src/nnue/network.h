@@ -79,8 +79,6 @@ class Network {
         evalFile(file),
         embeddedType(type) {}
 
-    [[nodiscard]] bool has_weights() const noexcept;
-
     Network(const Network& other) = default;
     Network(Network&& other)      = default;
 

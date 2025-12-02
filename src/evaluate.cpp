@@ -58,9 +58,6 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     assert(!pos.checkers());
 
-    if (!networks.big.has_weights() || !networks.small.has_weights())
-        return Value(simple_eval(pos));
-
     bool smallNet           = use_smallnet(pos);
     auto [psqt, positional] = smallNet ? networks.small.evaluate(pos, accumulators, caches.small)
                                        : networks.big.evaluate(pos, accumulators, caches.big);

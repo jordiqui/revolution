@@ -1,10 +1,10 @@
-# Revolution-3.80-021225
+# Revolution-3.60-221125
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-3.80-021225** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-3.60-221125** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
 ## Overview
 
@@ -169,28 +169,6 @@ make -j profile-build
 ```
 
 Run `make help` inside `src` to see all available build targets and configuration options.
-
-By default, `make` now builds a portable `x86-64-sse41-popcnt` binary so release artifacts run even on older Xeon systems without
-SSE4.2, AVX2, or FMA3. Specify `ARCH=native` if you are compiling for your own machine and want to enable every instruction set
-your processor supports.
-
-### Windows (MSYS2) prerequisites for Clang builds
-
-To run `make -j profile-build ARCH=x86-64-sse41-popcnt COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` without toolchain errors on Windows, install the MSYS2 packages that provide Clang, LLD, and `make` in the **clang64** shell:
-
-```bash
-pacman -S --needed mingw-w64-clang-x86_64-toolchain mingw-w64-clang-x86_64-make git
-```
-
-The `mingw-w64-clang-x86_64-toolchain` meta-package bundles `clang++` and `lld`, while `mingw-w64-clang-x86_64-make` supplies `make` for the MinGW environment. Using the `clang64` shell ensures the correct paths are set so the build command succeeds without additional flags.
-
-When running `profile-build` for Windows targets **from Linux**, Wine must also be available so the instrumented binary can execute during profile-guided optimization. Install Wine in the `clang64` environment with:
-
-```bash
-pacman -S --needed mingw-w64-clang-x86_64-wine
-```
-
-If Wine is installed elsewhere, set `WINE_PATH` to the wine executable so `make -j profile-build` can locate it.
 
 ### Matriz de builds y enlazador
 
