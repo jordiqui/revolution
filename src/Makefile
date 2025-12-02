@@ -521,7 +521,13 @@ ifeq ($(COMP),gcc)
 endif
 
 ifeq ($(target_windows),yes)
-	LDFLAGS += -static
+        # Clang/LLD generated Windows binaries can fail when fully static,
+        # especially under profiling builds. Avoid forcing -static in that
+        # configuration while keeping the current behavior for other
+        # toolchains.
+        ifneq ($(comp),clang)
+                LDFLAGS += -static
+        endif
 endif
 
 ifeq ($(COMP),mingw)
