@@ -1210,11 +1210,11 @@ clang-profile-make:
 	all
 
 clang-profile-use:
-$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
-$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-EXTRACXXFLAGS='-fprofile-use=stockfish.profdata -Wno-profile-instr-unprofiled' \
-EXTRALDFLAGS='-fprofile-use ' \
-all
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXTRACXXFLAGS='-fprofile-use=stockfish.profdata -Wno-profile-instr-unprofiled' \
+	EXTRALDFLAGS='-fprofile-use ' \
+	all
 
 gcc-profile-make:
 	@mkdir -p profdir
@@ -1238,11 +1238,11 @@ icx-profile-make:
 	all
 
 icx-profile-use:
-$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
-$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata -Wno-profile-instr-unprofiled' \
-EXTRALDFLAGS='-fprofile-use ' \
-all
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata stockfish-*.profraw
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata -Wno-profile-instr-unprofiled' \
+	EXTRALDFLAGS='-fprofile-use ' \
+	all
 
 .depend: $(SRCS)
 	-@$(CXX) $(DEPENDFLAGS) -MM $(SRCS) > $@ 2> /dev/null
