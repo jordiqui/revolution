@@ -1040,7 +1040,7 @@ void Position::undo_move(Move m) {
 template<bool PutPiece>
 inline void add_dirty_threat(
   DirtyThreats* const dts, Piece pc, Piece threatened, Square s, Square threatenedSq) {
-    if (PutPiece)
+    if constexpr (PutPiece)
     {
         dts->threatenedSqs |= square_bb(threatenedSq);
         dts->threateningSqs |= square_bb(s);
