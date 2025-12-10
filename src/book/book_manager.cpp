@@ -142,6 +142,12 @@ void BookManager::update_fallback_status(const OptionsMap& options) {
             anyRequested = true;
     }
 
+    if (!anyRequested)
+    {
+        liveBookFallback = false;
+        return;
+    }
+
     bool hasBook = false;
     for (auto* book : books)
     {
