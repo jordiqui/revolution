@@ -1,6 +1,8 @@
 #include <cassert>
 #include <deque>
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 
 #include "../src/book/book_manager.h"
@@ -102,6 +104,32 @@ int main() {
     manager.set_book_for_testing(1, nullptr);
     result = manager.probe(pos, options);
     assert(result == Move::none());
+
+    // If books fail to load and are later disabled, the live book fallback
+    // should be cleared.
+    OptionsMap fallbackOptions;
+    fallbackOptions.add(Stockfish::Book::format_option_key("CTG/BIN Book %d File", 1), Option("missing1.bin"));
+    fallbackOptions.add(Stockfish::Book::format_option_key("CTG/BIN Book %d File", 2), Option("missing2.ctg"));
+
+    BookManager failingManager;
+    failingManager.init(fallbackOptions);
+
+    std::ostringstream withFallback;
+    auto*                oldBuf = std::cout.rdbuf(withFallback.rdbuf());
+    failingManager.show_moves(pos, fallbackOptions);
+    std::cout.rdbuf(oldBuf);
+    assert(withFallback.str().find("Live book fallback active") != std::string::npos);
+
+    fallbackOptions[Stockfish::Book::format_option_key("CTG/BIN Book %d File", 1)] = Option("");
+    fallbackOptions[Stockfish::Book::format_option_key("CTG/BIN Book %d File", 2)] = Option("");
+
+    failingManager.init(fallbackOptions);
+
+    std::ostringstream withoutFallback;
+    oldBuf = std::cout.rdbuf(withoutFallback.rdbuf());
+    failingManager.show_moves(pos, fallbackOptions);
+    std::cout.rdbuf(oldBuf);
+    assert(withoutFallback.str().find("Live book fallback active") == std::string::npos);
 
     return 0;
 }
