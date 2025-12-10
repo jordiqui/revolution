@@ -633,9 +633,9 @@ ifeq ($(COMP),armv7a-linux-androideabi16-clang)
         LDFLAGS += -static-libstdc++
 endif
 
-ifeq ($(COMP),aarch64-linux-android21-clang)
-        comp=aarch64-linux-android21-clang
-        CXX=aarch64-linux-android21-clang++
+ifneq ($(filter aarch64-linux-android%-clang,$(COMP)),)
+        comp=$(COMP)
+        CXX=$(COMP)++
         OS=Android
         CXXFLAGS += -stdlib=libc++ -pedantic -Wextra -Wshadow -Wmissing-prototypes \
                     -Wconditional-uninitialized
