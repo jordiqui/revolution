@@ -588,8 +588,8 @@ endif
 
 # To cross-compile for Android, use NDK version r27c or later.
 ifeq ($(COMP),ndk)
-	CXXFLAGS += -stdlib=libc++
-	comp=clang
+        CXXFLAGS += -stdlib=libc++
+        comp=clang
 	ifeq ($(arch),armv7)
 		CXX=armv7a-linux-androideabi29-clang++
 		CXXFLAGS += -mthumb -march=armv7-a -mfloat-abi=softfp -mfpu=neon
@@ -614,8 +614,37 @@ ifeq ($(COMP),ndk)
 		else
 			STRIP=llvm-strip
 		endif
-	endif
-	LDFLAGS += -static-libstdc++
+        endif
+        LDFLAGS += -static-libstdc++
+endif
+
+# Direct Android toolchains (without ndk wrapper)
+ifeq ($(COMP),armv7a-linux-androideabi16-clang)
+        comp=armv7a-linux-androideabi16-clang
+        CXX=armv7a-linux-androideabi16-clang++
+        OS=Android
+        CXXFLAGS += -stdlib=libc++ -pedantic -Wextra -Wshadow -Wmissing-prototypes \
+                    -Wconditional-uninitialized -mthumb -march=armv7-a -mfloat-abi=softfp -mfpu=neon
+        ifneq ($(shell which arm-linux-androideabi-strip 2>/dev/null),)
+                STRIP=arm-linux-androideabi-strip
+        else
+                STRIP=llvm-strip
+        endif
+        LDFLAGS += -static-libstdc++
+endif
+
+ifeq ($(COMP),aarch64-linux-android21-clang)
+        comp=aarch64-linux-android21-clang
+        CXX=aarch64-linux-android21-clang++
+        OS=Android
+        CXXFLAGS += -stdlib=libc++ -pedantic -Wextra -Wshadow -Wmissing-prototypes \
+                    -Wconditional-uninitialized
+        ifneq ($(shell which aarch64-linux-android-strip 2>/dev/null),)
+                STRIP=aarch64-linux-android-strip
+        else
+                STRIP=llvm-strip
+        endif
+        LDFLAGS += -static-libstdc++
 endif
 
 ### Allow overwriting CXX from command line
