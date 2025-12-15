@@ -26,6 +26,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <initializer_list>
 #include <iostream>
 #include <list>
@@ -2069,16 +2070,61 @@ Move Skill::pick_best(const RootMoves& rootMoves, size_t multiPV) {
 // Used to print debug info and, more importantly, to detect
 // when we are out of available time and thus stop the search.
 void SearchManager::check_time(Search::Worker& worker) {
+    static TimePoint lastInfoTime = now();
+
+    TimePoint elapsed = 0;
+
+    auto compute_elapsed = [&]() {
+        if (!elapsed)
+            elapsed = tm.elapsed([&worker]() { return worker.threads.nodes_searched(); });
+
+        return elapsed;
+    };
+
+    // When we are close to any time limit, force a full check even if callsCnt
+    // would otherwise postpone it, to avoid losing on time in the last seconds.
     if (--callsCnt > 0)
-        return;
+    {
+        if (!(worker.limits.use_time_management() || worker.limits.movetime))
+            return;
+
+        TimePoint remainingTime = std::numeric_limits<TimePoint>::max();
+
+        if (worker.limits.use_time_management())
+            remainingTime = std::min(remainingTime, tm.maximum() - compute_elapsed());
+        if (worker.limits.movetime)
+            remainingTime = std::min(remainingTime, worker.limits.movetime - compute_elapsed());
+
+        TimePoint emergencyThreshold = TimePoint(std::max<int64_t>(50, Options["Move Overhead"] / 2));
+
+        if (remainingTime > emergencyThreshold)
+            return;
+    }
 
     // When using nodes, ensure checking rate is not lower than 0.1% of nodes
     callsCnt = worker.limits.nodes ? std::min(512, int(worker.limits.nodes / 1024)) : 512;
 
-    static TimePoint lastInfoTime = now();
+    elapsed = compute_elapsed();
 
-    TimePoint elapsed = tm.elapsed([&worker]() { return worker.threads.nodes_searched(); });
-    TimePoint tick    = worker.limits.startTime + elapsed;
+    // Increase check frequency when the remaining time window is small
+    TimePoint nearestDeadline = std::numeric_limits<TimePoint>::max();
+
+    if (worker.limits.use_time_management())
+        nearestDeadline = std::min(nearestDeadline, tm.maximum() - elapsed);
+    if (worker.limits.movetime)
+        nearestDeadline = std::min(nearestDeadline, worker.limits.movetime - elapsed);
+
+    if (nearestDeadline < 0)
+        nearestDeadline = 0;
+
+    if (nearestDeadline < 200)
+        callsCnt = 1;
+    else if (nearestDeadline < 1000)
+        callsCnt = std::min(callsCnt, 8);
+    else if (nearestDeadline < 5000)
+        callsCnt = std::min(callsCnt, 64);
+
+    TimePoint tick = worker.limits.startTime + elapsed;
 
     if (tick - lastInfoTime >= 1000)
     {
