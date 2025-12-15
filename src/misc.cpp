@@ -29,6 +29,7 @@
 #include <iterator>
 #include <limits>
 #include <mutex>
+#include <string>
 #include <string_view>
 
 #include "types.h"
@@ -38,9 +39,22 @@ namespace Stockfish {
 namespace {
 
 // Revolution engine identification strings.
-constexpr std::string_view kEngineNameShort = "Revolution-3.80-021225";
-constexpr std::string_view kEngineDisplayName = "Revolution-3.80-021225";
-constexpr std::string_view kEngineHeader = "Revolution-3.80-021225";
+constexpr std::string_view kEngineNameBase = "Revolution-3.90-151225";
+
+std::string engine_arch_suffix() {
+#if defined(ARCH)
+    constexpr std::string_view kCompiledArch = stringify(ARCH);
+#else
+    constexpr std::string_view kCompiledArch = "";
+#endif
+
+    if (kCompiledArch.find("sse41-popcnt") != std::string_view::npos)
+        return " -sse41popcnt";
+    if (kCompiledArch.find("avx2") != std::string_view::npos)
+        return " -avx2";
+
+    return "";
+}
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -115,16 +129,18 @@ class Logger {
 
 // Returns the short public identification string for the Revolution engine.
 std::string engine_version_info() {
-    return std::string(kEngineNameShort);
+    return std::string(kEngineNameBase) + engine_arch_suffix();
 }
 
 std::string engine_info(bool to_uci) {
     constexpr std::string_view kAuthorLine =
         "Developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
-    if (to_uci)
-        return std::string(kEngineDisplayName) + "\nid author " + std::string(kAuthorLine);
+    const std::string engine_name = engine_version_info();
 
-    return std::string(kEngineHeader) + " " + std::string(kAuthorLine);
+    if (to_uci)
+        return engine_name + "\nid author " + std::string(kAuthorLine);
+
+    return engine_name + " " + std::string(kAuthorLine);
 }
 
 
