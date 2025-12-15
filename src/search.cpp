@@ -2095,7 +2095,8 @@ void SearchManager::check_time(Search::Worker& worker) {
         if (worker.limits.movetime)
             remainingTime = std::min(remainingTime, worker.limits.movetime - compute_elapsed());
 
-        TimePoint emergencyThreshold = TimePoint(std::max<int64_t>(50, Options["Move Overhead"] / 2));
+        TimePoint emergencyThreshold =
+          TimePoint(std::max<int64_t>(50, worker.options["Move Overhead"] / 2));
 
         if (remainingTime > emergencyThreshold)
             return;
@@ -2138,7 +2139,7 @@ void SearchManager::check_time(Search::Worker& worker) {
 
     if (worker.limits.use_time_management())
     {
-        TimePoint sendBuffer = TimePoint(Options["Move Overhead"]);
+        TimePoint sendBuffer = TimePoint(worker.options["Move Overhead"]);
 
         if (elapsed + sendBuffer >= tm.maximum())
         {
