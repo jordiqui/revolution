@@ -132,6 +132,16 @@ void TimeManagement::init(Search::LimitsType& limits,
                limits.time[us]
                  + (limits.inc[us] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
 
+    // When the remaining resources are scarce, reserve a small buffer to avoid
+    // losing on time due to reporting latency or slow thread stops.
+    TimePoint safetyBuffer = 0;
+
+    if (scaledTime < 15000)
+        safetyBuffer =
+          TimePoint(std::max<int64_t>(moveOverhead, std::max<int64_t>(50 * scaleFactor, scaledTime / 12)));
+
+    timeLeft = std::max(TimePoint(1), timeLeft - safetyBuffer);
+
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
     // game time for the current move, so also cap to a percentage of available game time.
@@ -165,6 +175,8 @@ void TimeManagement::init(Search::LimitsType& limits,
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
       TimePoint(std::min(0.825179 * limits.time[us] - moveOverhead, maxScale * optimumTime)) - 10;
+
+    maximumTime = std::max(TimePoint(1), std::min(maximumTime, timeLeft - safetyBuffer / 2));
 
     if (options["Ponder"])
         optimumTime += optimumTime / 4;

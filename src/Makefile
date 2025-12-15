@@ -827,10 +827,16 @@ ifeq ($(avx512icl),yes)
 endif
 
 ifeq ($(sse41),yes)
-	CXXFLAGS += -DUSE_SSE41
-	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-		CXXFLAGS += -msse4.1
-	endif
+        CXXFLAGS += -DUSE_SSE41
+        ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+                CXXFLAGS += -msse4.1
+        endif
+endif
+
+ifeq ($(ARCH),x86-64-sse41-popcnt)
+        ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+                CXXFLAGS += -mtune=nehalem
+        endif
 endif
 
 ifeq ($(ssse3),yes)
