@@ -38,10 +38,18 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable name
+ENGINE_BASE = Revolution-3.90-151225
+ENGINE_SUFFIX =
+ifneq (,$(findstring sse41-popcnt,$(ARCH)))
+        ENGINE_SUFFIX = -sse41popcnt
+else ifneq (,$(findstring avx2,$(ARCH)))
+        ENGINE_SUFFIX = -avx2
+endif
+
 ifeq ($(target_windows),yes)
-        EXE = Revolution-3.80-021225.exe
+        EXE = $(ENGINE_BASE)$(ENGINE_SUFFIX).exe
 else
-        EXE = Revolution-3.80-021225
+        EXE = $(ENGINE_BASE)$(ENGINE_SUFFIX)
 endif
 
 ### Installation dir definitions
