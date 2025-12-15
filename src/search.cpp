@@ -2090,6 +2090,17 @@ void SearchManager::check_time(Search::Worker& worker) {
     if (ponder)
         return;
 
+    if (worker.limits.use_time_management())
+    {
+        TimePoint sendBuffer = TimePoint(Options["Move Overhead"]);
+
+        if (elapsed + sendBuffer >= tm.maximum())
+        {
+            worker.threads.stop = worker.threads.abortedSearch = true;
+            return;
+        }
+    }
+
     if (
       // Later we rely on the fact that we can at least use the mainthread previous
       // root-search score and PV in a multithreaded environment to prove mated-in scores.
