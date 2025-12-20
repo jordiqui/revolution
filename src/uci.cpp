@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <deque>
 #include <cmath>
 #include <cstdint>
 #include <iterator>
@@ -32,6 +31,7 @@
 
 #include "benchmark.h"
 #include "engine.h"
+#include "experience.h"
 #include "memory.h"
 #include "movegen.h"
 #include "position.h"
@@ -39,7 +39,6 @@
 #include "search.h"
 #include "types.h"
 #include "ucioption.h"
-#include "learn/learn.h"
 
 namespace Stockfish {
 
@@ -88,10 +87,6 @@ void UCIEngine::init_search_update_listeners() {
 }
 
 void UCIEngine::loop() {
-    Position     pos;
-    StateListPtr states(new std::deque<StateInfo>(1));
-    pos.set(StartFEN, false, &states->back());
-
     std::string token, cmd;
 
     for (int i = 1; i < cli.argc; ++i)
@@ -109,20 +104,7 @@ void UCIEngine::loop() {
         is >> std::skipws >> token;
 
         if (token == "quit" || token == "stop")
-        {
             engine.stop();
-
-            if (LD.is_enabled() && !LD.is_paused())
-            {
-                engine.wait_for_search_finished();
-
-                if (LD.learning_mode() == LearningMode::Self)
-                    putQLearningTrajectoryIntoLearningTable();
-
-                if (!LD.is_readonly())
-                    LD.persist(engine.get_options());
-            }
-        }
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
         // So, 'ponderhit' is sent if pondering was done on the same move that the user
@@ -133,7 +115,11 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
+            print_info_string(compiler_info());
+            print_info_string(Experience::status_summary());
+
             sync_cout << "id name " << engine_info(true) << "\n"
+                      << "id author " << engine_authors() << "\n"
                       << engine.get_options() << sync_endl;
 
             sync_cout << "uciok" << sync_endl;
@@ -149,24 +135,9 @@ void UCIEngine::loop() {
             go(is);
         }
         else if (token == "position")
-        {
             position(is);
-            pos.set(engine.fen(), engine.get_options()["UCI_Chess960"], &states->back());
-        }
         else if (token == "ucinewgame")
-        {
-            if (LD.is_enabled())
-            {
-                if (LD.learning_mode() == LearningMode::Self)
-                    putQLearningTrajectoryIntoLearningTable();
-
-                if (!LD.is_readonly())
-                    LD.persist(engine.get_options());
-
-                setStartPoint();
-            }
             engine.search_clear();
-        }
         else if (token == "isready")
             sync_cout << "readyok" << sync_endl;
 
@@ -182,14 +153,6 @@ void UCIEngine::loop() {
             sync_cout << engine.visualize() << sync_endl;
         else if (token == "eval")
             engine.trace_eval();
-        else if (token == "book")
-            engine.show_book_moves(pos);
-        else if (token == "poly")
-            engine.show_polyglot_moves(pos);
-        else if (token == "showexp")
-            LD.show_exp(pos);
-        else if (token == "quickresetexp")
-            LD.quick_reset_exp();
         else if (token == "compiler")
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
@@ -205,13 +168,20 @@ void UCIEngine::loop() {
             engine.save_network(files);
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
+        {
+            const auto version = engine_version_info();
+
             sync_cout
-              << "\n" << engine_version_info() << " is a UCI chess engine derived from Stockfish."
-                 "\nIt is released as free software licensed under the GNU GPLv3 License."
-                 "\nRevolution UCI Chess Engines develops structural changes and explores new ideas"
-                 "\nto improve the project while complying with the applicable license requirements."
-                 "\nFor any further information, read the accompanying README.md and Copying.txt files.\n"
+              << "\n" << version << " is a powerful chess engine for playing and analyzing."
+                 "\nIt is developed by Jorge Ruiz together with the Stockfish developers (see AUTHORS file)."
+                 "\n" << version
+                 << " is released as free software licensed under the GNU GPLv3 License."
+                 "\nThe engine is normally used with a graphical user interface (GUI) and implements"
+                 "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
+                 "\nFor any further information, visit https://github.com/official-stockfish/Stockfish#readme"
+                 "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
               << sync_endl;
+        }
         else if (!token.empty() && token[0] != '#')
             sync_cout << "Unknown command: '" << cmd << "'. Type help for more information."
                       << sync_endl;
@@ -255,6 +225,9 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
         else if (token == "ponder")
             limits.ponderMode = true;
 
+    if (limits.depth)
+        limits.depth = std::clamp(limits.depth, 0, MAX_PLY - 1);
+
     return limits;
 }
 
@@ -281,9 +254,8 @@ void UCIEngine::bench(std::istream& args) {
 
     std::vector<std::string> list = Benchmark::setup_bench(engine.fen(), args);
 
-    num = count_if(list.begin(), list.end(), [](const std::string& s) {
-        return s.find("go ") == 0 || s.find("eval") == 0 || s.find("perfteval") == 0;
-    });
+    num = count_if(list.begin(), list.end(),
+                   [](const std::string& s) { return s.find("go ") == 0 || s.find("eval") == 0; });
 
     TimePoint elapsed = now();
 
@@ -313,17 +285,6 @@ void UCIEngine::bench(std::istream& args) {
             }
             else
                 engine.trace_eval();
-        }
-        else if (token == "perfteval")
-        {
-            std::cerr << "\nPosition: " << cnt++ << '/' << num << " (" << engine.fen() << ")"
-                      << std::endl;
-            int depth = 1;
-            is >> depth;
-            auto stats = engine.eval_perft(static_cast<Depth>(depth));
-            nodes += stats.nodes;
-            std::cerr << "perft-eval depth " << depth << ": " << stats.nodes << " nodes, "
-                      << stats.evaluations << " evals in " << stats.elapsedMs << " ms" << std::endl;
         }
         else if (token == "setoption")
             setoption(is);

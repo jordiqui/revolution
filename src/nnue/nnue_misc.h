@@ -20,7 +20,6 @@
 #define NNUE_MISC_H_INCLUDED
 
 #include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -36,11 +35,6 @@ namespace Eval::NNUE {
 
 // EvalFile uses fixed string types because it's part of the network structure which must be trivial.
 struct EvalFile {
-    EvalFile(const char* defaultName_, const char* current_ = "None", const char* description_ = "") :
-        defaultName(defaultName_),
-        current(current_),
-        netDescription(description_) {}
-
     // Default net name, will use one of the EvalFileDefaultName* macros defined
     // in evaluate.h
     FixedString<256> defaultName;
@@ -48,12 +42,6 @@ struct EvalFile {
     FixedString<256> current;
     // Net description extracted from the net file
     FixedString<256> netDescription;
-
-    // Metadata inferred from the NNUE header
-    std::uint32_t    version         = 0;
-    bool             extendedHeader  = false;
-    FixedString<64>  quantization;
-    FixedString<128> format;
 };
 
 struct NnueEvalTrace {
@@ -79,10 +67,6 @@ struct std::hash<Stockfish::Eval::NNUE::EvalFile> {
         Stockfish::hash_combine(h, evalFile.defaultName);
         Stockfish::hash_combine(h, evalFile.current);
         Stockfish::hash_combine(h, evalFile.netDescription);
-        Stockfish::hash_combine(h, evalFile.version);
-        Stockfish::hash_combine(h, evalFile.extendedHeader);
-        Stockfish::hash_combine(h, evalFile.quantization);
-        Stockfish::hash_combine(h, evalFile.format);
         return h;
     }
 };

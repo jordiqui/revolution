@@ -44,7 +44,6 @@ class TimeManagement {
 
     TimePoint optimum() const;
     TimePoint maximum() const;
-    void      update_statistics(uint64_t nodes, TimePoint elapsed);
     template<typename FUNC>
     TimePoint elapsed(FUNC nodes) const {
         return useNodesTime ? TimePoint(nodes()) : elapsed_time();
@@ -58,9 +57,6 @@ class TimeManagement {
     TimePoint startTime;
     TimePoint optimumTime;
     TimePoint maximumTime;
-
-    double     rollingNps      = 0.0;
-    TimePoint  latencyEstimate = 0;
 
     std::int64_t availableNodes = -1;     // When in 'nodes as time' mode
     bool         useNodesTime   = false;  // True if we are in 'nodes as time' mode

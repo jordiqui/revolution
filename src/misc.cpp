@@ -25,11 +25,12 @@
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <mutex>
-#include <string>
+#include <sstream>
 #include <string_view>
 
 #include "types.h"
@@ -38,23 +39,14 @@ namespace Stockfish {
 
 namespace {
 
-// Revolution engine identification strings.
-constexpr std::string_view kEngineNameBase = "Revolution-3.90-151225";
-
-std::string engine_arch_suffix() {
-#if defined(ARCH)
-    constexpr std::string_view kCompiledArch = stringify(ARCH);
-#else
-    constexpr std::string_view kCompiledArch = "";
+// Engine branding and version information.
+#ifndef BUILD_ARCH_SUFFIX
+#  define BUILD_ARCH_SUFFIX ""
 #endif
 
-    if (kCompiledArch.find("sse41-popcnt") != std::string_view::npos)
-        return " -sse41popcnt";
-    if (kCompiledArch.find("avx2") != std::string_view::npos)
-        return " -avx2";
-
-    return "";
-}
+constexpr std::string_view version = "Revolution-3.90-151225";
+constexpr std::string_view archSuffix = BUILD_ARCH_SUFFIX;
+constexpr std::string_view authors = "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -127,20 +119,60 @@ class Logger {
 }  // namespace
 
 
-// Returns the short public identification string for the Revolution engine.
+// Returns the full name of the current Stockfish version.
+//
+// For local dev compiles we try to append the commit SHA and
+// commit date from git. If that fails only the local compilation
+// date is set and "nogit" is specified:
+//      Stockfish dev-YYYYMMDD-SHA
+//      or
+//      Stockfish dev-YYYYMMDD-nogit
+//
+// For releases (non-dev builds) we only include the version number:
+//      Stockfish version
 std::string engine_version_info() {
-    return std::string(kEngineNameBase) + engine_arch_suffix();
+    const std::string suffix(archSuffix);
+
+    if constexpr (version == "dev")
+    {
+        std::stringstream ss;
+        ss << "Revolution-" << std::setfill('0');
+#ifdef GIT_DATE
+        ss << stringify(GIT_DATE);
+#else
+        constexpr std::string_view months("Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec");
+
+        std::string       month, day, year;
+        std::stringstream date(__DATE__);  // From compiler, format is "Sep 21 2008"
+
+        date >> month >> day >> year;
+        ss << year << std::setw(2) << std::setfill('0') << (1 + months.find(month) / 4)
+           << std::setw(2) << std::setfill('0') << day;
+#endif
+
+        ss << "-";
+
+#ifdef GIT_SHA
+        ss << stringify(GIT_SHA);
+#else
+        ss << "nogit";
+#endif
+
+        return ss.str() + suffix;
+    }
+
+    return std::string(version) + suffix;
 }
 
 std::string engine_info(bool to_uci) {
-    constexpr std::string_view kAuthorLine =
-        "Developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
-    const std::string engine_name = engine_version_info();
-
     if (to_uci)
-        return engine_name + "\nid author " + std::string(kAuthorLine);
+        return std::string(engine_version_info());
 
-    return engine_name + " " + std::string(kAuthorLine);
+    return engine_version_info() + " by " + std::string(authors);
+}
+
+std::string engine_authors() {
+    return std::string(authors);
 }
 
 
