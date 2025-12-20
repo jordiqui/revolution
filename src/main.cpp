@@ -20,14 +20,12 @@
 #include <memory>
 
 #include "bitboard.h"
-#include "learn/learn.h"
 #include "misc.h"
 #include "nnue/features/full_threats.h"
 #include "position.h"
-#include "search.h"
 #include "tune.h"
 #include "uci.h"
-#include "wdl/win_probability.h"
+#include "experience.h"
 
 using namespace Stockfish;
 
@@ -40,14 +38,11 @@ int main(int argc, char* argv[]) {
 
     auto uci = std::make_unique<UCIEngine>(argc, argv);
 
-    WDLModel::init();
-
     Tune::init(uci->engine_options());
 
-    LD.init(uci->engine_options());
-    setStartPoint();
-
     uci->loop();
+
+    Experience::flush();
 
     return 0;
 }

@@ -23,9 +23,6 @@
 #include <string>
 #include <vector>
 
-#include "nnue/network.h"
-#include "types.h"
-
 namespace Stockfish::Benchmark {
 
 std::vector<std::string> setup_bench(const std::string&, std::istream&);
@@ -39,18 +36,6 @@ struct BenchmarkSetup {
 };
 
 BenchmarkSetup setup_benchmark(std::istream&);
-
-struct EvalPerftResult {
-    std::uint64_t nodes        = 0;
-    std::uint64_t evaluations  = 0;
-    std::int64_t  evalSum      = 0;
-    double        elapsedMs    = 0.0;
-};
-
-EvalPerftResult eval_perft(const std::string& fen,
-                           Depth              depth,
-                           bool               isChess960,
-                           const Eval::NNUE::Networks& networks);
 
 }  // namespace Stockfish
 

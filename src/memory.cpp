@@ -135,6 +135,10 @@ void* aligned_large_pages_alloc(size_t allocSize) {
     // Round up to multiples of alignment
     size_t size = ((allocSize + alignment - 1) / alignment) * alignment;
     void*  mem  = std_aligned_alloc(alignment, size);
+
+    if (!mem)
+        return nullptr;
+
     #if defined(MADV_HUGEPAGE)
     madvise(mem, size, MADV_HUGEPAGE);
     #endif

@@ -29,7 +29,6 @@
 #include <vector>
 
 #include "nnue/network.h"
-#include "benchmark.h"
 #include "numa.h"
 #include "position.h"
 #include "search.h"
@@ -37,7 +36,6 @@
 #include "thread.h"
 #include "tt.h"
 #include "ucioption.h"
-#include "book/book_manager.h"
 
 namespace Stockfish {
 
@@ -93,14 +91,10 @@ class Engine {
 
     // utility functions
 
-    Benchmark::EvalPerftResult eval_perft(Depth depth) const;
     void trace_eval() const;
-
+    const Position& position() const;
     const OptionsMap& get_options() const;
     OptionsMap&       get_options();
-
-    void show_book_moves(const Position& position);
-    void show_polyglot_moves(const Position& position);
 
     int get_hashfull(int maxAge = 0) const;
 
@@ -122,11 +116,9 @@ class Engine {
     StateListPtr states;
 
     OptionsMap                                         options;
-    BookManager                                        bookManager;
     ThreadPool                                         threads;
     TranspositionTable                                 tt;
     LazyNumaReplicatedSystemWide<Eval::NNUE::Networks> networks;
-
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;
 };

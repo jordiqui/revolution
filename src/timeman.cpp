@@ -31,23 +31,6 @@ namespace Stockfish {
 TimePoint TimeManagement::optimum() const { return optimumTime; }
 TimePoint TimeManagement::maximum() const { return maximumTime; }
 
-void TimeManagement::update_statistics(uint64_t nodes, TimePoint elapsed) {
-    if (elapsed <= 0)
-        return;
-
-    double currentNps = 1000.0 * nodes / std::max<int64_t>(int64_t(1), elapsed);
-
-    if (currentNps > 0)
-    {
-        rollingNps = rollingNps == 0.0 ? currentNps : 0.25 * currentNps + 0.75 * rollingNps;
-
-        TimePoint granularity = TimePoint(std::lround(512000.0 / rollingNps));
-        latencyEstimate       = latencyEstimate == 0
-                                    ? granularity
-                                    : TimePoint((3 * latencyEstimate + granularity) / 4);
-    }
-}
-
 void TimeManagement::clear() {
     availableNodes = -1;  // When in 'nodes as time' mode
 }
@@ -76,23 +59,7 @@ void TimeManagement::init(Search::LimitsType& limits,
     if (limits.time[us] == 0)
         return;
 
-    TimePoint baseOverhead = TimePoint(options["Move Overhead"]);
-
-    // Adapt the effective overhead based on observed engine speed and measured latency
-    TimePoint adaptiveOverhead = baseOverhead;
-
-    if (rollingNps > 0.0)
-    {
-        TimePoint checkGranularity = TimePoint(std::lround(512000.0 / rollingNps));
-        adaptiveOverhead += checkGranularity;
-    }
-
-    if (latencyEstimate > 0)
-        adaptiveOverhead = std::max(adaptiveOverhead, latencyEstimate + baseOverhead / 2);
-
-    adaptiveOverhead = std::max(adaptiveOverhead, TimePoint(options["Minimum Thinking Time"] / 50));
-
-    TimePoint moveOverhead = adaptiveOverhead;
+    TimePoint moveOverhead = TimePoint(options["Move Overhead"]);
 
     // optScale is a percentage of available time to use for the current move.
     // maxScale is a multiplier applied to optimumTime.
@@ -119,6 +86,9 @@ void TimeManagement::init(Search::LimitsType& limits,
     const int64_t   scaleFactor = useNodesTime ? npmsec : 1;
     const TimePoint scaledTime  = limits.time[us] / scaleFactor;
 
+    constexpr TimePoint lowTimeThreshold = 3000;
+    const TimePoint     safetyBuffer     = TimePoint(200 * scaleFactor);
+
     // Maximum move horizon
     int centiMTG = limits.movestogo ? std::min(limits.movestogo * 100, 5000) : 5051;
 
@@ -132,15 +102,13 @@ void TimeManagement::init(Search::LimitsType& limits,
                limits.time[us]
                  + (limits.inc[us] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
 
-    // When the remaining resources are scarce, reserve a small buffer to avoid
-    // losing on time due to reporting latency or slow thread stops.
-    TimePoint safetyBuffer = 0;
-
-    if (scaledTime < 15000)
-        safetyBuffer =
-          TimePoint(std::max<int64_t>(moveOverhead, std::max<int64_t>(50 * scaleFactor, scaledTime / 12)));
-
-    timeLeft = std::max(TimePoint(1), timeLeft - safetyBuffer);
+    // Under severe time pressure keep a fixed safety buffer and reduce usable time
+    if (scaledTime < lowTimeThreshold)
+    {
+        double reductionFactor = std::clamp(double(scaledTime) / double(lowTimeThreshold), 0.15, 1.0);
+        timeLeft               =
+          std::max(TimePoint(1), TimePoint((timeLeft - safetyBuffer) * reductionFactor + safetyBuffer));
+    }
 
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
@@ -156,11 +124,13 @@ void TimeManagement::init(Search::LimitsType& limits,
         double optConstant  = std::min(0.0032116 + 0.000321123 * logTimeInSec, 0.00508017);
         double maxConstant  = std::max(3.3977 + 3.03950 * logTimeInSec, 2.94761);
 
+        double depletionTaper = std::clamp(double(scaledTime) / 8000.0, 0.25, 1.0);
+
         optScale = std::min(0.0121431 + std::pow(ply + 2.94693, 0.461073) * optConstant,
                             0.213035 * limits.time[us] / timeLeft)
-                 * originalTimeAdjust;
+                 * originalTimeAdjust * (0.7 + 0.3 * depletionTaper);
 
-        maxScale = std::min(6.67704, maxConstant + ply / 11.9847);
+        maxScale = std::min(6.67704, maxConstant + ply / 11.9847) * (0.6 + 0.4 * depletionTaper);
     }
 
     // x moves in y seconds (+ z increment)
@@ -175,8 +145,6 @@ void TimeManagement::init(Search::LimitsType& limits,
     optimumTime = TimePoint(optScale * timeLeft);
     maximumTime =
       TimePoint(std::min(0.825179 * limits.time[us] - moveOverhead, maxScale * optimumTime)) - 10;
-
-    maximumTime = std::max(TimePoint(1), std::min(maximumTime, timeLeft - safetyBuffer / 2));
 
     if (options["Ponder"])
         optimumTime += optimumTime / 4;

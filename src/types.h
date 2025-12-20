@@ -33,8 +33,8 @@
 // -DUSE_POPCNT  | Add runtime support for use of popcnt asm-instruction. Works
 //               | only in 64-bit mode and requires hardware with popcnt support.
 //
-// -DUSE_PEXT    | Add runtime support for use of pext asm-instruction. Works
-//               | only in 64-bit mode and requires hardware with pext support.
+// PEXT support is intentionally disabled because it causes issues with some
+// NNUE networks on older hardware.
 
     #include <cassert>
     #include <cstddef>
@@ -84,12 +84,7 @@
         #include <xmmintrin.h>  // Microsoft header for _mm_prefetch()
     #endif
 
-    #if defined(USE_PEXT)
-        #include <immintrin.h>  // Header for _pext_u64() intrinsic
-        #define pext(b, m) _pext_u64(b, m)
-    #else
-        #define pext(b, m) 0
-    #endif
+    #define pext(b, m) 0
 
 namespace Stockfish {
 
@@ -99,11 +94,7 @@ constexpr bool HasPopCnt = true;
 constexpr bool HasPopCnt = false;
     #endif
 
-    #ifdef USE_PEXT
-constexpr bool HasPext = true;
-    #else
 constexpr bool HasPext = false;
-    #endif
 
     #ifdef IS_64BIT
 constexpr bool Is64Bit = true;
