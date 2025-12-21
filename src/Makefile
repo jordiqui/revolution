@@ -38,7 +38,7 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable naming
-BRANDING = Revolution-3.90-151225
+BRANDING = Revolution-4.0-211225
 EXE_BASE = $(BRANDING)
 EXE_SUFFIX =
 
@@ -152,6 +152,13 @@ endif
 
 ifeq ($(EXE_SUFFIX),)
         EXE_SUFFIX := $(BRANDING_SUFFIX)
+endif
+
+empty :=
+space := $(empty) $(empty)
+UCI_SUFFIX :=
+ifneq ($(BRANDING_SUFFIX),)
+        UCI_SUFFIX := $(space)$(BRANDING_SUFFIX)
 endif
 
 # explicitly check for the list of supported architectures (as listed with make help),
@@ -896,7 +903,7 @@ ifneq ($(ARCH), )
 endif
 
 ### 3.7.4 Expose architecture suffix used for branding
-CXXFLAGS += -DBUILD_ARCH_SUFFIX=\"$(EXE_SUFFIX)\"
+CXXFLAGS += -DBUILD_ARCH_SUFFIX=\"$(UCI_SUFFIX)\"
 
 ### 3.8 Link Time Optimization
 ### This is a mix of compile and link time options because the lto link phase

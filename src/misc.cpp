@@ -44,7 +44,7 @@ namespace {
 #  define BUILD_ARCH_SUFFIX ""
 #endif
 
-constexpr std::string_view version = "Revolution-3.90-151225";
+constexpr std::string_view version = "Revolution-4.0-211225";
 constexpr std::string_view archSuffix = BUILD_ARCH_SUFFIX;
 constexpr std::string_view authors = "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
 
