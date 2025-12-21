@@ -616,6 +616,14 @@ ifeq ($(COMP),ndk)
 	LDFLAGS += -static-libstdc++
 endif
 
+ifeq ($(ARCH),x86-64-sse41-popcnt)
+	ifeq ($(comp),gcc)
+		CXXFLAGS += -fno-semantic-interposition -fno-plt
+	else ifeq ($(comp),clang)
+		CXXFLAGS += -fno-semantic-interposition
+	endif
+endif
+
 ### Allow overwriting CXX from command line
 ifdef COMPCXX
 	CXX=$(COMPCXX)

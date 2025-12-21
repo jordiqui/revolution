@@ -90,6 +90,32 @@ int cautious_black_risk_adjustment(const Position& pos, Value eval) {
     return adjustment;
 }
 
+int closed_position_safety_scale(const Position& pos) {
+    const int rule50 = pos.rule50_count();
+
+    if (rule50 < 12)
+        return 0;
+
+    const Bitboard whitePawns = pos.pieces(WHITE, PAWN);
+    const Bitboard blackPawns = pos.pieces(BLACK, PAWN);
+    const int      totalPawns = popcount(whitePawns | blackPawns);
+
+    if (!totalPawns)
+        return 0;
+
+    const int blockedWhite = popcount(shift<NORTH>(whitePawns) & blackPawns);
+    const int blockedBlack = popcount(shift<SOUTH>(blackPawns) & whitePawns);
+    const int blocked      = blockedWhite + blockedBlack;
+
+    if (blocked * 5 < totalPawns * 3)
+        return 0;
+
+    const int lockScore    = blocked * 64 / totalPawns;
+    const int shuffleScore = std::min(64, (rule50 - 10) * 2);
+
+    return std::min(96, lockScore + shuffleScore);
+}
+
 }  // namespace
 
 // Returns a static, purely materialistic evaluation of the position from
@@ -140,6 +166,9 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     v -= pawnPenalty[pos.side_to_move()] - pawnPenalty[~pos.side_to_move()];
 
     v -= cautious_black_risk_adjustment(pos, v);
+
+    const int safetyScale = closed_position_safety_scale(pos);
+    v -= v * safetyScale / 256;
 
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 212;
