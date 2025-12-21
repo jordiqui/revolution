@@ -61,6 +61,7 @@ SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
         misc.cpp movegen.cpp movepick.cpp position.cpp \
         search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
         experience.cpp \
+        book/book_manager.cpp book/book_utils.cpp \
         nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/network.cpp \
         nnue/features/half_ka_v2_hm.cpp nnue/features/full_threats.cpp \
         engine.cpp score.cpp memory.cpp
@@ -68,6 +69,7 @@ SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
 HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.h \
                 experience.h experience_compat.h experience_zobrist.h \
                 revolution_zobrist.h \
+                book/book.h book/book_manager.h book/book_utils.h \
                 nnue/nnue_misc.h nnue/features/half_ka_v2_hm.h nnue/features/full_threats.h \
                 nnue/layers/affine_transform.h nnue/layers/affine_transform_sparse_input.h \
                 nnue/layers/clipped_relu.h nnue/layers/sqr_clipped_relu.h nnue/nnue_accumulator.h \
@@ -77,7 +79,7 @@ HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.
 
 OBJS = $(notdir $(SRCS:.cpp=.o))
 
-VPATH = syzygy:nnue:nnue/features
+VPATH = syzygy:nnue:nnue/features:book
 
 ### ==========================================================================
 ### Section 2. High-level Configuration
