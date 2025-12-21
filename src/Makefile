@@ -905,7 +905,7 @@ ifneq ($(ARCH), )
 endif
 
 ### 3.7.4 Expose architecture suffix used for branding
-CXXFLAGS += -DBUILD_ARCH_SUFFIX=\"$(UCI_SUFFIX)\"
+CXXFLAGS += '-DBUILD_ARCH_SUFFIX="$(UCI_SUFFIX)"'
 
 ### 3.8 Link Time Optimization
 ### This is a mix of compile and link time options because the lto link phase
