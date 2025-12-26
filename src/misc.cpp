@@ -44,7 +44,8 @@ namespace {
 #  define BUILD_ARCH_SUFFIX ""
 #endif
 
-constexpr std::string_view version = "Revolution-4.0-211225";
+constexpr std::string_view engineBaseName = "Revolution-4.10-261225";
+constexpr std::string_view version = "Revolution-4.10-261225";
 constexpr std::string_view archSuffix = BUILD_ARCH_SUFFIX;
 constexpr std::string_view authors = "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
 
@@ -166,9 +167,13 @@ std::string engine_version_info() {
 
 std::string engine_info(bool to_uci) {
     if (to_uci)
-        return std::string(engine_version_info());
+        return engine_uci_name();
 
     return engine_version_info() + " by " + std::string(authors);
+}
+
+std::string engine_uci_name() {
+    return std::string(engineBaseName) + std::string(archSuffix);
 }
 
 std::string engine_authors() {
