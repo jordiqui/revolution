@@ -19,20 +19,6 @@
 ### Section 1. General Configuration
 ### ==========================================================================
 
-### ------------------------------------------------------------
-### Some flags are ELF-specific (Linux). When targeting Windows
-### via MinGW (x86_64-w64-mingw32-...), clang warns they are unused.
-### ------------------------------------------------------------
-
-# -fno-semantic-interposition is meaningful on ELF (mainly Linux).
-# With MinGW/PE targets it is ignored and triggers:
-#   warning: argument unused during compilation: '-fno-semantic-interposition'
-ifeq (,$(findstring w64-mingw32,$(CXX)))
-  NO_SEMANTIC_INTERPOSITION := -fno-semantic-interposition
-else
-  NO_SEMANTIC_INTERPOSITION :=
-endif
-
 ### Establish the operating system name
 KERNEL := $(shell uname -s)
 ifeq ($(KERNEL),Linux)
@@ -49,6 +35,19 @@ else ifeq ($(COMP),mingw)
         ifeq ($(WINE_PATH),)
                 WINE_PATH := $(shell which wine)
         endif
+endif
+
+### ------------------------------------------------------------
+### Some flags are ELF-specific (Linux). When targeting Windows
+### via MinGW (x86_64-w64-mingw32-...), clang warns they are unused.
+### ------------------------------------------------------------
+
+# -fno-semantic-interposition is meaningful on ELF (mainly Linux).
+# With MinGW/PE targets it is ignored and triggers:
+#   warning: argument unused during compilation: '-fno-semantic-interposition'
+NO_SEMANTIC_INTERPOSITION := -fno-semantic-interposition
+ifeq ($(target_windows),yes)
+  NO_SEMANTIC_INTERPOSITION :=
 endif
 
 ### Executable naming
