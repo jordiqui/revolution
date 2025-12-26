@@ -38,8 +38,8 @@ else ifeq ($(COMP),mingw)
 endif
 
 ### Executable naming
-BRANDING = Revolution-4.0-211225
-EXE_BASE = $(BRANDING)
+ENGINE_NAME_BASE = Revolution-4.10-261225
+EXE_BASE = $(ENGINE_NAME_BASE)
 EXE_SUFFIX =
 
 ### Executable name
@@ -140,27 +140,18 @@ endif
 # normalize architecture name to lowercase to allow case-insensitive input
 override ARCH := $(shell printf '%s' $(ARCH) | tr '[:upper:]' '[:lower:]')
 
-### Branding suffix per architecture (visible in binary name and engine info)
-BRANDING_SUFFIX :=
-ifeq ($(findstring -fma3,$(ARCH)),-fma3)
-        BRANDING_SUFFIX := -FMA3
-else ifeq ($(findstring -bmi2,$(ARCH)),-bmi2)
-        BRANDING_SUFFIX := -bmi2
-else ifeq ($(findstring -avx2,$(ARCH)),-avx2)
-        BRANDING_SUFFIX := -avx2
-else ifeq ($(findstring -sse41-popcnt,$(ARCH)),-sse41-popcnt)
-        BRANDING_SUFFIX := -sse41popcnt
+### Architecture suffix per requested target (visible in binary name and engine info)
+ENGINE_ARCH_SUFFIX ?=
+ifeq ($(ARCH),x86-64-sse41-popcnt)
+        ENGINE_ARCH_SUFFIX := -sse41popcnt
+else ifeq ($(ARCH),x86-64-avx2)
+        ENGINE_ARCH_SUFFIX := -avx2
+else ifeq ($(ARCH),x86-64)
+        ENGINE_ARCH_SUFFIX :=
 endif
 
 ifeq ($(EXE_SUFFIX),)
-        EXE_SUFFIX := $(BRANDING_SUFFIX)
-endif
-
-empty :=
-space := $(empty) $(empty)
-UCI_SUFFIX :=
-ifneq ($(BRANDING_SUFFIX),)
-        UCI_SUFFIX := $(space)$(BRANDING_SUFFIX)
+        EXE_SUFFIX := $(ENGINE_ARCH_SUFFIX)
 endif
 
 # explicitly check for the list of supported architectures (as listed with make help),
@@ -913,7 +904,7 @@ ifneq ($(ARCH), )
 endif
 
 ### 3.7.4 Expose architecture suffix used for branding
-CXXFLAGS += '-DBUILD_ARCH_SUFFIX="$(UCI_SUFFIX)"'
+CXXFLAGS += '-DBUILD_ARCH_SUFFIX="$(ENGINE_ARCH_SUFFIX)"'
 
 ### 3.8 Link Time Optimization
 ### This is a mix of compile and link time options because the lto link phase
