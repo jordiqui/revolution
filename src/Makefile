@@ -19,10 +19,24 @@
 ### Section 1. General Configuration
 ### ==========================================================================
 
+### ------------------------------------------------------------
+### Some flags are ELF-specific (Linux). When targeting Windows
+### via MinGW (x86_64-w64-mingw32-...), clang warns they are unused.
+### ------------------------------------------------------------
+
+# -fno-semantic-interposition is meaningful on ELF (mainly Linux).
+# With MinGW/PE targets it is ignored and triggers:
+#   warning: argument unused during compilation: '-fno-semantic-interposition'
+ifeq (,$(findstring w64-mingw32,$(CXX)))
+  NO_SEMANTIC_INTERPOSITION := -fno-semantic-interposition
+else
+  NO_SEMANTIC_INTERPOSITION :=
+endif
+
 ### Establish the operating system name
 KERNEL := $(shell uname -s)
 ifeq ($(KERNEL),Linux)
-	OS := $(shell uname -o)
+        OS := $(shell uname -o)
 endif
 
 ### Target Windows OS
@@ -608,11 +622,11 @@ ifeq ($(COMP),ndk)
 endif
 
 ifeq ($(ARCH),x86-64-sse41-popcnt)
-	ifeq ($(comp),gcc)
-		CXXFLAGS += -fno-semantic-interposition -fno-plt
-	else ifeq ($(comp),clang)
-		CXXFLAGS += -fno-semantic-interposition
-	endif
+        ifeq ($(comp),gcc)
+                CXXFLAGS += $(NO_SEMANTIC_INTERPOSITION) -fno-plt
+        else ifeq ($(comp),clang)
+                CXXFLAGS += $(NO_SEMANTIC_INTERPOSITION)
+        endif
 endif
 
 ### Allow overwriting CXX from command line
