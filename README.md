@@ -181,6 +181,26 @@ Revolution sigue la matriz de arquitecturas de Stockfish y permite compilar los 
 | `x86-64-v4` (AVX-512 base) | clang | `lld` | `make -j build ARCH=x86-64-v4 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` |
 | `x86-64-avx512icl` (AVX-512 + VNNI) | gcc | `bfd` | `make -j build ARCH=x86-64-avx512icl COMP=gcc` |
 
+### Prefetch explícito y LTO en x86-64-bmi2
+
+Los perfiles SSE4.1/POPCNT admiten forzar las instrucciones de prefetch siempre que el hardware las soporte. Activa esta ruta desde `src/` con:
+
+```
+make -j build ARCH=x86-64-bmi2 COMP=gcc SSE41_POPCNT_PREFETCH=yes build
+```
+
+Para añadir inlining intermodular y eliminación de código muerto entre unidades de traducción, combina el prefetch explícito con **LTO**:
+
+```
+make -j build ARCH=x86-64-bmi2 COMP=gcc SSE41_POPCNT_PREFETCH=yes LTO=yes build
+```
+
+El fichero de referencia `src/bench_prefetch_on.txt` documenta los incrementos de nodos/segundo obtenidos en posiciones tácticas con el prefetch activado.
+
+Tras compilar, valida la mejora con el benchmark integrado ejecutando `./revolution bench` desde `src/`. Compara los nodos/segundo frente a una compilación base `ARCH=x86-64-modern` (sin `SSE41_POPCNT_PREFETCH` ni `LTO`) para medir la ganancia en tu hardware.
+
+### Building for AMD Hawk Point CPUs with FMA3
+
 El comando `make ci-local` (desde `src`) compila los perfiles x86-64 principales con gcc y clang para detectar rápidamente roturas específicas de arquitectura antes de subir cambios.
 
 ### Building for AMD Hawk Point CPUs with FMA3
