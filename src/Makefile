@@ -51,7 +51,7 @@ ifeq ($(target_windows),yes)
 endif
 
 ### Executable naming
-ENGINE_NAME_BASE = Revolution-4.10-261225
+ENGINE_NAME_BASE = Revolution-4.20-040126
 EXE_BASE = $(ENGINE_NAME_BASE)
 EXE_SUFFIX =
 
@@ -159,6 +159,12 @@ ifeq ($(ARCH),x86-64-sse41-popcnt)
         ENGINE_ARCH_SUFFIX := -sse41popcnt
 else ifeq ($(ARCH),x86-64-avx2)
         ENGINE_ARCH_SUFFIX := -avx2
+else ifeq ($(ARCH),x86-64-bmi2)
+        ENGINE_ARCH_SUFFIX := -bmi2
+else ifeq ($(ARCH),x86-64-fma3)
+        ENGINE_ARCH_SUFFIX := -FMA3
+else ifeq ($(ARCH),x86-64-avx512)
+        ENGINE_ARCH_SUFFIX := -avx512
 else ifeq ($(ARCH),x86-64)
         ENGINE_ARCH_SUFFIX :=
 endif
