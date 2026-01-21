@@ -1068,7 +1068,17 @@ profile-build: $(NNUE_TARGET) config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
-	$(PGOBENCH) > PGOBENCH.out 2>&1
+	@LLVM_PROFILE_FILE="$(CURDIR)/pgo_%p.profraw" $(PGOBENCH) > PGOBENCH.out 2>&1 ; \
+	rc=$$?; \
+	profraw_count=$$(ls -1 "$(CURDIR)"/pgo_*.profraw 2>/dev/null | wc -l); \
+	if [ $$profraw_count -eq 0 ]; then \
+		echo "exit_code=$$rc"; \
+		tail -n 120 PGOBENCH.out; \
+		exit 1; \
+	fi; \
+	if [ $$rc -ne 0 ]; then \
+		echo "WARNING: bench exited with code $$rc but profraw files exist; continuing."; \
+	fi
 	@tail -n 4 PGOBENCH.out
 	@echo ""
 	@echo "Step 3/4. Building optimized executable ..."
