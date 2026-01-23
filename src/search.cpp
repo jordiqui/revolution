@@ -593,7 +593,9 @@ void Search::Worker::do_move(
     nodes.fetch_add(1, std::memory_order_relaxed);
 
     DirtyBoardData dirtyBoardData = pos.do_move(move, st, givesCheck, &tt);
-    accumulatorStack.push(dirtyBoardData);
+    auto [dirtyPiece, dirtyThreats] = accumulatorStack.push();
+    dirtyPiece                      = dirtyBoardData.dp;
+    dirtyThreats                    = dirtyBoardData.dts;
 
     if (ss != nullptr)
     {
