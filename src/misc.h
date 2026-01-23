@@ -34,6 +34,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #define stringify2(x) #x
@@ -299,11 +300,34 @@ inline uint64_t mul_hi64(uint64_t a, uint64_t b) {
 #endif
 }
 
+inline std::size_t basic_hash(std::string_view data) noexcept {
+    constexpr std::uint64_t fnv_offset_basis = 1469598103934665603ULL;
+    constexpr std::uint64_t fnv_prime        = 1099511628211ULL;
+
+    std::uint64_t hash = fnv_offset_basis;
+    for (unsigned char byte : data)
+    {
+        hash ^= byte;
+        hash *= fnv_prime;
+    }
+
+    return static_cast<std::size_t>(hash);
+}
+
+template<typename T>
+inline std::size_t stable_hash(const T& value) noexcept {
+    return std::hash<T>{}(value);
+}
+
+inline std::size_t stable_hash(std::string_view value) noexcept { return basic_hash(value); }
+
+inline std::size_t stable_hash(const std::string& value) noexcept {
+    return basic_hash(std::string_view(value));
+}
 
 template<typename T>
 inline void hash_combine(std::size_t& seed, const T& v) {
-    std::hash<T> hasher;
-    seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+    seed ^= stable_hash(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
 template<>
@@ -313,8 +337,7 @@ inline void hash_combine(std::size_t& seed, const std::size_t& v) {
 
 template<typename T>
 inline std::size_t get_raw_data_hash(const T& value) {
-    return std::hash<std::string_view>{}(
-      std::string_view(reinterpret_cast<const char*>(&value), sizeof(value)));
+    return basic_hash(std::string_view(reinterpret_cast<const char*>(&value), sizeof(value)));
 }
 
 template<std::size_t Capacity>
@@ -435,7 +458,7 @@ void move_to_front(std::vector<T>& vec, Predicate pred) {
 template<std::size_t N>
 struct std::hash<Stockfish::FixedString<N>> {
     std::size_t operator()(const Stockfish::FixedString<N>& fstr) const noexcept {
-        return std::hash<std::string_view>{}((std::string_view) fstr);
+        return Stockfish::basic_hash((std::string_view) fstr);
     }
 };
 
