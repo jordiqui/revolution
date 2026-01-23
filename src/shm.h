@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cstdio>
 #include <functional>
 #include <iomanip>
 #include <iostream>
@@ -511,12 +512,10 @@ template<typename T>
 struct SystemWideSharedConstant {
    private:
     static std::string createHashString(const std::string& input) {
-        size_t hash = std::hash<std::string>{}(input);
-
-        std::stringstream ss;
-        ss << std::hex << std::setfill('0') << hash;
-
-        return ss.str();
+        const std::size_t hash = stable_hash(input);
+        char              buf[2 + sizeof(std::size_t) * 2] = {};
+        std::snprintf(buf, sizeof(buf), "%zx", hash);
+        return buf;
     }
 
    public:
@@ -532,12 +531,12 @@ struct SystemWideSharedConstant {
     // Content is addressed by its hash. An additional discriminator can be added to account for differences
     // that are not present in the content, for example NUMA node allocation.
     SystemWideSharedConstant(const T& value, std::size_t discriminator = 0) {
-        std::size_t content_hash    = std::hash<T>{}(value);
-        std::size_t executable_hash = std::hash<std::string>{}(getExecutablePathHash());
-
-        std::string shm_name = std::string("Local\\sf_") + std::to_string(content_hash) + "$"
-                             + std::to_string(executable_hash) + "$"
-                             + std::to_string(discriminator);
+        std::size_t content_hash    = stable_hash(value);
+        std::size_t executable_hash = stable_hash(getExecutablePathHash());
+        char        shm_name_buf[128] = {};
+        std::snprintf(shm_name_buf, sizeof(shm_name_buf), "Local\\sf_%zu$%zu$%zu", content_hash,
+                      executable_hash, discriminator);
+        std::string shm_name = shm_name_buf;
 
 #if !defined(_WIN32)
         // POSIX shared memory names must start with a slash
