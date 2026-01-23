@@ -35,8 +35,6 @@
 #include <type_traits>
 #include <unordered_set>
 
-#include "misc.h"
-
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/file.h>
@@ -106,12 +104,6 @@ class CleanupHooks {
 
     static void handle_signal(int sig) noexcept {
         SharedMemoryRegistry::cleanup_all();
-        struct sigaction sa;
-        sa.sa_handler = SIG_DFL;
-        sigemptyset(&sa.sa_mask);
-        sa.sa_flags = 0;
-        sigaction(sig, &sa, nullptr);
-        raise(sig);
         _Exit(128 + sig);
     }
 
@@ -178,7 +170,7 @@ class SharedMemory: public detail::SharedMemoryBase {
     }
 
     static std::string make_sentinel_base(const std::string& name) {
-        uint64_t hash = Stockfish::stable_hash(name);
+        uint64_t hash = std::hash<std::string>{}(name);
         char     buf[32];
         std::snprintf(buf, sizeof(buf), "sfshm_%016" PRIx64, static_cast<uint64_t>(hash));
         return buf;
@@ -438,9 +430,7 @@ class SharedMemory: public detail::SharedMemoryBase {
         std::string path = "/dev/shm/";
         path += sentinel_base_;
         path.push_back('.');
-        char pid_buf[32];
-        std::snprintf(pid_buf, sizeof(pid_buf), "%ld", static_cast<long>(pid));
-        path += pid_buf;
+        path += std::to_string(pid);
         return path;
     }
 
