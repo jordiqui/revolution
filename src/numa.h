@@ -38,6 +38,8 @@
 #include <vector>
 #include <cstring>
 
+#include "misc.h"
+
 #include "shm.h"
 
 // We support linux very well, but we explicitly do NOT support Android,
@@ -1395,7 +1397,7 @@ class LazyNumaReplicatedSystemWide: public NumaReplicatedBase {
         CpuIndex    cpu     = *cfg.nodes[idx].begin();  // get a CpuIndex from NumaIndex
         NumaIndex   sys_idx = cfg_sys.is_cpu_assigned(cpu) ? cfg_sys.nodeByCpu.at(cpu) : 0;
         std::string s       = cfg_sys.to_string() + "$" + std::to_string(sys_idx);
-        return std::hash<std::string>{}(s);
+        return hash_string(s);
     }
 
     void ensure_present(NumaIndex idx) const {
