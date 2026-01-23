@@ -1,4 +1,4 @@
-Revolution-4.60-210126 by Jorge Ruiz and the Stockfish developers (see AUTHORS file)
+Revolution-4.50-160125 by Jorge Ruiz and the Stockfish developers (see AUTHORS file)
 info string NNUE file 'nn-c288c895ea92.nnue' missing or incompatible, using zeroed fallback
 info string NNUE file 'nn-37f18f62d772.nnue' missing or incompatible, using zeroed fallback
 info string Using 1 thread
