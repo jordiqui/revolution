@@ -77,6 +77,7 @@ class Network {
                            AccumulatorStack&                       accumulatorStack,
                            AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
+    bool is_loaded() const noexcept { return initialized; }
 
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,

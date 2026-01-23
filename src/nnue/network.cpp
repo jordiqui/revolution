@@ -319,10 +319,15 @@ bool Network<Arch, Transformer>::save(std::ostream&      stream,
 
 template<typename Arch, typename Transformer>
 std::optional<std::string> Network<Arch, Transformer>::load(std::istream& stream) {
-    initialize();
+    // Ensure we never report "loaded" after a failed/corrupt read.
+    initialized = false;
     std::string description;
 
-    return read_parameters(stream, description) ? std::make_optional(description) : std::nullopt;
+    if (!read_parameters(stream, description))
+        return std::nullopt;
+
+    initialize();
+    return std::make_optional(description);
 }
 
 
