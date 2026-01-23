@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <atomic>
-#include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
@@ -1395,10 +1394,8 @@ class LazyNumaReplicatedSystemWide: public NumaReplicatedBase {
         // as a descriminator, locate the hardware/system numadomain this cpuindex belongs to
         CpuIndex    cpu     = *cfg.nodes[idx].begin();  // get a CpuIndex from NumaIndex
         NumaIndex   sys_idx = cfg_sys.is_cpu_assigned(cpu) ? cfg_sys.nodeByCpu.at(cpu) : 0;
-        char        sys_idx_buf[32];
-        std::snprintf(sys_idx_buf, sizeof(sys_idx_buf), "%zu", static_cast<std::size_t>(sys_idx));
-        std::string s = cfg_sys.to_string() + "$" + sys_idx_buf;
-        return stable_hash(s);
+        std::string s       = cfg_sys.to_string() + "$" + std::to_string(sys_idx);
+        return std::hash<std::string>{}(s);
     }
 
     void ensure_present(NumaIndex idx) const {
