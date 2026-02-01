@@ -19,6 +19,7 @@
 #include "engine.h"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <deque>
 #include <iosfwd>
@@ -48,6 +49,27 @@
 namespace Stockfish {
 
 namespace NN = Eval::NNUE;
+
+namespace {
+
+template<typename NetworkType>
+void log_embedded_network(const NetworkType& network, std::string_view label) {
+    if (!network.embedded_loaded_ok())
+        return;
+
+    const auto dims = network.embedded_dims();
+    sync_cout << "info string NNUE " << label << " loaded: " << network.default_name()
+              << " -> <embedded> (" << network.embedded_bytes() << " bytes, (" << dims[0] << ", "
+              << dims[1] << ", " << dims[2] << ", " << dims[3] << ", " << dims[4] << "))"
+              << sync_endl;
+}
+
+void log_embedded_networks(const NN::Networks& networks) {
+    log_embedded_network(networks.big, "big");
+    log_embedded_network(networks.small, "small");
+}
+
+}  // namespace
 
 constexpr auto StartFEN   = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 constexpr int  MaxHashMB  = Is64Bit ? 33554432 : 2048;
@@ -338,6 +360,7 @@ void Engine::load_networks() {
         networks_.big.load(binaryDirectory, options["EvalFile"]);
         networks_.small.load(binaryDirectory, options["EvalFileSmall"]);
     });
+    log_embedded_networks(*networks);
     threads.clear();
     threads.ensure_network_replicated();
 }
@@ -345,6 +368,7 @@ void Engine::load_networks() {
 void Engine::load_big_network(const std::string& file) {
     networks.modify_and_replicate(
       [this, &file](NN::Networks& networks_) { networks_.big.load(binaryDirectory, file); });
+    log_embedded_networks(*networks);
     threads.clear();
     threads.ensure_network_replicated();
 }
@@ -352,6 +376,7 @@ void Engine::load_big_network(const std::string& file) {
 void Engine::load_small_network(const std::string& file) {
     networks.modify_and_replicate(
       [this, &file](NN::Networks& networks_) { networks_.small.load(binaryDirectory, file); });
+    log_embedded_networks(*networks);
     threads.clear();
     threads.ensure_network_replicated();
 }

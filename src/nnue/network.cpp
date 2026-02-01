@@ -18,7 +18,6 @@
 
 #include "network.h"
 
-#include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -72,9 +71,6 @@ struct EmbeddedNNUE {
 
 using namespace Stockfish::Eval::NNUE;
 
-std::atomic_bool gLoggedEmbeddedBig{false};
-std::atomic_bool gLoggedEmbeddedSmall{false};
-
 EmbeddedNNUE get_embedded(EmbeddedNNUEType type) {
     if (type == EmbeddedNNUEType::BIG)
         return EmbeddedNNUE(gEmbeddedNNUEBigData, gEmbeddedNNUEBigEnd, gEmbeddedNNUEBigSize);
@@ -115,14 +111,17 @@ template<typename Arch, typename Transformer>
 void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::string evalfilePath) {
     constexpr std::string_view embeddedName = "<embedded>";
 #if defined(DEFAULT_NNUE_DIRECTORY)
-    std::vector<std::string> dirs = {"<internal>", "", rootDirectory,
-                                     stringify(DEFAULT_NNUE_DIRECTORY)};
+    std::vector<std::string> dirs = {"", rootDirectory, stringify(DEFAULT_NNUE_DIRECTORY)};
 #else
-    std::vector<std::string> dirs = {"<internal>", "", rootDirectory};
+    std::vector<std::string> dirs = {"", rootDirectory};
 #endif
 
     const bool useEmbeddedName = evalfilePath == embeddedName;
-    std::string desiredName;
+    std::string desiredName = evalfilePath;
+
+    embeddedLoaded = false;
+    embeddedBytes  = 0;
+    embeddedDims   = {};
 
     if (evalfilePath.empty())
     {
@@ -141,11 +140,11 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
 
     const bool defaultRequested = evalfilePath == std::string(evalFile.defaultName);
 
-    if (defaultRequested || useEmbeddedName)
+    if (defaultRequested)
     {
         if (!load_internal(desiredName))
         {
-            sync_cout << "info string FATAL: embedded NNUE is invalid/incompatible (this build is broken)"
+            sync_cout << "info string FATAL: embedded NNUE invalid/incompatible (broken build)"
                       << sync_endl;
             exit(EXIT_FAILURE);
         }
@@ -154,13 +153,8 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
 
     for (const auto& directory : dirs)
     {
-        if (std::string(evalFile.current) != desiredName)
-        {
-            if (directory != "<internal>")
-            {
-                load_user_net(directory, evalfilePath);
-            }
-        }
+        if (load_user_net(directory, evalfilePath))
+            return;
     }
 }
 
@@ -289,7 +283,7 @@ Network<Arch, Transformer>::trace_evaluate(const Position&                      
 
 
 template<typename Arch, typename Transformer>
-void Network<Arch, Transformer>::load_user_net(const std::string& dir,
+bool Network<Arch, Transformer>::load_user_net(const std::string& dir,
                                                const std::string& evalfilePath) {
     std::ifstream stream(dir + evalfilePath, std::ios::binary);
     auto          description = load(stream);
@@ -298,7 +292,10 @@ void Network<Arch, Transformer>::load_user_net(const std::string& dir,
     {
         evalFile.current        = evalfilePath;
         evalFile.netDescription = description.value();
+        return true;
     }
+
+    return false;
 }
 
 
@@ -330,22 +327,13 @@ bool Network<Arch, Transformer>::load_internal(std::string_view currentName) {
     evalFile.current        = std::string(currentName);
     evalFile.netDescription = description.value();
 
-    const bool alreadyLogged =
-      embeddedType == EmbeddedNNUEType::BIG ? gLoggedEmbeddedBig.exchange(true)
-                                            : gLoggedEmbeddedSmall.exchange(true);
-    if (!alreadyLogged)
-    {
-        const auto nnueName = std::string(evalFile.defaultName);
-        const auto dims =
-          std::to_string(featureTransformer.TotalInputDimensions) + ", "
-          + std::to_string(network[0].TransformedFeatureDimensions) + ", "
-          + std::to_string(network[0].FC_0_OUTPUTS) + ", "
-          + std::to_string(network[0].FC_1_OUTPUTS) + ", 1";
-        sync_cout << "info string NNUE "
-                  << (embeddedType == EmbeddedNNUEType::BIG ? "big" : "small") << " loaded: "
-                  << nnueName << " -> <embedded> (" << embedded.size << " bytes, (" << dims
-                  << "))" << sync_endl;
-    }
+    embeddedLoaded = true;
+    embeddedBytes  = embedded.size;
+    embeddedDims   = {featureTransformer.TotalInputDimensions,
+                      network[0].TransformedFeatureDimensions,
+                      network[0].FC_0_OUTPUTS,
+                      network[0].FC_1_OUTPUTS,
+                      1};
 
     return true;
 }
