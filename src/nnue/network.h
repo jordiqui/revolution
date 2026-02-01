@@ -86,7 +86,7 @@ class Network {
 
    private:
     void load_user_net(const std::string&, const std::string&);
-    void load_internal();
+    void load_internal(std::string_view currentName);
 
     void initialize();
 
