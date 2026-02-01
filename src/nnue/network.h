@@ -19,6 +19,7 @@
 #ifndef NETWORK_H_INCLUDED
 #define NETWORK_H_INCLUDED
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -78,6 +79,10 @@ class Network {
                            AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
     bool is_loaded() const noexcept { return initialized; }
+    bool embedded_loaded_ok() const noexcept { return embeddedLoaded; }
+    std::size_t embedded_bytes() const noexcept { return embeddedBytes; }
+    std::array<int, 5> embedded_dims() const noexcept { return embeddedDims; }
+    std::string default_name() const { return std::string(evalFile.defaultName); }
 
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,
@@ -85,7 +90,7 @@ class Network {
                                  AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
    private:
-    void load_user_net(const std::string&, const std::string&);
+    bool load_user_net(const std::string&, const std::string&);
     bool load_internal(std::string_view currentName);
 
     void initialize();
@@ -109,6 +114,10 @@ class Network {
     EmbeddedNNUEType embeddedType;
 
     bool initialized = false;
+    bool embeddedLoaded = false;
+
+    std::size_t        embeddedBytes = 0;
+    std::array<int, 5> embeddedDims{};
 
     // Hash value of evaluation function structure
     static constexpr std::uint32_t hash = Transformer::get_hash_value() ^ Arch::get_hash_value();
