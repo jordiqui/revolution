@@ -18,6 +18,7 @@
 
 #include "network.h"
 
+#include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -70,6 +71,9 @@ struct EmbeddedNNUE {
 };
 
 using namespace Stockfish::Eval::NNUE;
+
+std::atomic_bool gLoggedEmbeddedBig{false};
+std::atomic_bool gLoggedEmbeddedSmall{false};
 
 EmbeddedNNUE get_embedded(EmbeddedNNUEType type) {
     if (type == EmbeddedNNUEType::BIG)
@@ -135,18 +139,26 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
         desiredName = evalfilePath;
     }
 
+    const bool defaultRequested = evalfilePath == std::string(evalFile.defaultName);
+
+    if (defaultRequested || useEmbeddedName)
+    {
+        if (!load_internal(desiredName))
+        {
+            sync_cout << "info string FATAL: embedded NNUE is invalid/incompatible (this build is broken)"
+                      << sync_endl;
+            exit(EXIT_FAILURE);
+        }
+        return;
+    }
+
     for (const auto& directory : dirs)
     {
         if (std::string(evalFile.current) != desiredName)
         {
-            if (directory != "<internal>" && !useEmbeddedName)
+            if (directory != "<internal>")
             {
                 load_user_net(directory, evalfilePath);
-            }
-
-            if (directory == "<internal>" && evalfilePath == std::string(evalFile.defaultName))
-            {
-                load_internal(desiredName);
             }
         }
     }
@@ -291,7 +303,7 @@ void Network<Arch, Transformer>::load_user_net(const std::string& dir,
 
 
 template<typename Arch, typename Transformer>
-void Network<Arch, Transformer>::load_internal(std::string_view currentName) {
+bool Network<Arch, Transformer>::load_internal(std::string_view currentName) {
     // C++ way to prepare a buffer for a memory stream
     class MemoryBuffer: public std::basic_streambuf<char> {
        public:
@@ -303,17 +315,39 @@ void Network<Arch, Transformer>::load_internal(std::string_view currentName) {
 
     const auto embedded = get_embedded(embeddedType);
 
+    if (embedded.size <= 1)
+        return false;
+
     MemoryBuffer buffer(const_cast<char*>(reinterpret_cast<const char*>(embedded.data)),
                         size_t(embedded.size));
 
     std::istream stream(&buffer);
     auto         description = load(stream);
 
-    if (description.has_value())
+    if (!description.has_value())
+        return false;
+
+    evalFile.current        = std::string(currentName);
+    evalFile.netDescription = description.value();
+
+    const bool alreadyLogged =
+      embeddedType == EmbeddedNNUEType::BIG ? gLoggedEmbeddedBig.exchange(true)
+                                            : gLoggedEmbeddedSmall.exchange(true);
+    if (!alreadyLogged)
     {
-        evalFile.current        = std::string(currentName);
-        evalFile.netDescription = description.value();
+        const auto nnueName = std::string(evalFile.defaultName);
+        const auto dims =
+          std::to_string(featureTransformer.TotalInputDimensions) + ", "
+          + std::to_string(network[0].TransformedFeatureDimensions) + ", "
+          + std::to_string(network[0].FC_0_OUTPUTS) + ", "
+          + std::to_string(network[0].FC_1_OUTPUTS) + ", 1";
+        sync_cout << "info string NNUE "
+                  << (embeddedType == EmbeddedNNUEType::BIG ? "big" : "small") << " loaded: "
+                  << nnueName << " -> <embedded> (" << embedded.size << " bytes, (" << dims
+                  << "))" << sync_endl;
     }
+
+    return true;
 }
 
 
