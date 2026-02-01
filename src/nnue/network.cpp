@@ -109,6 +109,7 @@ bool write_parameters(std::ostream& stream, const T& reference) {
 
 template<typename Arch, typename Transformer>
 void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::string evalfilePath) {
+    constexpr std::string_view embeddedName = "<embedded>";
 #if defined(DEFAULT_NNUE_DIRECTORY)
     std::vector<std::string> dirs = {"<internal>", "", rootDirectory,
                                      stringify(DEFAULT_NNUE_DIRECTORY)};
@@ -116,21 +117,36 @@ void Network<Arch, Transformer>::load(const std::string& rootDirectory, std::str
     std::vector<std::string> dirs = {"<internal>", "", rootDirectory};
 #endif
 
+    const bool useEmbeddedName = evalfilePath == embeddedName;
+    std::string desiredName;
+
     if (evalfilePath.empty())
+    {
         evalfilePath = evalFile.defaultName;
+        desiredName  = evalfilePath;
+    }
+    else if (useEmbeddedName)
+    {
+        desiredName  = std::string(embeddedName);
+        evalfilePath = evalFile.defaultName;
+    }
+    else
+    {
+        desiredName = evalfilePath;
+    }
 
     for (const auto& directory : dirs)
     {
-        if (std::string(evalFile.current) != evalfilePath)
+        if (std::string(evalFile.current) != desiredName)
         {
-            if (directory != "<internal>")
+            if (directory != "<internal>" && !useEmbeddedName)
             {
                 load_user_net(directory, evalfilePath);
             }
 
             if (directory == "<internal>" && evalfilePath == std::string(evalFile.defaultName))
             {
-                load_internal();
+                load_internal(desiredName);
             }
         }
     }
@@ -146,7 +162,8 @@ bool Network<Arch, Transformer>::save(const std::optional<std::string>& filename
         actualFilename = filename.value();
     else
     {
-        if (std::string(evalFile.current) != std::string(evalFile.defaultName))
+        if (std::string(evalFile.current) != std::string(evalFile.defaultName)
+            && std::string(evalFile.current) != "<embedded>")
         {
             msg = "Failed to export a net. "
                   "A non-embedded net can only be saved if the filename is specified";
@@ -274,7 +291,7 @@ void Network<Arch, Transformer>::load_user_net(const std::string& dir,
 
 
 template<typename Arch, typename Transformer>
-void Network<Arch, Transformer>::load_internal() {
+void Network<Arch, Transformer>::load_internal(std::string_view currentName) {
     // C++ way to prepare a buffer for a memory stream
     class MemoryBuffer: public std::basic_streambuf<char> {
        public:
@@ -294,7 +311,7 @@ void Network<Arch, Transformer>::load_internal() {
 
     if (description.has_value())
     {
-        evalFile.current        = evalFile.defaultName;
+        evalFile.current        = std::string(currentName);
         evalFile.netDescription = description.value();
     }
 }
