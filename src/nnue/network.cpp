@@ -329,8 +329,8 @@ bool Network<Arch, Transformer>::load_internal(std::string_view currentName) {
 
     embeddedLoaded = true;
     embeddedBytes  = embedded.size;
-    embeddedDims   = {featureTransformer.TotalInputDimensions,
-                      network[0].TransformedFeatureDimensions,
+    embeddedDims   = {static_cast<int>(featureTransformer.TotalInputDimensions),
+                      static_cast<int>(network[0].TransformedFeatureDimensions),
                       network[0].FC_0_OUTPUTS,
                       network[0].FC_1_OUTPUTS,
                       1};
