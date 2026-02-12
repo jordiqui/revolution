@@ -51,7 +51,7 @@ ifeq ($(target_windows),yes)
 endif
 
 ### Executable naming
-ENGINE_NAME_BASE = Revolution-4.70-010226
+ENGINE_NAME_BASE = Revolution-4.80-120226
 EXE_BASE = $(ENGINE_NAME_BASE)
 EXE_SUFFIX =
 
