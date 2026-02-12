@@ -896,7 +896,7 @@ endif
 # Set NNUE_EMBEDDING_OFF to 'yes' (or '1', 'true', 'on') to disable embedding
 # and skip the automatic download step.
 NNUE_EMBEDDING_OFF ?= no
-NNUE_BIG := nn-c288c895ea92.nnue
+NNUE_BIG := nn-3dd094f3dfcf.nnue
 NNUE_SMALL := nn-37f18f62d772.nnue
 
 ifneq ($(filter 1 yes true on,$(NNUE_EMBEDDING_OFF)),)
@@ -1207,8 +1207,8 @@ config-sanity: $(NNUE_TARGET)
 
 $(EXE): $(OBJS)
 	+$(CXX) -o $@ $(OBJS) $(LDFLAGS)
-	@cp -f nnue/$(NNUE_BIG) ./$(NNUE_BIG)
-	@cp -f nnue/$(NNUE_SMALL) ./$(NNUE_SMALL)
+	@test -f ./$(NNUE_BIG)
+	@test -f ./$(NNUE_SMALL)
 
 # Force recompilation to ensure version info is up-to-date
 misc.o: FORCE

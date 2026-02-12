@@ -48,7 +48,7 @@ fetch_network() {
     return 1
   fi
 
-  target="$script_dir/$_filename"
+  target="$script_dir/../$_filename"
 
   if [ -f "$target" ]; then
     if validate_network "$target"; then
