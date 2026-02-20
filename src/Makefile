@@ -55,7 +55,7 @@ BINDIR = $(PREFIX)/bin
 ### Built-in benchmark for pgo-builds
 EXE_ABS := $(abspath ./$(EXE))
 EXE_DIR := $(dir $(EXE_ABS))
-PGOBENCH = $(WINE_PATH) "$(EXE_ABS)" bench
+PGOBENCH = cd "$(EXE_DIR)" && $(WINE_PATH) "$(EXE_ABS)" bench
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -991,7 +991,15 @@ profile-build: net config-sanity objclean profileclean
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
 	@src="$(abspath $(NNUE_BIG))";   dst="$(EXE_DIR)$(NNUE_BIG)";   [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
 	@src="$(abspath $(NNUE_SMALL))"; dst="$(EXE_DIR)$(NNUE_SMALL)"; [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
-	$(PGOBENCH) > PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1)
+	@(echo "=== PGOBENCH preflight ==="; \
+	  pwd; \
+	  ls -lh "./$(EXE)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
+	@BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
+	if [ "$(target_windows)" = "yes" ] && command -v cygpath > /dev/null 2>&1; then \
+	  BIG="$$(cygpath -w "$(abspath $(NNUE_BIG))")"; \
+	  SMALL="$$(cygpath -w "$(abspath $(NNUE_SMALL))")"; \
+	fi; \
+	printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | $(WINE_PATH) "./$(EXE)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1)
 	tail -n 4 PGOBENCH.out
 	@echo ""
 	@echo "Step 3/4. Building optimized executable ..."
