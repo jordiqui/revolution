@@ -39,10 +39,14 @@ endif
 
 ### Executable name
 ifeq ($(target_windows),yes)
-	EXE = stockfish.exe
+	EXESUF = .exe
 else
-	EXE = stockfish
+	EXESUF =
 endif
+EXE = revolution$(EXESUF)
+
+NNUE_BIG = nn-5227780996d3.nnue
+NNUE_SMALL = nn-37f18f62d772.nnue
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -1021,7 +1025,7 @@ profileclean:
 
 # evaluation network (nnue)
 net:
-	@$(SHELL) ../scripts/net.sh
+	@NNUE_BIG=$(NNUE_BIG) NNUE_SMALL=$(NNUE_SMALL) $(SHELL) ../scripts/net.sh
 
 format:
 	$(CLANG-FORMAT) -i $(SRCS) $(HEADERS) -style=file
