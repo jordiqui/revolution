@@ -53,7 +53,9 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-PGOBENCH = $(WINE_PATH) ./$(EXE) bench
+EXE_ABS := $(abspath ./$(EXE))
+EXE_DIR := $(dir $(EXE_ABS))
+PGOBENCH = $(WINE_PATH) "$(EXE_ABS)" bench
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -987,6 +989,8 @@ profile-build: net config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
+	@src="$(abspath $(NNUE_BIG))";   dst="$(EXE_DIR)$(NNUE_BIG)";   [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
+	@src="$(abspath $(NNUE_SMALL))"; dst="$(EXE_DIR)$(NNUE_SMALL)"; [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
 	$(PGOBENCH) > PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1)
 	tail -n 4 PGOBENCH.out
 	@echo ""
