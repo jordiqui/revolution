@@ -25,7 +25,6 @@
 #include "position.h"
 #include "tune.h"
 #include "uci.h"
-#include "experience.h"
 
 using namespace Stockfish;
 
@@ -41,8 +40,6 @@ int main(int argc, char* argv[]) {
     Tune::init(uci->engine_options());
 
     uci->loop();
-
-    Experience::flush();
 
     return 0;
 }

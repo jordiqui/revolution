@@ -163,7 +163,6 @@ class Position {
 
     // Position consistency check, for debugging
     bool pos_is_ok() const;
-    bool material_key_is_ok() const;
     void flip();
 
     StateInfo* state() const;
@@ -175,7 +174,6 @@ class Position {
    private:
     // Initialization helpers (used while setting up a position)
     void set_castling_right(Color c, Square rfrom);
-    Key  compute_material_key() const;
     void set_state() const;
     void set_check_info() const;
 

@@ -33,12 +33,9 @@
 #include <sstream>
 #include <string>
 #include <thread>
-#include <type_traits>
 #include <utility>
 #include <vector>
 #include <cstring>
-
-#include "misc.h"
 
 #include "shm.h"
 
@@ -372,50 +369,6 @@ inline WindowsAffinity get_process_affinity() {
     }
 
     return affinity;
-}
-
-// Type machinery used to emulate Cache->GroupCount
-
-template<typename T, typename = void>
-struct HasGroupCount: std::false_type {};
-
-template<typename T>
-struct HasGroupCount<T, std::void_t<decltype(std::declval<T>().Cache.GroupCount)>>: std::true_type {
-};
-
-template<typename T, typename Pred, std::enable_if_t<HasGroupCount<T>::value, bool> = true>
-std::set<CpuIndex> readCacheMembers(const T* info, Pred&& is_cpu_allowed) {
-    std::set<CpuIndex> cpus;
-    // On Windows 10 this will read a 0 because GroupCount doesn't exist
-    int groupCount = std::max(info->Cache.GroupCount, WORD(1));
-    for (WORD procGroup = 0; procGroup < groupCount; ++procGroup)
-    {
-        for (BYTE number = 0; number < WIN_PROCESSOR_GROUP_SIZE; ++number)
-        {
-            WORD           groupNumber = info->Cache.GroupMasks[procGroup].Group;
-            const CpuIndex c = static_cast<CpuIndex>(groupNumber) * WIN_PROCESSOR_GROUP_SIZE
-                             + static_cast<CpuIndex>(number);
-            if (!(info->Cache.GroupMasks[procGroup].Mask & (1ULL << number)) || !is_cpu_allowed(c))
-                continue;
-            cpus.insert(c);
-        }
-    }
-    return cpus;
-}
-
-template<typename T, typename Pred, std::enable_if_t<!HasGroupCount<T>::value, bool> = true>
-std::set<CpuIndex> readCacheMembers(const T* info, Pred&& is_cpu_allowed) {
-    std::set<CpuIndex> cpus;
-    for (BYTE number = 0; number < WIN_PROCESSOR_GROUP_SIZE; ++number)
-    {
-        WORD           groupNumber = info->Cache.GroupMask.Group;
-        const CpuIndex c           = static_cast<CpuIndex>(groupNumber) * WIN_PROCESSOR_GROUP_SIZE
-                         + static_cast<CpuIndex>(number);
-        if (!(info->Cache.GroupMask.Mask & (1ULL << number)) || !is_cpu_allowed(c))
-            continue;
-        cpus.insert(c);
-    }
-    return cpus;
 }
 
 #endif
@@ -1397,7 +1350,7 @@ class LazyNumaReplicatedSystemWide: public NumaReplicatedBase {
         CpuIndex    cpu     = *cfg.nodes[idx].begin();  // get a CpuIndex from NumaIndex
         NumaIndex   sys_idx = cfg_sys.is_cpu_assigned(cpu) ? cfg_sys.nodeByCpu.at(cpu) : 0;
         std::string s       = cfg_sys.to_string() + "$" + std::to_string(sys_idx);
-        return hash_string(s);
+        return std::hash<std::string>{}(s);
     }
 
     void ensure_present(NumaIndex idx) const {

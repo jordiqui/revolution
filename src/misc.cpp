@@ -39,15 +39,8 @@ namespace Stockfish {
 
 namespace {
 
-// Engine branding and version information.
-#ifndef BUILD_ARCH_SUFFIX
-#  define BUILD_ARCH_SUFFIX ""
-#endif
-
-constexpr std::string_view engineBaseName = "Revolution-4.80-120226";
-constexpr std::string_view version = "Revolution-4.80-120226";
-constexpr std::string_view archSuffix = BUILD_ARCH_SUFFIX;
-constexpr std::string_view authors = "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
+// Version number or dev.
+constexpr std::string_view version = "4.80-120226";
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -132,12 +125,12 @@ class Logger {
 // For releases (non-dev builds) we only include the version number:
 //      Stockfish version
 std::string engine_version_info() {
-    const std::string suffix(archSuffix);
+    std::stringstream ss;
+    ss << "Revolution-" << version << std::setfill('0');
 
     if constexpr (version == "dev")
     {
-        std::stringstream ss;
-        ss << "Revolution-" << std::setfill('0');
+        ss << "-";
 #ifdef GIT_DATE
         ss << stringify(GIT_DATE);
 #else
@@ -158,26 +151,14 @@ std::string engine_version_info() {
 #else
         ss << "nogit";
 #endif
-
-        return ss.str() + suffix;
     }
 
-    return std::string(version) + suffix;
+    return ss.str();
 }
 
 std::string engine_info(bool to_uci) {
-    if (to_uci)
-        return engine_uci_name();
-
-    return engine_version_info() + " by " + std::string(authors);
-}
-
-std::string engine_uci_name() {
-    return std::string(engineBaseName) + std::string(archSuffix);
-}
-
-std::string engine_authors() {
-    return std::string(authors);
+    return engine_version_info() + (to_uci ? "\nid author " : " by ")
+         + "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
 }
 
 

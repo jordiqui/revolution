@@ -92,7 +92,7 @@ class Engine {
     // utility functions
 
     void trace_eval() const;
-    const Position& position() const;
+
     const OptionsMap& get_options() const;
     OptionsMap&       get_options();
 
@@ -119,6 +119,7 @@ class Engine {
     ThreadPool                                         threads;
     TranspositionTable                                 tt;
     LazyNumaReplicatedSystemWide<Eval::NNUE::Networks> networks;
+
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;
 };

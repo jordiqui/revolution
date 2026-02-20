@@ -37,87 +37,6 @@
 
 namespace Stockfish {
 
-namespace {
-
-int early_pawn_structure_penalty(const Position& pos, Color c) {
-    // Encourage healthier pawn structures early in the game, with extra weight
-    // on Black to discourage taking on structural weaknesses when defending.
-    if (pos.game_ply() > 32)
-        return 0;
-
-    Bitboard pawns   = pos.pieces(c, PAWN);
-    int      penalty = 0;
-
-    for (File f = FILE_A; f <= FILE_H; ++f)
-    {
-        Bitboard pawnsOnFile = pawns & file_bb(f);
-        int      countOnFile = popcount(pawnsOnFile);
-
-        if (countOnFile >= 2)
-            penalty += 8 * (countOnFile - 1);
-
-        if (countOnFile)
-        {
-            Bitboard adjacentFiles = (f > FILE_A ? pawns & file_bb(File(f - 1)) : Bitboard(0))
-                                   | (f < FILE_H ? pawns & file_bb(File(f + 1)) : Bitboard(0));
-            if (!adjacentFiles)
-                penalty += 10;
-        }
-    }
-
-    // Fade the adjustment out of the opening and stress it more for Black.
-    penalty = penalty * std::max(0, 28 - pos.game_ply()) / 28;
-    return c == BLACK ? penalty * 5 / 4 : penalty;
-}
-
-int cautious_black_risk_adjustment(const Position& pos, Value eval) {
-    if (pos.side_to_move() != BLACK)
-        return 0;
-
-    int materialBalance = Eval::simple_eval(pos);
-    int adjustment      = 0;
-
-    if (materialBalance < -PawnValue)
-        adjustment += std::min(64, (-materialBalance / PawnValue) * 6 + 10);
-
-    if (std::abs(eval) < 40)
-    {
-        int blackPieces = pos.count<KNIGHT>(BLACK) + pos.count<BISHOP>(BLACK)
-                        + pos.count<ROOK>(BLACK) + pos.count<QUEEN>(BLACK);
-        adjustment += blackPieces;
-    }
-
-    return adjustment;
-}
-
-int closed_position_safety_scale(const Position& pos) {
-    const int rule50 = pos.rule50_count();
-
-    if (rule50 < 12)
-        return 0;
-
-    const Bitboard whitePawns = pos.pieces(WHITE, PAWN);
-    const Bitboard blackPawns = pos.pieces(BLACK, PAWN);
-    const int      totalPawns = popcount(whitePawns | blackPawns);
-
-    if (!totalPawns)
-        return 0;
-
-    const int blockedWhite = popcount(shift<NORTH>(whitePawns) & blackPawns);
-    const int blockedBlack = popcount(shift<SOUTH>(blackPawns) & whitePawns);
-    const int blocked      = blockedWhite + blockedBlack;
-
-    if (blocked * 5 < totalPawns * 3)
-        return 0;
-
-    const int lockScore    = blocked * 64 / totalPawns;
-    const int shuffleScore = std::min(64, (rule50 - 10) * 2);
-
-    return std::min(96, lockScore + shuffleScore);
-}
-
-}  // namespace
-
 // Returns a static, purely materialistic evaluation of the position from
 // the point of view of the side to move. It can be divided by PawnValue to get
 // an approximation of the material advantage on the board in terms of pawns.
@@ -140,15 +59,15 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     assert(!pos.checkers());
 
     bool smallNet           = use_smallnet(pos);
-    auto [psqt, positional] = smallNet ? networks.small.evaluate(pos, accumulators, caches.small)
-                                       : networks.big.evaluate(pos, accumulators, caches.big);
+    auto [psqt, positional] = smallNet ? networks.small.evaluate(pos, accumulators, &caches.small)
+                                       : networks.big.evaluate(pos, accumulators, &caches.big);
 
     Value nnue = (125 * psqt + 131 * positional) / 128;
 
     // Re-evaluate the position when higher eval accuracy is worth the time spent
     if (smallNet && (std::abs(nnue) < 236))
     {
-        std::tie(psqt, positional) = networks.big.evaluate(pos, accumulators, caches.big);
+        std::tie(psqt, positional) = networks.big.evaluate(pos, accumulators, &caches.big);
         nnue                       = (125 * psqt + 131 * positional) / 128;
         smallNet                   = false;
     }
@@ -160,15 +79,6 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
 
     int material = 535 * pos.count<PAWN>() + pos.non_pawn_material();
     int v        = (nnue * (77777 + material) + optimism * (7777 + material)) / 77777;
-
-    int pawnPenalty[COLOR_NB] = {early_pawn_structure_penalty(pos, WHITE),
-                                 early_pawn_structure_penalty(pos, BLACK)};
-    v -= pawnPenalty[pos.side_to_move()] - pawnPenalty[~pos.side_to_move()];
-
-    v -= cautious_black_risk_adjustment(pos, v);
-
-    const int safetyScale = closed_position_safety_scale(pos);
-    v -= v * safetyScale / 256;
 
     // Damp down the evaluation linearly when shuffling
     v -= v * pos.rule50_count() / 212;
@@ -197,7 +107,7 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::Networks& networks) {
 
     ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);
 
-    auto [psqt, positional] = networks.big.evaluate(pos, *accumulators, caches->big);
+    auto [psqt, positional] = networks.big.evaluate(pos, *accumulators, &caches->big);
     Value v                 = psqt + positional;
     v                       = pos.side_to_move() == WHITE ? v : -v;
     ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)\n";
