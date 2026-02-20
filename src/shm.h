@@ -22,7 +22,6 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstring>
 #include <functional>
 #include <iomanip>
@@ -46,7 +45,6 @@
 #endif
 
 #include "types.h"
-#include "misc.h"
 
 #include "memory.h"
 
@@ -513,7 +511,7 @@ template<typename T>
 struct SystemWideSharedConstant {
    private:
     static std::string createHashString(const std::string& input) {
-        size_t hash = hash_string(input);
+        size_t hash = std::hash<std::string>{}(input);
 
         std::stringstream ss;
         ss << std::hex << std::setfill('0') << hash;
@@ -535,12 +533,11 @@ struct SystemWideSharedConstant {
     // that are not present in the content, for example NUMA node allocation.
     SystemWideSharedConstant(const T& value, std::size_t discriminator = 0) {
         std::size_t content_hash    = std::hash<T>{}(value);
-        std::size_t executable_hash = hash_string(getExecutablePathHash());
+        std::size_t executable_hash = std::hash<std::string>{}(getExecutablePathHash());
 
-        char shm_name_buffer[128];
-        std::snprintf(shm_name_buffer, sizeof(shm_name_buffer), "Local\\sf_%zu$%zu$%zu",
-                      content_hash, executable_hash, discriminator);
-        std::string shm_name(shm_name_buffer);
+        std::string shm_name = std::string("Local\\sf_") + std::to_string(content_hash) + "$"
+                             + std::to_string(executable_hash) + "$"
+                             + std::to_string(discriminator);
 
 #if !defined(_WIN32)
         // POSIX shared memory names must start with a slash

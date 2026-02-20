@@ -31,7 +31,6 @@
 
 #include "benchmark.h"
 #include "engine.h"
-#include "experience.h"
 #include "memory.h"
 #include "movegen.h"
 #include "position.h"
@@ -115,11 +114,7 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
-            print_info_string(compiler_info());
-            print_info_string(Experience::status_summary());
-
             sync_cout << "id name " << engine_info(true) << "\n"
-                      << "id author " << engine_authors() << "\n"
                       << engine.get_options() << sync_endl;
 
             sync_cout << "uciok" << sync_endl;
@@ -168,20 +163,14 @@ void UCIEngine::loop() {
             engine.save_network(files);
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
-        {
-            const auto version = engine_version_info();
-
             sync_cout
-              << "\n" << version << " is a powerful chess engine for playing and analyzing."
-                 "\nIt is developed by Jorge Ruiz together with the Stockfish developers (see AUTHORS file)."
-                 "\n" << version
-                 << " is released as free software licensed under the GNU GPLv3 License."
-                 "\nThe engine is normally used with a graphical user interface (GUI) and implements"
+              << "\nStockfish is a powerful chess engine for playing and analyzing."
+                 "\nIt is released as free software licensed under the GNU GPLv3 License."
+                 "\nStockfish is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
                  "\nFor any further information, visit https://github.com/official-stockfish/Stockfish#readme"
                  "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
               << sync_endl;
-        }
         else if (!token.empty() && token[0] != '#')
             sync_cout << "Unknown command: '" << cmd << "'. Type help for more information."
                       << sync_endl;
@@ -224,9 +213,6 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
             limits.infinite = 1;
         else if (token == "ponder")
             limits.ponderMode = true;
-
-    if (limits.depth)
-        limits.depth = std::clamp(limits.depth, 0, MAX_PLY - 1);
 
     return limits;
 }

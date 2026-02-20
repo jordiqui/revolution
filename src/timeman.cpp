@@ -86,9 +86,6 @@ void TimeManagement::init(Search::LimitsType& limits,
     const int64_t   scaleFactor = useNodesTime ? npmsec : 1;
     const TimePoint scaledTime  = limits.time[us] / scaleFactor;
 
-    constexpr TimePoint lowTimeThreshold = 3000;
-    const TimePoint     safetyBuffer     = TimePoint(200 * scaleFactor);
-
     // Maximum move horizon
     int centiMTG = limits.movestogo ? std::min(limits.movestogo * 100, 5000) : 5051;
 
@@ -101,14 +98,6 @@ void TimeManagement::init(Search::LimitsType& limits,
       std::max(TimePoint(1),
                limits.time[us]
                  + (limits.inc[us] * (centiMTG - 100) - moveOverhead * (200 + centiMTG)) / 100);
-
-    // Under severe time pressure keep a fixed safety buffer and reduce usable time
-    if (scaledTime < lowTimeThreshold)
-    {
-        double reductionFactor = std::clamp(double(scaledTime) / double(lowTimeThreshold), 0.15, 1.0);
-        timeLeft               =
-          std::max(TimePoint(1), TimePoint((timeLeft - safetyBuffer) * reductionFactor + safetyBuffer));
-    }
 
     // x basetime (+ z increment)
     // If there is a healthy increment, timeLeft can exceed the actual available
@@ -124,13 +113,11 @@ void TimeManagement::init(Search::LimitsType& limits,
         double optConstant  = std::min(0.0032116 + 0.000321123 * logTimeInSec, 0.00508017);
         double maxConstant  = std::max(3.3977 + 3.03950 * logTimeInSec, 2.94761);
 
-        double depletionTaper = std::clamp(double(scaledTime) / 8000.0, 0.25, 1.0);
-
         optScale = std::min(0.0121431 + std::pow(ply + 2.94693, 0.461073) * optConstant,
                             0.213035 * limits.time[us] / timeLeft)
-                 * originalTimeAdjust * (0.7 + 0.3 * depletionTaper);
+                 * originalTimeAdjust;
 
-        maxScale = std::min(6.67704, maxConstant + ply / 11.9847) * (0.6 + 0.4 * depletionTaper);
+        maxScale = std::min(6.67704, maxConstant + ply / 11.9847);
     }
 
     // x moves in y seconds (+ z increment)

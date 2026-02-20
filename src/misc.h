@@ -43,8 +43,6 @@ namespace Stockfish {
 
 std::string engine_version_info();
 std::string engine_info(bool to_uci = false);
-std::string engine_authors();
-std::string engine_uci_name();
 std::string compiler_info();
 
 // Preloads the given address in L1/L2 cache. This is a non-blocking
@@ -299,20 +297,6 @@ inline uint64_t mul_hi64(uint64_t a, uint64_t b) {
 #endif
 }
 
-inline std::size_t hash_string(std::string_view value) {
-    constexpr uint64_t kOffsetBasis = 14695981039346656037ULL;
-    constexpr uint64_t kPrime       = 1099511628211ULL;
-    uint64_t           hash         = kOffsetBasis;
-
-    for (unsigned char byte : value)
-    {
-        hash ^= byte;
-        hash *= kPrime;
-    }
-
-    return static_cast<std::size_t>(hash);
-}
-
 
 template<typename T>
 inline void hash_combine(std::size_t& seed, const T& v) {
@@ -327,7 +311,8 @@ inline void hash_combine(std::size_t& seed, const std::size_t& v) {
 
 template<typename T>
 inline std::size_t get_raw_data_hash(const T& value) {
-    return hash_string(std::string_view(reinterpret_cast<const char*>(&value), sizeof(value)));
+    return std::hash<std::string_view>{}(
+      std::string_view(reinterpret_cast<const char*>(&value), sizeof(value)));
 }
 
 template<std::size_t Capacity>
@@ -448,7 +433,7 @@ void move_to_front(std::vector<T>& vec, Predicate pred) {
 template<std::size_t N>
 struct std::hash<Stockfish::FixedString<N>> {
     std::size_t operator()(const Stockfish::FixedString<N>& fstr) const noexcept {
-        return Stockfish::hash_string((std::string_view) fstr);
+        return std::hash<std::string_view>{}((std::string_view) fstr);
     }
 };
 

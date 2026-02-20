@@ -1,6 +1,6 @@
 /*
   Stockfish, a UCI chess playing engine derived from Glaurung 2.1
-  Copyright (C) 2004-2026 The Stockfish developers (see AUTHORS file)
+  Copyright (C) 2004-2025 The Stockfish developers (see AUTHORS file)
 
   Stockfish is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,7 +19,6 @@
 #ifndef NETWORK_H_INCLUDED
 #define NETWORK_H_INCLUDED
 
-#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -29,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <utility>
 
 #include "../misc.h"
 #include "../types.h"
@@ -76,22 +76,17 @@ class Network {
 
     NetworkOutput evaluate(const Position&                         pos,
                            AccumulatorStack&                       accumulatorStack,
-                           AccumulatorCaches::Cache<FTDimensions>& cache) const;
+                           AccumulatorCaches::Cache<FTDimensions>* cache) const;
 
-    bool is_loaded() const noexcept { return initialized; }
-    bool embedded_loaded_ok() const noexcept { return embeddedLoaded; }
-    std::size_t embedded_bytes() const noexcept { return embeddedBytes; }
-    std::array<int, 5> embedded_dims() const noexcept { return embeddedDims; }
-    std::string default_name() const { return std::string(evalFile.defaultName); }
 
     void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,
                                  AccumulatorStack&                       accumulatorStack,
-                                 AccumulatorCaches::Cache<FTDimensions>& cache) const;
+                                 AccumulatorCaches::Cache<FTDimensions>* cache) const;
 
    private:
-    bool load_user_net(const std::string&, const std::string&);
-    bool load_internal(std::string_view currentName);
+    void load_user_net(const std::string&, const std::string&);
+    void load_internal();
 
     void initialize();
 
@@ -114,10 +109,6 @@ class Network {
     EmbeddedNNUEType embeddedType;
 
     bool initialized = false;
-    bool embeddedLoaded = false;
-
-    std::size_t        embeddedBytes = 0;
-    std::array<int, 5> embeddedDims{};
 
     // Hash value of evaluation function structure
     static constexpr std::uint32_t hash = Transformer::get_hash_value() ^ Arch::get_hash_value();
@@ -139,9 +130,9 @@ using NetworkSmall = Network<SmallNetworkArchitecture, SmallFeatureTransformer>;
 
 
 struct Networks {
-    Networks(EvalFile bigFile, EvalFile smallFile) :
-        big(bigFile, EmbeddedNNUEType::BIG),
-        small(smallFile, EmbeddedNNUEType::SMALL) {}
+    Networks(std::unique_ptr<NetworkBig>&& nB, std::unique_ptr<NetworkSmall>&& nS) :
+        big(std::move(*nB)),
+        small(std::move(*nS)) {}
 
     NetworkBig   big;
     NetworkSmall small;

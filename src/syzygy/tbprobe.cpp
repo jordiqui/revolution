@@ -112,7 +112,7 @@ template<typename T, int Half = sizeof(T) / 2, int End = sizeof(T) - 1>
 inline void swap_endian(T& x) {
     static_assert(std::is_unsigned_v<T>, "Argument of swap_endian not unsigned");
 
-    unsigned char tmp, *c = reinterpret_cast<unsigned char*>(&x);
+    uint8_t tmp, *c = (uint8_t*) &x;
     for (int i = 0; i < Half; ++i)
         tmp = c[i], c[i] = c[End - i], c[End - i] = tmp;
 }
@@ -1214,8 +1214,6 @@ template<TBType Type>
 void* mapped(TBTable<Type>& e, const Position& pos) {
 
     static std::mutex mutex;
-    // Because TB is the only usage of materialKey, check it here in debug mode
-    assert(pos.material_key_is_ok());
 
     // Use 'acquire' to avoid a thread reading 'ready' == true while
     // another is still working. (compiler reordering may cause this).

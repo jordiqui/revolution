@@ -35,8 +35,6 @@
 #include <type_traits>
 #include <unordered_set>
 
-#include "misc.h"
-
 #include <fcntl.h>
 #include <signal.h>
 #include <sys/file.h>
@@ -172,7 +170,7 @@ class SharedMemory: public detail::SharedMemoryBase {
     }
 
     static std::string make_sentinel_base(const std::string& name) {
-        uint64_t hash = hash_string(name);
+        uint64_t hash = std::hash<std::string>{}(name);
         char     buf[32];
         std::snprintf(buf, sizeof(buf), "sfshm_%016" PRIx64, static_cast<uint64_t>(hash));
         return buf;

@@ -35,7 +35,6 @@
 
 #include "bitboard.h"
 #include "evaluate.h"
-#include "experience.h"
 #include "history.h"
 #include "misc.h"
 #include "movegen.h"
@@ -67,39 +66,6 @@ namespace {
 
 constexpr int SEARCHEDLIST_CAPACITY = 32;
 using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
-
-// Detects if the black king is under immediate or looming pressure so that the
-// search can allocate extra depth or time to defensive lines.
-bool black_king_under_pressure(const Position& pos) {
-
-    Square ksq = pos.square<KING>(BLACK);
-
-    Bitboard kingShell = attacks_bb<KING>(ksq) | square_bb(ksq);
-    Bitboard whiteRing = kingShell
-                       & (pos.attacks_by<PAWN>(WHITE) | pos.attacks_by<KNIGHT>(WHITE)
-                          | pos.attacks_by<BISHOP>(WHITE) | pos.attacks_by<ROOK>(WHITE)
-                          | pos.attacks_by<QUEEN>(WHITE));
-
-    Bitboard directContact = pos.attackers_to(ksq) & pos.pieces(WHITE);
-    bool     directCheck   = pos.side_to_move() == BLACK && pos.checkers();
-
-    auto sacrificial_probe = [&](Square target) {
-        Bitboard whiteAttackers = pos.attackers_to(target) & pos.pieces(WHITE);
-        if (!whiteAttackers)
-            return false;
-
-        int defenderCount = popcount(pos.attackers_to(target) & pos.pieces(BLACK));
-        bool weakShield   = type_of(pos.piece_on(target)) == PAWN;
-
-        return defenderCount <= (weakShield ? 1 : 2);
-    };
-
-    bool kingsideFocus = file_of(ksq) >= FILE_E;
-    bool sacThreat     = kingsideFocus
-                     && (sacrificial_probe(SQ_H7) || sacrificial_probe(SQ_F7));
-
-    return directCheck || directContact || whiteRing || sacThreat;
-}
 
 // (*Scalers):
 // The values with Scaler asterisks have proven non-linear scaling.
@@ -214,8 +180,6 @@ void Search::Worker::start_searching() {
                             main_manager()->originalTimeAdjust);
     tt.new_search();
 
-    Experience::on_new_position(rootPos, rootMoves);
-
     if (rootMoves.empty())
     {
         rootMoves.emplace_back(Move::none());
@@ -271,14 +235,6 @@ void Search::Worker::start_searching() {
         ponder = UCIEngine::move(bestThread->rootMoves[0].pv[1], rootPos.is_chess960());
 
     auto bestmove = UCIEngine::move(bestThread->rootMoves[0].pv[0], rootPos.is_chess960());
-
-    Experience::on_search_complete(bestThread->rootPos,
-                                   bestThread->rootMoves,
-                                   bestThread->rootMoves[0].score,
-                                   bestThread->rootMoves[0].averageScore,
-                                   bestThread->completedDepth,
-                                   limits);
-    Experience::flush();
     main_manager()->updates.onBestmove(bestmove, ponder);
 }
 
@@ -342,8 +298,6 @@ void Search::Worker::iterative_deepening() {
 
     lowPlyHistory.fill(97);
 
-    const bool blackRootPressure = black_king_under_pressure(rootPos);
-
     // Iterative deepening loop until requested to stop or the target depth is reached
     while (++rootDepth < MAX_PLY && !threads.stop
            && !(limits.depth && mainThread && rootDepth > limits.depth))
@@ -386,12 +340,6 @@ void Search::Worker::iterative_deepening() {
             // Adjust optimism based on root move's averageScore
             optimism[us]  = 137 * avg / (std::abs(avg) + 91);
             optimism[~us] = -optimism[us];
-
-            if (us == BLACK && std::abs(avg) < 48)
-            {
-                optimism[BLACK] = optimism[BLACK] * 3 / 4;
-                optimism[WHITE] = -optimism[BLACK];
-            }
 
             // Start with a small aspiration window and, in the case of a fail
             // high/low, re-search with a bigger window until we don't fail
@@ -534,14 +482,8 @@ void Search::Worker::iterative_deepening() {
             double bestMoveInstability = 1.04 + 1.8956 * totBestMoveChanges / threads.size();
             double highBestMoveEffort  = completedDepth >= 10 && nodesEffort >= 92425 ? 0.666 : 1.0;
 
-            double defensiveTime = blackRootPressure ? 1.18 : 1.0;
-            bool   quietRoot     = !blackRootPressure && !rootPos.checkers()
-                             && std::abs(int(bestValue)) < 40 && !threads.increaseDepth;
-            double calmLimiter   = quietRoot ? 0.93 : 1.0;
-
             double totalTime = mainThread->tm.optimum() * fallingEval * reduction
-                             * bestMoveInstability * highBestMoveEffort * defensiveTime
-                             * calmLimiter;
+                             * bestMoveInstability * highBestMoveEffort;
 
             // Cap used time in case of a single legal move for a better viewer experience
             if (rootMoves.size() == 1)
@@ -560,10 +502,7 @@ void Search::Worker::iterative_deepening() {
                     threads.stop = true;
             }
             else
-            {
-                double depthMargin = defensiveTime > 1.0 ? 0.56 : 0.503;
-                threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * depthMargin;
-            }
+                threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.503;
         }
 
         mainThread->iterValue[iterIdx] = bestValue;
@@ -593,9 +532,7 @@ void Search::Worker::do_move(
     nodes.fetch_add(1, std::memory_order_relaxed);
 
     DirtyBoardData dirtyBoardData = pos.do_move(move, st, givesCheck, &tt);
-    auto [dirtyPiece, dirtyThreats] = accumulatorStack.push();
-    dirtyPiece                      = dirtyBoardData.dp;
-    dirtyThreats                    = dirtyBoardData.dts;
+    accumulatorStack.push(dirtyBoardData);
 
     if (ss != nullptr)
     {
@@ -619,7 +556,7 @@ void Search::Worker::undo_null_move(Position& pos) { pos.undo_null_move(); }
 
 // Reset histories, usually before a new game
 void Search::Worker::clear() {
-    mainHistory.fill(0);
+    mainHistory.fill(68);
     captureHistory.fill(-689);
     pawnHistory.fill(-1238);
     pawnCorrectionHistory.fill(5);
@@ -685,11 +622,6 @@ Value Search::Worker::search(
     bool  capture, ttCapture;
     int   priorReduction;
     Piece movedPiece;
-    bool  blackUnderPressure;
-
-    Square   blackKingSq    = pos.square<KING>(BLACK);
-    Bitboard blackKingRing  = attacks_bb<KING>(blackKingSq) | square_bb(blackKingSq);
-    blackUnderPressure       = black_king_under_pressure(pos);
 
     SearchedList capturesSearched;
     SearchedList quietsSearched;
@@ -915,7 +847,7 @@ Value Search::Worker::search(
     // The depth condition is important for mate finding.
     {
         auto futility_margin = [&](Depth d) {
-            Value futilityMult = 81 - 21 * !ss->ttHit;
+            Value futilityMult = 91 - 21 * !ss->ttHit;
 
             return futilityMult * d                                //
                  - 2094 * improving * futilityMult / 1024          //
@@ -1078,20 +1010,12 @@ moves_loop:  // When in check, search starts here
         movedPiece = pos.moved_piece(move);
         givesCheck = pos.gives_check(move);
 
-        bool recapture      = capture && ((ss - 1)->currentMove).is_ok()
-                          && ((ss - 1)->currentMove).to_sq() == move.to_sq();
-        bool ringRecapture  = recapture && (blackKingRing & square_bb(move.to_sq()));
-        bool defensiveNode  = blackUnderPressure && pos.side_to_move() == BLACK;
-
         // Calculate new depth for this move
         newDepth = depth - 1;
 
         int delta = beta - alpha;
 
         Depth r = reduction(improving, depth, moveCount, delta);
-
-        if (defensiveNode)
-            r = std::max<Depth>(0, r - 512);
 
         // Increase reduction for ttPv nodes (*Scaler)
         // Smaller or even negative value is better for short time controls
@@ -1233,9 +1157,6 @@ moves_loop:  // When in check, search starts here
             else if (cutNode)
                 extension = -2;
         }
-
-        if (defensiveNode && (ss->inCheck || givesCheck || ringRecapture))
-            extension = std::max<Depth>(extension, Depth(1));
 
         // Step 16. Make the move
         do_move(pos, move, st, givesCheck, ss);
@@ -1708,7 +1629,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
                 // we can prune this move.
                 if (!pos.see_ge(move, alpha - futilityBase))
                 {
-                    bestValue = std::max(bestValue, std::min(alpha, futilityBase));
+                    bestValue = std::min(alpha, futilityBase);
                     continue;
                 }
             }
@@ -1887,7 +1808,7 @@ void update_all_stats(const Position& pos,
     Piece                  movedPiece     = pos.moved_piece(bestMove);
     PieceType              capturedPiece;
 
-    int bonus = std::min(121 * depth - 77, 1633) + 375 * (bestMove == ttMove) + (ss - 1)->statScore / 32;
+    int bonus = std::min(121 * depth - 77, 1633) + 375 * (bestMove == ttMove);
     int malus = std::min(825 * depth - 196, 2159) - 16 * moveCount;
 
     if (!pos.capture_stage(bestMove))
@@ -1999,21 +1920,8 @@ void SearchManager::check_time(Search::Worker& worker) {
 
     static TimePoint lastInfoTime = now();
 
-    TimePoint elapsed    = tm.elapsed([&worker]() { return worker.threads.nodes_searched(); });
-    TimePoint maxAllowed = tm.maximum();
-    TimePoint tick       = worker.limits.startTime + elapsed;
-
-    if (worker.limits.use_time_management() && maxAllowed > 0)
-    {
-        TimePoint softLimit = maxAllowed * 9 / 10;
-        if (elapsed >= softLimit)
-        {
-            callsCnt = std::max(8, callsCnt / 2);
-
-            if (!ponder && elapsed >= softLimit + maxAllowed / 20)
-                stopOnPonderhit = true;
-        }
-    }
+    TimePoint elapsed = tm.elapsed([&worker]() { return worker.threads.nodes_searched(); });
+    TimePoint tick    = worker.limits.startTime + elapsed;
 
     if (tick - lastInfoTime >= 1000)
     {

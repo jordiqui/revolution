@@ -19,7 +19,6 @@
 #include "engine.h"
 
 #include <algorithm>
-#include <array>
 #include <cassert>
 #include <deque>
 #include <iosfwd>
@@ -31,7 +30,6 @@
 #include <vector>
 
 #include "evaluate.h"
-#include "experience.h"
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_common.h"
@@ -50,27 +48,6 @@ namespace Stockfish {
 
 namespace NN = Eval::NNUE;
 
-namespace {
-
-template<typename NetworkType>
-void log_embedded_network(const NetworkType& network, std::string_view label) {
-    if (!network.embedded_loaded_ok())
-        return;
-
-    const auto dims = network.embedded_dims();
-    sync_cout << "info string NNUE " << label << " loaded: " << network.default_name()
-              << " -> <embedded> (" << network.embedded_bytes() << " bytes, (" << dims[0] << ", "
-              << dims[1] << ", " << dims[2] << ", " << dims[3] << ", " << dims[4] << "))"
-              << sync_endl;
-}
-
-void log_embedded_networks(const NN::Networks& networks) {
-    log_embedded_network(networks.big, "big");
-    log_embedded_network(networks.small, "small");
-}
-
-}  // namespace
-
 constexpr auto StartFEN   = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 constexpr int  MaxHashMB  = Is64Bit ? 33554432 : 2048;
 int            MaxThreads = std::max(1024, 4 * int(get_hardware_concurrency()));
@@ -84,8 +61,10 @@ Engine::Engine(std::optional<std::string> path) :
       numaContext,
       // Heap-allocate because sizeof(NN::Networks) is large
       std::make_unique<NN::Networks>(
-        NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
-        NN::EvalFile{EvalFileDefaultNameSmall, "None", ""})) {
+        std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
+                                         NN::EmbeddedNNUEType::BIG),
+        std::make_unique<NN::NetworkSmall>(NN::EvalFile{EvalFileDefaultNameSmall, "None", ""},
+                                           NN::EmbeddedNNUEType::SMALL))) {
 
     pos.set(StartFEN, false, &states->back());
 
@@ -166,49 +145,8 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
-    options.add(  //
-      "Experience Enabled", Option(true, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience File", Option("experience.exp", [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience Readonly", Option(false, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience Book", Option(false, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience Book Width", Option(1, 1, 20, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience Book Eval Importance", Option(5, 0, 10, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience Book Min Depth", Option(27, 4, 64, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
-    options.add(  //
-      "Experience Book Max Moves", Option(16, 1, 100, [this](const Option&) {
-          return Experience::update_settings(options);
-      }));
-
     load_networks();
     resize_threads();
-    Experience::update_settings(options);
 }
 
 std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
@@ -233,8 +171,6 @@ void Engine::search_clear() {
 
     // @TODO wont work with multiple instances
     Tablebases::init(options["SyzygyPath"]);  // Free mapped files
-
-    Experience::new_game();
 }
 
 void Engine::set_on_update_no_moves(std::function<void(const Engine::InfoShort&)>&& f) {
@@ -360,7 +296,6 @@ void Engine::load_networks() {
         networks_.big.load(binaryDirectory, options["EvalFile"]);
         networks_.small.load(binaryDirectory, options["EvalFileSmall"]);
     });
-    log_embedded_networks(*networks);
     threads.clear();
     threads.ensure_network_replicated();
 }
@@ -368,7 +303,6 @@ void Engine::load_networks() {
 void Engine::load_big_network(const std::string& file) {
     networks.modify_and_replicate(
       [this, &file](NN::Networks& networks_) { networks_.big.load(binaryDirectory, file); });
-    log_embedded_networks(*networks);
     threads.clear();
     threads.ensure_network_replicated();
 }
@@ -376,7 +310,6 @@ void Engine::load_big_network(const std::string& file) {
 void Engine::load_small_network(const std::string& file) {
     networks.modify_and_replicate(
       [this, &file](NN::Networks& networks_) { networks_.small.load(binaryDirectory, file); });
-    log_embedded_networks(*networks);
     threads.clear();
     threads.ensure_network_replicated();
 }
@@ -399,8 +332,6 @@ void Engine::trace_eval() const {
 
     sync_cout << "\n" << Eval::trace(p, *networks) << sync_endl;
 }
-
-const Position& Engine::position() const { return pos; }
 
 const OptionsMap& Engine::get_options() const { return options; }
 OptionsMap&       Engine::get_options() { return options; }
