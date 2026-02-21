@@ -112,7 +112,11 @@ void UCIEngine::loop() {
         is >> std::skipws >> token;
 
         if (token == "quit" || token == "stop")
+        {
             engine.stop();
+            engine.wait_for_search_finished();
+            Experience::flush();
+        }
 
         // The GUI sends 'ponderhit' to tell that the user has played the expected move.
         // So, 'ponderhit' is sent if pondering was done on the same move that the user
@@ -153,7 +157,10 @@ void UCIEngine::loop() {
         else if (token == "position")
             position(is);
         else if (token == "ucinewgame")
+        {
             engine.search_clear();
+            Experience::new_game();
+        }
         else if (token == "isready")
             sync_cout << "readyok" << sync_endl;
 
