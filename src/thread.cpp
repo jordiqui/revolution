@@ -294,7 +294,6 @@ void ThreadPool::start_thinking(const OptionsMap&  options,
     main_manager()->stopOnPonderhit = stop = abortedSearch = false;
     main_manager()->ponder                                 = limits.ponderMode;
 
-    Eval::set_dynamic_evaluation(static_cast<int>(options["Dynamic Evaluation"]));
 
     increaseDepth = true;
 

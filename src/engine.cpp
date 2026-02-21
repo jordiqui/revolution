@@ -176,7 +176,7 @@ void Engine::go(Search::LimitsType& limits) {
     if (limits.perft == 0)
     {
         const int  bookPly  = pos.game_ply();
-        const Move bookMove = bookManager.probe(pos, options, bookPly);
+        const Move bookMove = bookManager.probe(pos, options);
         if (bookMove != Move::none())
         {
             const auto uciMove = UCIEngine::move(bookMove, pos.is_chess960());

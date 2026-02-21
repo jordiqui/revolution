@@ -63,6 +63,7 @@ SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
 	search.cpp thread.cpp timeman.cpp tt.cpp uci.cpp ucioption.cpp tune.cpp syzygy/tbprobe.cpp \
 	nnue/nnue_accumulator.cpp nnue/nnue_misc.cpp nnue/network.cpp \
 	nnue/features/half_ka_v2_hm.cpp nnue/features/full_threats.cpp \
+	book/book_manager.cpp book/book_utils.cpp \
 	engine.cpp score.cpp memory.cpp
 
 HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.h \
@@ -73,7 +74,7 @@ HEADERS = benchmark.h bitboard.h evaluate.h misc.h movegen.h movepick.h history.
 		position.h search.h syzygy/tbprobe.h thread.h thread_win32_osx.h timeman.h \
 		tt.h tune.h types.h uci.h ucioption.h perft.h nnue/network.h engine.h score.h numa.h memory.h
 
-OBJS = $(notdir $(SRCS:.cpp=.o))
+OBJS = $(SRCS:.cpp=.o)
 
 VPATH = syzygy:nnue:nnue/features
 
@@ -580,18 +581,7 @@ ifdef COMPCXX
 	CXX=$(COMPCXX)
 endif
 
-# llvm-profdata must be version compatible with the specified CXX (be it clang, or the gcc alias)
-# make -j profile-build CXX=clang++-20 COMP=clang
-# Locate the version in the same directory as the compiler used,
-# with fallback to a generic one if it can't be located
-	LLVM_PROFDATA := $(dir $(realpath $(shell which $(CXX) 2> /dev/null)))llvm-profdata
-# for icx
-ifeq ($(wildcard $(LLVM_PROFDATA)),)
-	LLVM_PROFDATA := $(dir $(realpath $(shell which $(CXX) 2> /dev/null)))/compiler/llvm-profdata
-endif
-ifeq ($(wildcard $(LLVM_PROFDATA)),)
-	LLVM_PROFDATA := llvm-profdata
-endif
+LLVM_PROFDATA ?= llvm-profdata
 
 ifeq ($(comp),icx)
 	profile_make = icx-profile-make
@@ -994,12 +984,16 @@ profile-build: net config-sanity objclean profileclean
 	@(echo "=== PGOBENCH preflight ==="; \
 	  pwd; \
 	  ls -lh "./$(EXE)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
-	@BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
-	if [ "$(target_windows)" = "yes" ] && command -v cygpath > /dev/null 2>&1; then \
-	  BIG="$$(cygpath -w "$(abspath $(NNUE_BIG))")"; \
-	  SMALL="$$(cygpath -w "$(abspath $(NNUE_SMALL))")"; \
-	fi; \
-	printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | $(WINE_PATH) "./$(EXE)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1)
+	@if [ "$(comp)" = "clang" ]; then \
+	  LLVM_PROFILE_FILE="default.profraw" $(WINE_PATH) "./$(EXE)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	else \
+	  BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
+	  if [ "$(target_windows)" = "yes" ] && command -v cygpath > /dev/null 2>&1; then \
+	    BIG="$$(cygpath -w "$(abspath $(NNUE_BIG))")"; \
+	    SMALL="$$(cygpath -w "$(abspath $(NNUE_SMALL))")"; \
+	  fi; \
+	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | $(WINE_PATH) "./$(EXE)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	fi
 	tail -n 4 PGOBENCH.out
 	@echo ""
 	@echo "Step 3/4. Building optimized executable ..."
@@ -1029,7 +1023,7 @@ objclean:
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
-	@rm -f stockfish.profdata *.profraw
+	@rm -f stockfish.profdata default.profdata default.profraw *.profraw
 	@rm -f stockfish.*args*
 	@rm -f stockfish.*lt*
 	@rm -f stockfish.res
@@ -1126,16 +1120,18 @@ misc.o: FORCE
 FORCE:
 
 clang-profile-make:
+	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-generate ' \
-	EXTRALDFLAGS=' -fprofile-generate' \
+	EXTRACXXFLAGS='-fprofile-instr-generate' \
+	EXTRALDFLAGS='-fprofile-instr-generate' \
 	all
 
 clang-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
+	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=default.profdata default.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-use=stockfish.profdata' \
-	EXTRALDFLAGS='-fprofile-use ' \
+	EXTRACXXFLAGS='-fprofile-instr-use=default.profdata' \
+	EXTRALDFLAGS='-fprofile-instr-use=default.profdata' \
 	all
 
 gcc-profile-make:
