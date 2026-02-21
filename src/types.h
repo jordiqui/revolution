@@ -38,6 +38,7 @@
 
     #include <cassert>
     #include <cstddef>
+    #include <cstring>
     #include <cstdint>
     #include <type_traits>
     #include "misc.h"
@@ -92,6 +93,17 @@
     #endif
 
 namespace Stockfish {
+
+// --- load_as: strict-aliasing safe typed load from byte pointer ---
+// Used by NNUE layer code paths.
+template<typename T>
+static inline T load_as(const void* p) {
+    static_assert(std::is_trivially_copyable_v<T>,
+                  "load_as requires trivially copyable type");
+    T v;
+    std::memcpy(&v, p, sizeof(T));
+    return v;
+}
 
     #ifdef USE_POPCNT
 constexpr bool HasPopCnt = true;
