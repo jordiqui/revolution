@@ -43,7 +43,7 @@ namespace {
 #ifdef ENGINE_VERSION
 constexpr std::string_view version = ENGINE_VERSION;
 #else
-constexpr std::string_view version = "dev";
+constexpr std::string_view version = "4.90-210226";
 #endif
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
@@ -117,23 +117,23 @@ class Logger {
 }  // namespace
 
 
-// Returns the full name of the current Stockfish version.
+// Returns the full name of the current Revolution version.
 //
 // For local dev compiles we try to append the commit SHA and
 // commit date from git. If that fails only the local compilation
 // date is set and "nogit" is specified:
-//      Stockfish dev-YYYYMMDD-SHA
+//      Revolution-dev-YYYYMMDD-SHA
 //      or
-//      Stockfish dev-YYYYMMDD-nogit
+//      Revolution-dev-YYYYMMDD-nogit
 //
 // For releases (non-dev builds) we only include the version number:
-//      Stockfish version
+//      Revolution-version
 std::string engine_version_info() {
 #ifdef ENGINE_ID
     return ENGINE_ID;
 #else
     std::stringstream ss;
-    ss << "Stockfish " << version << std::setfill('0');
+    ss << "Revolution-" << version << std::setfill('0');
 
     if constexpr (version == "dev")
     {
@@ -166,7 +166,7 @@ std::string engine_version_info() {
 
 std::string engine_info(bool to_uci) {
     return engine_version_info() + (to_uci ? "\nid author " : " by ")
-         + "the Stockfish developers (see AUTHORS file)";
+         + "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
 }
 
 
