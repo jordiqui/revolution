@@ -582,6 +582,8 @@ ifdef COMPCXX
 endif
 
 LLVM_PROFDATA ?= llvm-profdata
+CLANG_RESOURCE_DIR := $(shell $(CXX) -print-resource-dir 2>/dev/null)
+CLANG_PROFILE_RT_WIN := $(CLANG_RESOURCE_DIR)/lib/windows/libclang_rt.profile-x86_64.a
 
 ifeq ($(comp),icx)
 	profile_make = icx-profile-make
@@ -1121,17 +1123,25 @@ FORCE:
 
 clang-profile-make:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
+	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then \
+		echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; \
+		exit 1; \
+	fi
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-generate' \
-	EXTRALDFLAGS='-fprofile-instr-generate' \
+	EXTRALDFLAGS='-fprofile-instr-generate $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
 	all
 
 clang-profile-use:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
+	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then \
+		echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; \
+		exit 1; \
+	fi
 	$(XCRUN) $(LLVM_PROFDATA) merge -output=default.profdata default.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	EXTRACXXFLAGS='-fprofile-instr-use=default.profdata' \
-	EXTRALDFLAGS='-fprofile-instr-use=default.profdata' \
+	EXTRALDFLAGS='-fprofile-instr-use=default.profdata $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
 	all
 
 gcc-profile-make:
