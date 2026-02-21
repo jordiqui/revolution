@@ -48,7 +48,7 @@ struct Settings {
     bool        bookEnabled        = false;
     int         bookWidth          = 1;
     int         bookEvalImportance = 5;
-    Depth       bookMinDepth       = 27;
+    Depth       bookMinDepth       = 4;
     int         bookMaxMoves       = 16;
     std::string file               = "experience.exp";
     std::size_t maxEntries         = 200000;
@@ -489,7 +489,7 @@ std::optional<std::string> update_settings(const OptionsMap& options) {
     if (options.count("Experience Book Min Depth"))
         newSettings.bookMinDepth = Depth(std::max(0, int(options["Experience Book Min Depth"])));
     else
-        newSettings.bookMinDepth = Depth(27);
+        newSettings.bookMinDepth = Depth(4);
 
     if (options.count("Experience Book Max Moves"))
         newSettings.bookMaxMoves = std::max(1, int(options["Experience Book Max Moves"]));
@@ -646,8 +646,6 @@ void on_search_complete(const Position& pos,
     if (searchedDepth < settings.bookMinDepth)
         return;
 
-    if (std::abs(bestScore) < settings.minScore)
-        return;
 
     if (settings.readonly)
         return;

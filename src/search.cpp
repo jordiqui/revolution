@@ -49,6 +49,7 @@
 #include "types.h"
 #include "uci.h"
 #include "ucioption.h"
+#include "experience.h"
 
 namespace Stockfish {
 
@@ -193,6 +194,7 @@ void Search::Worker::start_searching() {
     main_manager()->tm.init(limits, rootPos.side_to_move(), rootPos.game_ply(), options,
                             main_manager()->originalTimeAdjust);
     tt.new_search();
+    Experience::on_new_position(rootPos, rootMoves);
 
     if (rootMoves.empty())
     {
@@ -241,6 +243,13 @@ void Search::Worker::start_searching() {
     // Send again PV info if we have a new best thread
     if (bestThread != this)
         main_manager()->pv(*bestThread, threads, tt, bestThread->completedDepth);
+
+    Experience::on_search_complete(bestThread->rootPos,
+                                   bestThread->rootMoves,
+                                   bestThread->rootMoves[0].score,
+                                   bestThread->rootMoves[0].averageScore,
+                                   bestThread->completedDepth,
+                                   limits);
 
     std::string ponder;
 
