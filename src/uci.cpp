@@ -22,6 +22,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iterator>
 #include <optional>
 #include <sstream>
@@ -31,6 +32,7 @@
 
 #include "benchmark.h"
 #include "engine.h"
+#include "experience.h"
 #include "memory.h"
 #include "movegen.h"
 #include "position.h"
@@ -123,6 +125,15 @@ void UCIEngine::loop() {
         {
             print_info_string(UciLogo);
             print_info_string(engine_info());
+
+            if (engine.get_options()["Experience Enabled"])
+            {
+                const std::string experienceFile = std::string(engine.get_options()["Experience File"]);
+                if (!experienceFile.empty() && !std::filesystem::exists(experienceFile))
+                    print_info_string("Experience file not found: " + experienceFile);
+
+                print_info_string(Experience::status_summary());
+            }
 
             sync_cout << "id name " << engine_info(true) << "\n"
                       << engine.get_options() << sync_endl;
