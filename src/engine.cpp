@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "evaluate.h"
+#include "experience.h"
 #include "misc.h"
 #include "nnue/network.h"
 #include "nnue/nnue_common.h"
@@ -146,6 +147,31 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Book 2 Width", Option(1, 1, 100));
     options.add("(CTG) Book 2 Only Green", Option(false));
 
+    options.add("Experience Enabled", Option(true, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience File", Option("experience.exp", [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience Readonly", Option(false, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience Book", Option(false, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience Book Width", Option(1, 1, 20, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience Book Eval Importance", Option(5, 0, 10, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience Book Min Depth", Option(27, 4, 64, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+    options.add("Experience Book Max Moves", Option(16, 1, 100, [this](const Option&) {
+                    return Experience::update_settings(options);
+                }));
+
     options.add(  //
       "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {
           load_big_network(o);
@@ -161,6 +187,7 @@ Engine::Engine(std::optional<std::string> path) :
     load_networks();
     resize_threads();
     bookManager.init(options);
+    Experience::update_settings(options);
 }
 
 std::uint64_t Engine::perft(const std::string& fen, Depth depth, bool isChess960) {
