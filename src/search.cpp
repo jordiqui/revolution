@@ -2009,7 +2009,7 @@ void syzygy_extend_pv(const OptionsMap&         options,
             legalMoves.emplace_back(m);
 
         Tablebases::Config config =
-          Tablebases::rank_root_moves(options, pos, legalMoves, false, time_abort);
+          Tablebases::rank_root_moves(options, pos, legalMoves, false);
         RootMove& rm = *std::find(legalMoves.begin(), legalMoves.end(), pvMove);
 
         if (legalMoves[0].tbRank != rm.tbRank)
@@ -2070,7 +2070,7 @@ void syzygy_extend_pv(const OptionsMap&         options,
 
         // The winning side tries to minimize DTZ, the losing side maximizes it
         Tablebases::Config config =
-          Tablebases::rank_root_moves(options, pos, legalMoves, true, time_abort);
+          Tablebases::rank_root_moves(options, pos, legalMoves, true);
 
         // If DTZ is not available we might not find a mate, so we bail out
         if (!config.rootInTB || config.cardinality > 0)

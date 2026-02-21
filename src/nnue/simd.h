@@ -40,6 +40,8 @@
 
 namespace Stockfish::Eval::NNUE::SIMD {
 
+using Stockfish::load_as;
+
 // If vector instructions are enabled, we update and refresh the
 // accumulator tile by tile such that each tile fits in the CPU's
 // vector registers.
