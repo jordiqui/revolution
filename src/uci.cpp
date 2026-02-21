@@ -44,6 +44,13 @@ namespace Stockfish {
 constexpr auto BenchmarkCommand = "speedtest";
 
 constexpr auto StartFEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+constexpr std::string_view UciLogo = R"LOGO(   __/\\
+ _ / _ \_\
+(_ )\___/ )
+  / _ _ \\
+ ( (o)o )
+  \  ^  /
+   `---')LOGO";
 template<typename... Ts>
 struct overload: Ts... {
     using Ts::operator()...;
@@ -114,6 +121,9 @@ void UCIEngine::loop() {
 
         else if (token == "uci")
         {
+            print_info_string(UciLogo);
+            print_info_string(engine_info());
+
             sync_cout << "id name " << engine_info(true) << "\n"
                       << engine.get_options() << sync_endl;
 
@@ -164,11 +174,13 @@ void UCIEngine::loop() {
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
-              << "\nStockfish is a powerful chess engine for playing and analyzing."
+              << "\n" << engine_version_info()
+              << " is a powerful chess engine for playing and analyzing."
                  "\nIt is released as free software licensed under the GNU GPLv3 License."
-                 "\nStockfish is normally used with a graphical user interface (GUI) and implements"
+                 "\n" << engine_version_info()
+              << " is normally used with a graphical user interface (GUI) and implements"
                  "\nthe Universal Chess Interface (UCI) protocol to communicate with a GUI, an API, etc."
-                 "\nFor any further information, visit https://github.com/official-stockfish/Stockfish#readme"
+                 "\nFor any further information, visit https://github.com/jordiqui/Stockfishjrc#readme"
                  "\nor read the corresponding README.md and Copying.txt files distributed along with this program.\n"
               << sync_endl;
         else if (!token.empty() && token[0] != '#')

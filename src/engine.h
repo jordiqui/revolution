@@ -23,7 +23,6 @@
 #include <cstdint>
 #include <functional>
 #include <map>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -31,6 +30,7 @@
 #include <vector>
 
 #include "history.h"
+#include "book/book_manager.h"
 #include "nnue/network.h"
 #include "numa.h"
 #include "position.h"
@@ -86,10 +86,10 @@ class Engine {
 
     // network related
 
-    void                                  verify_networks() const;
-    std::unique_ptr<Eval::NNUE::Networks> get_default_networks() const;
-    void                                  load_big_network(const std::string& file);
-    void                                  load_small_network(const std::string& file);
+    void verify_networks() const;
+    void load_networks();
+    void load_big_network(const std::string& file);
+    void load_small_network(const std::string& file);
     void save_network(const std::pair<std::optional<std::string>, std::string> files[2]);
 
     // utility functions
@@ -122,6 +122,7 @@ class Engine {
     ThreadPool                                         threads;
     TranspositionTable                                 tt;
     LazyNumaReplicatedSystemWide<Eval::NNUE::Networks> networks;
+    BookManager                                       bookManager;
 
     Search::SearchManager::UpdateContext  updateContext;
     std::function<void(std::string_view)> onVerifyNetworks;
