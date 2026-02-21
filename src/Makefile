@@ -708,7 +708,8 @@ endif
 ifeq ($(avx2),yes)
 	CXXFLAGS += -DUSE_AVX2
 	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-		CXXFLAGS += -mavx2 -mbmi
+		# Zen4: AVX2+BMI2+FMA3 bench target.
+		CXXFLAGS += -mavx2 -mbmi2 -mfma
 	endif
 endif
 
