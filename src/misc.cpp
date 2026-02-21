@@ -40,7 +40,11 @@ namespace Stockfish {
 namespace {
 
 // Version number or dev.
+#ifdef ENGINE_VERSION
+constexpr std::string_view version = ENGINE_VERSION;
+#else
 constexpr std::string_view version = "dev";
+#endif
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
 // cout.rdbuf() with two Tie objects that tie cin and cout to a file stream. We
@@ -125,6 +129,9 @@ class Logger {
 // For releases (non-dev builds) we only include the version number:
 //      Stockfish version
 std::string engine_version_info() {
+#ifdef ENGINE_ID
+    return ENGINE_ID;
+#else
     std::stringstream ss;
     ss << "Stockfish " << version << std::setfill('0');
 
@@ -154,6 +161,7 @@ std::string engine_version_info() {
     }
 
     return ss.str();
+#endif
 }
 
 std::string engine_info(bool to_uci) {
