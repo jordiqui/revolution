@@ -1170,8 +1170,8 @@ config-sanity: net
 
 $(EXE): $(OBJS)
 	@if [ "$@" = "$(EXE_USE)" ]; then \
-		if find $(OBJS) -type f -print0 2>/dev/null | xargs -0 nm -g 2>/dev/null | grep -E -q '__llvm_profile_runtime|__llvm_profile_instrument_memop|__llvm_profile_instrument_target'; then \
-			echo "ERROR: Final binary is instrumented (phantom PGO)."; \
+		if printf '%s\0' $(OBJS) | xargs -0 nm -g 2>/dev/null | grep -E -q '__llvm_profile|__llvm_profile_runtime|__llvm_profile_instrument'; then \
+			echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 			exit 1; \
 		fi; \
 	fi
@@ -1189,6 +1189,7 @@ clang-profile-make:
 clang-profile-use:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
 	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then echo "ERROR: no non-empty pgo_*.profraw files found for llvm-profdata merge"; exit 1; fi
+	@if printf '%s\n' '$(PROFILE_USE_BASE_EXTRACXXFLAGS) $(PROFILE_USE_BASE_EXTRALDFLAGS)' | grep -E -q 'fprofile-generate|fprofile-instr-generate|libclang_rt\.profile'; then echo "ERROR: clang-profile-use contains forbidden instrumentation/runtime flags"; exit 1; fi
 	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata pgo_*.profraw
 	@if [ ! -s stockfish.profdata ]; then echo "ERROR: stockfish.profdata is missing or empty."; exit 1; fi
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' EXTRACXXFLAGS='$(PROFILE_USE_BASE_EXTRACXXFLAGS) -fprofile-use=stockfish.profdata' EXTRALDFLAGS='$(PROFILE_USE_BASE_EXTRALDFLAGS) -fprofile-use=stockfish.profdata' all
