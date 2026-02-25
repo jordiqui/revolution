@@ -44,6 +44,8 @@ else
 	EXESUF =
 endif
 EXE = revolution$(EXESUF)
+EXE_GEN = revolution-pgo-gen$(EXESUF)
+EXE_USE = revolution-pgo-use$(EXESUF)
 
 NNUE_BIG = nn-5227780996d3.nnue
 NNUE_SMALL = nn-37f18f62d772.nnue
@@ -437,6 +439,8 @@ endif
 CXXFLAGS = $(ENV_CXXFLAGS) -Wall -Wcast-qual -fno-exceptions -std=c++17 $(EXTRACXXFLAGS)
 DEPENDFLAGS = $(ENV_DEPENDFLAGS) -std=c++17
 LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS)
+ORIG_EXTRACXXFLAGS := $(EXTRACXXFLAGS)
+ORIG_EXTRALDFLAGS := $(EXTRALDFLAGS)
 
 ifeq ($(COMP),)
 	COMP=gcc
@@ -977,35 +981,69 @@ analyze: net config-sanity objclean
 build: net config-sanity
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) all
 
-profile-build: net config-sanity objclean profileclean
+profile-build: net config-sanity objclean
 	@echo ""
-	@echo "Step 1/4. Building instrumented executable ..."
+	@echo "Step 1/5. Building instrumented executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
 	@echo ""
-	@echo "Step 2/4. Running benchmark for pgo-build ..."
+	@echo "Step 2/5. Running benchmark for pgo-build ..."
 	@src="$(abspath $(NNUE_BIG))";   dst="$(EXE_DIR)$(NNUE_BIG)";   [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
 	@src="$(abspath $(NNUE_SMALL))"; dst="$(EXE_DIR)$(NNUE_SMALL)"; [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
 	@(echo "=== PGOBENCH preflight ==="; \
 	  pwd; \
-	  ls -lh "./$(EXE)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
+	  ls -lh "./$(EXE_GEN)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
+	@rm -f .pgo_step2_start.stamp
+	@touch .pgo_step2_start.stamp
 	@if [ "$(comp)" = "clang" ]; then \
-	  LLVM_PROFILE_FILE="default.profraw" $(WINE_PATH) "./$(EXE)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  export LLVM_PROFILE_FILE=./pgo_%p.profraw; \
+	  $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c -newer .pgo_step2_start.stamp | grep -q .; then \
+	    echo "ERROR: Instrumented run did not produce any non-empty pgo_*.profraw files."; \
+	    exit 1; \
+	  fi; \
 	else \
 	  BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
 	  if [ "$(target_windows)" = "yes" ] && command -v cygpath > /dev/null 2>&1; then \
 	    BIG="$$(cygpath -w "$(abspath $(NNUE_BIG))")"; \
 	    SMALL="$$(cygpath -w "$(abspath $(NNUE_SMALL))")"; \
 	  fi; \
-	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | $(WINE_PATH) "./$(EXE)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | $(WINE_PATH) "./$(EXE_GEN)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
 	fi
+	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c -newer .pgo_step2_start.stamp | grep -q .; then \
+	  echo "ERROR: Step 2 did not produce new non-empty pgo_*.profraw files."; \
+	  exit 1; \
+	fi
+	@rm -f .pgo_step2_start.stamp
 	tail -n 4 PGOBENCH.out
 	@echo ""
-	@echo "Step 3/4. Building optimized executable ..."
+	@echo "Step 3/5. Building optimized executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_use)
+	@if [ ! -s stockfish.profdata ]; then \
+	  echo "ERROR: stockfish.profdata is missing or empty."; \
+	  exit 1; \
+	fi
 	@echo ""
-	@echo "Step 4/4. Deleting profile data ..."
+	@echo "Step 4/5. Validating binary instrumentation invariants ..."
+	@rm -f pgo_*.profraw
+	@export LLVM_PROFILE_FILE=./pgo_%p.profraw; \
+	$(WINE_PATH) "./$(EXE_GEN)" bench > /dev/null 2>&1 || (echo "ERROR: EXE_GEN invariant run failed."; exit 1)
+	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
+	  echo "ERROR: EXE_GEN did not produce profiling data during invariant check."; \
+	  exit 1; \
+	fi
+	@rm -f pgo_*.profraw
+	@export LLVM_PROFILE_FILE=./pgo_%p.profraw; \
+	$(WINE_PATH) "./$(EXE_USE)" bench > /dev/null 2>&1 || (echo "ERROR: EXE_USE invariant run failed."; exit 1)
+	@if find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
+	  echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
+	  exit 1; \
+	fi
+	@echo ""
+	@echo "Step 5/5. Deleting profile data ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profileclean
+	@echo ""
+	@echo "PGO pipeline completed: $(EXE_GEN) (gen) and $(EXE_USE) (use)."
 
 strip:
 	$(STRIP) $(EXE)
@@ -1021,13 +1059,13 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f stockfish stockfish.exe $(EXE) *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
 
 # clean auxiliary profiling files
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
-	@rm -f stockfish.profdata default.profdata default.profraw *.profraw
+	@rm -f stockfish.profdata default.profdata default.profraw *.profraw .pgo_step2_start.stamp
 	@rm -f stockfish.*args*
 	@rm -f stockfish.*lt*
 	@rm -f stockfish.res
@@ -1125,53 +1163,53 @@ FORCE:
 
 clang-profile-make:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
-	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then \
-		echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; \
-		exit 1; \
-	fi
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-generate' \
-	EXTRALDFLAGS='-fprofile-instr-generate $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
-	all
+	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; exit 1; fi
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_GEN)' ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-instr-generate' EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -fprofile-instr-generate $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' all
 
 clang-profile-use:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
-	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then \
-		echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; \
-		exit 1; \
-	fi
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=default.profdata default.profraw
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-use=default.profdata' \
-	EXTRALDFLAGS='-fprofile-instr-use=default.profdata $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
-	all
+	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; exit 1; fi
+	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then echo "ERROR: no non-empty pgo_*.profraw files found for llvm-profdata merge"; exit 1; fi
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata pgo_*.profraw
+	@if [ ! -s stockfish.profdata ]; then echo "ERROR: stockfish.profdata is missing or empty."; exit 1; fi
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-instr-use=stockfish.profdata' EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -fprofile-instr-use=stockfish.profdata $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' all
 
 gcc-profile-make:
 	@mkdir -p profdir
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-generate=profdir' \
-	EXTRACXXFLAGS+=$(EXTRAPROFILEFLAGS) \
-	EXTRALDFLAGS='-lgcov' \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_GEN)' \
+	ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' \
+	EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-generate=profdir $(EXTRAPROFILEFLAGS)' \
+	EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -lgcov' \
 	all
 
 gcc-profile-use:
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-use=profdir -fno-peel-loops -fno-tracer' \
-	EXTRACXXFLAGS+=$(EXTRAPROFILEFLAGS) \
-	EXTRALDFLAGS='-lgcov' \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' \
+	ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' \
+	EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-use=profdir -fno-peel-loops -fno-tracer $(EXTRAPROFILEFLAGS)' \
+	EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -lgcov' \
 	all
 
 icx-profile-make:
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-generate ' \
-	EXTRALDFLAGS=' -fprofile-instr-generate' \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_GEN)' \
+	ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' \
+	EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-instr-generate' \
+	EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -fprofile-instr-generate' \
 	all
 
 icx-profile-use:
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
-	EXTRALDFLAGS='-fprofile-use ' \
+	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
+		echo "ERROR: no non-empty pgo_*.profraw files found for llvm-profdata merge"; \
+		exit 1; \
+	fi
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata pgo_*.profraw
+	@if [ ! -s stockfish.profdata ]; then \
+		echo "ERROR: stockfish.profdata is missing or empty."; \
+		exit 1; \
+	fi
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' \
+	ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' \
+	EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-instr-use=stockfish.profdata' \
+	EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -fprofile-use' \
 	all
 
 .depend: $(SRCS)
