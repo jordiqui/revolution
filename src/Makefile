@@ -443,6 +443,8 @@ ORIG_EXTRACXXFLAGS := $(EXTRACXXFLAGS)
 ORIG_EXTRALDFLAGS := $(EXTRALDFLAGS)
 PROFILE_BASE_EXTRACXXFLAGS := $(filter-out -fprofile-generate -fprofile-generate=% -fprofile-instr-generate -fprofile-instr-generate=%,$(ORIG_EXTRACXXFLAGS))
 PROFILE_BASE_EXTRALDFLAGS := $(filter-out -fprofile-generate -fprofile-generate=% -fprofile-instr-generate -fprofile-instr-generate=% -lgcov,$(ORIG_EXTRALDFLAGS))
+PROFILE_USE_BASE_EXTRACXXFLAGS := $(filter-out -fprofile-generate -fprofile-generate=% -fprofile-instr-generate -fprofile-instr-generate=% -fprofile-use -fprofile-use=% -fprofile-instr-use -fprofile-instr-use=%,$(ORIG_EXTRACXXFLAGS))
+PROFILE_USE_BASE_EXTRALDFLAGS := $(filter-out -fprofile-generate -fprofile-generate=% -fprofile-instr-generate -fprofile-instr-generate=% -fprofile-use -fprofile-use=% -fprofile-instr-use -fprofile-instr-use=% -lgcov,$(ORIG_EXTRALDFLAGS))
 
 ifeq ($(COMP),)
 	COMP=gcc
@@ -1026,9 +1028,8 @@ profile-build: net config-sanity objclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
 	ORIG_EXTRACXXFLAGS='$(PROFILE_BASE_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(PROFILE_BASE_EXTRALDFLAGS)' \
 	$(profile_use) | tee .pgo_step3_build.log
-	@if grep -E " -o[[:space:]]+[^[:space:]]*$(EXE_USE)([[:space:]]|$$)" .pgo_step3_build.log | \
-		grep -E -q -- 'fprofile-generate|fprofile-instr-generate'; then \
-		echo "ERROR: Step 3 final link command contains forbidden profile-generate flags."; \
+	@if grep -E -q -- 'fprofile-generate|fprofile-instr-generate' .pgo_step3_build.log; then \
+		echo "ERROR: Step 3 build log contains forbidden profile-generate flags."; \
 		exit 1; \
 	fi
 	@if [ ! -s stockfish.profdata ]; then \
@@ -1071,7 +1072,8 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f stockfish stockfish.exe $(EXE) *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f stockfish stockfish.exe $(EXE)
+	@find . -type f \( -name '*.o' -o -name '*.d' \) -delete
 
 # clean auxiliary profiling files
 profileclean:
@@ -1167,6 +1169,12 @@ config-sanity: net
 	 test "$(comp)" = "aarch64-linux-android21-clang")
 
 $(EXE): $(OBJS)
+	@if [ "$@" = "$(EXE_USE)" ]; then \
+		if find $(OBJS) -type f -print0 2>/dev/null | xargs -0 nm -g 2>/dev/null | grep -E -q '__llvm_profile_runtime|__llvm_profile_instrument_memop|__llvm_profile_instrument_target'; then \
+			echo "ERROR: Final binary is instrumented (phantom PGO)."; \
+			exit 1; \
+		fi; \
+	fi
 	+$(CXX) -o $@ $(OBJS) $(LDFLAGS)
 
 # Force recompilation to ensure version info is up-to-date
@@ -1183,7 +1191,7 @@ clang-profile-use:
 	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then echo "ERROR: no non-empty pgo_*.profraw files found for llvm-profdata merge"; exit 1; fi
 	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata pgo_*.profraw
 	@if [ ! -s stockfish.profdata ]; then echo "ERROR: stockfish.profdata is missing or empty."; exit 1; fi
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-use=stockfish.profdata' EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -fprofile-use=stockfish.profdata' all
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' EXTRACXXFLAGS='$(PROFILE_USE_BASE_EXTRACXXFLAGS) -fprofile-use=stockfish.profdata' EXTRALDFLAGS='$(PROFILE_USE_BASE_EXTRALDFLAGS) -fprofile-use=stockfish.profdata' all
 
 gcc-profile-make:
 	@mkdir -p profdir
@@ -1219,8 +1227,8 @@ icx-profile-use:
 	fi
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE='$(EXE_USE)' \
 	ORIG_EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS)' ORIG_EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS)' \
-	EXTRACXXFLAGS='$(ORIG_EXTRACXXFLAGS) -fprofile-use=stockfish.profdata' \
-	EXTRALDFLAGS='$(ORIG_EXTRALDFLAGS) -fprofile-use=stockfish.profdata' \
+	EXTRACXXFLAGS='$(PROFILE_USE_BASE_EXTRACXXFLAGS) -fprofile-use=stockfish.profdata' \
+	EXTRALDFLAGS='$(PROFILE_USE_BASE_EXTRALDFLAGS) -fprofile-use=stockfish.profdata' \
 	all
 
 .depend: $(SRCS)
