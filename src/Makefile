@@ -62,6 +62,8 @@ EXE_ABS := $(abspath ./$(EXE))
 EXE_DIR := $(dir $(EXE_ABS))
 PROFRAW_PATH := $(CURDIR)/default.profraw
 PROFRAW_WIN := $(shell cygpath -w "$(PROFRAW_PATH)" 2>/dev/null)
+PROFRAW_VERIFY := $(CURDIR)/__pgo_gen_verify.profraw
+PROFRAW_VERIFY_WIN := $(shell cygpath -w "$(PROFRAW_VERIFY)" 2>/dev/null)
 PGOBENCH = cd "$(EXE_DIR)" && $(WINE_PATH) "$(EXE_ABS)" bench
 
 ### Source and object files
@@ -1064,20 +1066,25 @@ verify-pgo:
 		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 		exit 1; \
 	fi
-	@rm -f __pgo_use_test_*.profraw __pgo_gen_test_*.profraw "$(PROFRAW_PATH)"
+	@rm -f __pgo_use_test_*.profraw __pgo_gen_test_*.profraw "$(PROFRAW_VERIFY)"
 	@LLVM_PROFILE_FILE=./__pgo_use_test_%p.profraw $(WINE_PATH) ./$(EXE_USE) bench >/dev/null 2>&1 || true
 	@if find . -maxdepth 1 -name '__pgo_use_test_*.profraw' -type f -size +0c | grep -q .; then \
 		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 		exit 1; \
 	fi
 	@if [ "$(comp)" = "clang" ]; then \
+	  rm -f "$(PROFRAW_VERIFY)" verify_pgo.out; \
+	  ls -la "./$(EXE_GEN)" > verify_pgo.out 2>&1; \
 	  if [ "$(target_windows)" = "yes" ]; then \
-	    LLVM_PROFILE_FILE="$(PROFRAW_WIN)" $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
+	    echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY_WIN)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
+	    LLVM_PROFILE_FILE="$(PROFRAW_VERIFY_WIN)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
 	  else \
-	    LLVM_PROFILE_FILE="$(PROFRAW_PATH)" $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
+	    echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
+	    LLVM_PROFILE_FILE="$(PROFRAW_VERIFY)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
 	  fi; \
-	  if [ ! -s "$(CURDIR)/default.profraw" ]; then \
-	    echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_PATH). Aborting to prevent phantom PGO."; \
+	  if [ ! -s "$(PROFRAW_VERIFY)" ]; then \
+	    echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_VERIFY). Aborting to prevent phantom PGO."; \
+	    tail -n 80 verify_pgo.out; \
 	    exit 1; \
 	  fi; \
 	else \
