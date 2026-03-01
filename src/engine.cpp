@@ -165,7 +165,7 @@ Engine::Engine(std::optional<std::string> path) :
     options.add("Experience Book Eval Importance", Option(5, 0, 10, [this](const Option&) {
                     return Experience::update_settings(options);
                 }));
-    options.add("Experience Book Min Depth", Option(4, 4, 64, [this](const Option&) {
+    options.add("Experience Book Min Depth", Option(27, 4, 64, [this](const Option&) {
                     return Experience::update_settings(options);
                 }));
     options.add("Experience Book Max Moves", Option(16, 1, 100, [this](const Option&) {
@@ -202,7 +202,6 @@ void Engine::go(Search::LimitsType& limits) {
 
     if (limits.perft == 0)
     {
-        const int  bookPly  = pos.game_ply();
         const Move bookMove = bookManager.probe(pos, options);
         if (bookMove != Move::none())
         {
