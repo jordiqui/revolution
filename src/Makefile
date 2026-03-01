@@ -1074,6 +1074,29 @@ verify-pgo:
 	fi
 	@if [ "$(comp)" = "clang" ]; then \
 	  rm -f "$(PROFRAW_VERIFY)" verify_pgo.out; \
+codex/fix-verify-pgo-for-missing-exe_gen-in-msys2-m0emr0
+	  if [ -x "./$(EXE_GEN)" ]; then \
+	    printf 'verify-pgo runner: %s\n' "./$(EXE_GEN)" > verify_pgo.out 2>&1; \
+	    ls -la "./$(EXE_GEN)" >> verify_pgo.out 2>&1; \
+	    if [ "$(target_windows)" = "yes" ]; then \
+	      echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY_WIN)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
+	      LLVM_PROFILE_FILE="$(PROFRAW_VERIFY_WIN)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
+	    else \
+	      echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
+	      LLVM_PROFILE_FILE="$(PROFRAW_VERIFY)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
+	    fi; \
+	    if [ ! -s "$(PROFRAW_VERIFY)" ]; then \
+	      echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_VERIFY). Aborting to prevent phantom PGO."; \
+	      tail -n 80 verify_pgo.out; \
+	      exit 1; \
+	    fi; \
+	  else \
+	    echo "verify-pgo: EXE_GEN missing; skip GEN verify run; require $(PROFRAW_PATH)" > verify_pgo.out 2>&1; \
+	    if [ ! -s "$(PROFRAW_PATH)" ]; then \
+	      echo "ERROR: missing/empty $(PROFRAW_PATH)"; \
+	      exit 1; \
+	    fi; \
+=======
 	  GEN="./$(EXE_GEN)"; \
 	  if [ ! -x "$$GEN" ]; then GEN="./$(EXE_USE)"; fi; \
 	  printf 'verify-pgo runner: %s\n' "$$GEN" > verify_pgo.out 2>&1; \
@@ -1089,6 +1112,7 @@ verify-pgo:
 	    echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_VERIFY). Aborting to prevent phantom PGO."; \
 	    tail -n 80 verify_pgo.out; \
 	    exit 1; \
+ main
 	  fi; \
 	else \
 	  LLVM_PROFILE_FILE=./__pgo_gen_test_%p.profraw $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
