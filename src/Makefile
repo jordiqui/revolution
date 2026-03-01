@@ -1074,13 +1074,16 @@ verify-pgo:
 	fi
 	@if [ "$(comp)" = "clang" ]; then \
 	  rm -f "$(PROFRAW_VERIFY)" verify_pgo.out; \
-	  ls -la "./$(EXE_GEN)" > verify_pgo.out 2>&1; \
+	  GEN="./$(EXE_GEN)"; \
+	  if [ ! -x "$$GEN" ]; then GEN="./$(EXE_USE)"; fi; \
+	  printf 'verify-pgo runner: %s\n' "$$GEN" > verify_pgo.out 2>&1; \
+	  ls -la "$$GEN" >> verify_pgo.out 2>&1; \
 	  if [ "$(target_windows)" = "yes" ]; then \
-	    echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY_WIN)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
-	    LLVM_PROFILE_FILE="$(PROFRAW_VERIFY_WIN)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
+	    echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY_WIN)\" \"$$GEN\" bench" >> verify_pgo.out 2>&1; \
+	    LLVM_PROFILE_FILE="$(PROFRAW_VERIFY_WIN)" "$$GEN" bench >> verify_pgo.out 2>&1 || true; \
 	  else \
-	    echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
-	    LLVM_PROFILE_FILE="$(PROFRAW_VERIFY)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
+	    echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY)\" \"$$GEN\" bench" >> verify_pgo.out 2>&1; \
+	    LLVM_PROFILE_FILE="$(PROFRAW_VERIFY)" "$$GEN" bench >> verify_pgo.out 2>&1 || true; \
 	  fi; \
 	  if [ ! -s "$(PROFRAW_VERIFY)" ]; then \
 	    echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_VERIFY). Aborting to prevent phantom PGO."; \
