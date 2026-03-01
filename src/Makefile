@@ -1010,10 +1010,20 @@ profile-build: net config-sanity objclean profileclean
 	  ls -lh "./$(EXE_GEN)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
 	@if [ "$(comp)" = "clang" ]; then \
 	  rm -f "$(PROFRAW_PATH)"; \
+	  echo "PGO bench executable: $(EXE_GEN)" >> PGOBENCH.out 2>&1; \
+	  ls -la "./$(EXE_GEN)" >> PGOBENCH.out 2>&1; \
 	  if [ "$(target_windows)" = "yes" ]; then \
 	    LLVM_PROFILE_FILE="$(PROFRAW_WIN)" $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
 	  else \
-	    LLVM_PROFILE_FILE="$(PROFRAW_PATH)" $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	    LLVM_PROFILE_FILE="$(CURDIR)/default.profraw" "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  fi; \
+	  ls -la "$(CURDIR)/default.profraw" >> PGOBENCH.out 2>&1 || true; \
+	  find "$(CURDIR)" -maxdepth 1 -name '*.profraw' -type f -size +0c -ls >> PGOBENCH.out 2>&1 || true; \
+	  if [ ! -s "$(CURDIR)/default.profraw" ]; then \
+	    echo "ERROR: PGO failed loudly: clang bench did not produce a non-empty $(CURDIR)/default.profraw."; \
+	    echo "ERROR: See PGOBENCH.out diagnostics above for executable path/listing and profraw scan."; \
+	    tail -n 80 PGOBENCH.out; \
+	    exit 1; \
 	  fi; \
 	else \
 	  BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
@@ -1023,9 +1033,16 @@ profile-build: net config-sanity objclean profileclean
 	  fi; \
 	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | LLVM_PROFILE_FILE="./pgo_%p.profraw" $(WINE_PATH) "./$(EXE_GEN)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
 	fi
-	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
-		echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
-		exit 1; \
+	@if [ "$(comp)" = "clang" ]; then \
+	  if [ ! -s "$(CURDIR)/default.profraw" ]; then \
+	    echo "ERROR: PGO failed loudly: missing or empty $(CURDIR)/default.profraw after clang Step 2/4."; \
+	    exit 1; \
+	  fi; \
+	else \
+	  if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
+	    echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
+	    exit 1; \
+	  fi; \
 	fi
 	tail -n 4 PGOBENCH.out
 	@echo ""
@@ -1042,7 +1059,7 @@ profile-build: net config-sanity objclean profileclean
 verify-pgo:
 	@echo "Checking link lines for PGO flags ..."
 	@grep -E -- '-fprofile-(instr-)?generate' pgo_gen_build.log >/dev/null || (echo "ERROR: GEN link/compile line missing profile generate flags."; exit 1)
-	@grep -E -- '-fprofile-(instr-)?use=stockfish\.profdata' pgo_use_build.log >/dev/null || (echo "ERROR: USE link/compile line missing profile use flag."; exit 1)
+	@grep -E -- '-fprofile-(instr-)?use=default\.profdata' pgo_use_build.log >/dev/null || (echo "ERROR: USE link/compile line missing profile use flag."; exit 1)
 	@if grep -E -- '-fprofile-(instr-)?generate|libclang_rt\.profile' pgo_use_build.log >/dev/null; then \
 		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 		exit 1; \
@@ -1059,7 +1076,7 @@ verify-pgo:
 	  else \
 	    LLVM_PROFILE_FILE="$(PROFRAW_PATH)" $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
 	  fi; \
-	  if [ ! -s "$(PROFRAW_PATH)" ]; then \
+	  if [ ! -s "$(CURDIR)/default.profraw" ]; then \
 	    echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_PATH). Aborting to prevent phantom PGO."; \
 	    exit 1; \
 	  fi; \
@@ -1207,10 +1224,9 @@ clang-profile-make:
 		echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; \
 		exit 1; \
 	fi
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXE=$(EXE) \
-	EXTRACXXFLAGS='-fprofile-instr-generate' \
-	EXTRALDFLAGS='-fprofile-instr-generate $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE="$(EXE_GEN)" \
+	EXTRACXXFLAGS='-fprofile-instr-generate $(EXTRACXXFLAGS)' \
+	EXTRALDFLAGS='-fprofile-instr-generate $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN)) $(EXTRALDFLAGS)' \
 	all
 
 clang-profile-use:
@@ -1219,15 +1235,14 @@ clang-profile-use:
 		echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_PATH). Aborting to prevent phantom PGO."; \
 		exit 1; \
 	fi
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata "$(PROFRAW_PATH)"
-	@if [ ! -s stockfish.profdata ]; then \
-		echo "ERROR: PGO failed: stockfish.profdata missing/empty. Aborting."; \
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=default.profdata "$(CURDIR)/default.profraw"
+	@if [ ! -s default.profdata ]; then \
+		echo "ERROR: PGO failed: default.profdata missing/empty. Aborting."; \
 		exit 1; \
 	fi
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXE=$(EXE) \
-	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
-	EXTRALDFLAGS='-fprofile-instr-use=stockfish.profdata' \
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE="$(EXE_USE)" \
+	EXTRACXXFLAGS='-fprofile-instr-use=default.profdata $(EXTRACXXFLAGS)' \
+	EXTRALDFLAGS='-fprofile-instr-use=default.profdata $(EXTRALDFLAGS)' \
 	all
 
 gcc-profile-make:
