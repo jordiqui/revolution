@@ -60,6 +60,8 @@ BINDIR = $(PREFIX)/bin
 ### Built-in benchmark for pgo-builds
 EXE_ABS := $(abspath ./$(EXE))
 EXE_DIR := $(dir $(EXE_ABS))
+PROFRAW_PATH := $(CURDIR)/default.profraw
+PROFRAW_WIN := $(shell cygpath -w "$(PROFRAW_PATH)" 2>/dev/null)
 PGOBENCH = cd "$(EXE_DIR)" && $(WINE_PATH) "$(EXE_ABS)" bench
 
 ### Source and object files
@@ -1007,7 +1009,12 @@ profile-build: net config-sanity objclean profileclean
 	  pwd; \
 	  ls -lh "./$(EXE_GEN)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
 	@if [ "$(comp)" = "clang" ]; then \
-	  LLVM_PROFILE_FILE="./pgo_%p.profraw" $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  rm -f "$(PROFRAW_PATH)"; \
+	  if [ "$(target_windows)" = "yes" ]; then \
+	    LLVM_PROFILE_FILE="$(PROFRAW_WIN)" $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  else \
+	    LLVM_PROFILE_FILE="$(PROFRAW_PATH)" $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  fi; \
 	else \
 	  BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
 	  if [ "$(target_windows)" = "yes" ] && command -v cygpath > /dev/null 2>&1; then \
@@ -1040,16 +1047,28 @@ verify-pgo:
 		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 		exit 1; \
 	fi
-	@rm -f __pgo_use_test_*.profraw __pgo_gen_test_*.profraw
+	@rm -f __pgo_use_test_*.profraw __pgo_gen_test_*.profraw "$(PROFRAW_PATH)"
 	@LLVM_PROFILE_FILE=./__pgo_use_test_%p.profraw $(WINE_PATH) ./$(EXE_USE) bench >/dev/null 2>&1 || true
 	@if find . -maxdepth 1 -name '__pgo_use_test_*.profraw' -type f -size +0c | grep -q .; then \
 		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 		exit 1; \
 	fi
-	@LLVM_PROFILE_FILE=./__pgo_gen_test_%p.profraw $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true
-	@if ! find . -maxdepth 1 -name '__pgo_gen_test_*.profraw' -type f -size +0c | grep -q .; then \
-		echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
-		exit 1; \
+	@if [ "$(comp)" = "clang" ]; then \
+	  if [ "$(target_windows)" = "yes" ]; then \
+	    LLVM_PROFILE_FILE="$(PROFRAW_WIN)" $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
+	  else \
+	    LLVM_PROFILE_FILE="$(PROFRAW_PATH)" $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
+	  fi; \
+	  if [ ! -s "$(PROFRAW_PATH)" ]; then \
+	    echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_PATH). Aborting to prevent phantom PGO."; \
+	    exit 1; \
+	  fi; \
+	else \
+	  LLVM_PROFILE_FILE=./__pgo_gen_test_%p.profraw $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true; \
+	  if ! find . -maxdepth 1 -name '__pgo_gen_test_*.profraw' -type f -size +0c | grep -q .; then \
+	    echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
+	    exit 1; \
+	  fi; \
 	fi
 
 bench-compare: net config-sanity
@@ -1196,11 +1215,11 @@ clang-profile-make:
 
 clang-profile-use:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
-	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
-		echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
+	@if [ ! -s "$(PROFRAW_PATH)" ]; then \
+		echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_PATH). Aborting to prevent phantom PGO."; \
 		exit 1; \
 	fi
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata pgo_*.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata "$(PROFRAW_PATH)"
 	@if [ ! -s stockfish.profdata ]; then \
 		echo "ERROR: PGO failed: stockfish.profdata missing/empty. Aborting."; \
 		exit 1; \
