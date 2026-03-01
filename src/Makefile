@@ -44,9 +44,11 @@ else
 	EXESUF =
 endif
 EXE = revolution$(EXESUF)
-RELEASE_EXE ?= $(EXE)
+RELEASE_TAG ?= 4.90-010326
+BUILD_ARCH_SUFFIX ?= -$(ARCH)
+RELEASE_EXE ?= revolution-$(RELEASE_TAG)$(BUILD_ARCH_SUFFIX)$(EXESUF)
 EXE_USE ?= $(RELEASE_EXE)
-EXE_GEN ?= $(basename $(RELEASE_EXE))-pgo-gen$(EXESUF)
+EXE_GEN ?= revolution-$(RELEASE_TAG)$(BUILD_ARCH_SUFFIX)-pgo-gen$(EXESUF)
 
 NNUE_BIG = nn-5227780996d3.nnue
 NNUE_SMALL = nn-37f18f62d772.nnue
