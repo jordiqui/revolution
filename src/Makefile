@@ -44,6 +44,9 @@ else
 	EXESUF =
 endif
 EXE = revolution$(EXESUF)
+RELEASE_EXE ?= $(EXE)
+EXE_USE ?= $(RELEASE_EXE)
+EXE_GEN ?= $(basename $(RELEASE_EXE))-pgo-gen$(EXESUF)
 
 NNUE_BIG = nn-5227780996d3.nnue
 NNUE_SMALL = nn-37f18f62d772.nnue
@@ -129,6 +132,9 @@ ifeq ($(ARCH),)
    ARCH = native
 endif
 
+ARCH_ORIG := $(ARCH)
+override ARCH := $(shell echo "$(ARCH)" | tr '[:upper:]' '[:lower:]')
+
 ifeq ($(ARCH), native)
    override ARCH := $(shell $(SHELL) ../scripts/get_native_properties.sh | cut -d " " -f 1)
 endif
@@ -137,7 +143,7 @@ endif
 # the user can override with `make ARCH=x86-64-avx512icl SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
                  x86-64-avx512icl x86-64-vnni512 x86-64-avx512 x86-64-avxvnni \
-                 x86-64-bmi2 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
+                 x86-64-fma3 x86-64-bmi2 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
                  x86-64 x86-32-sse41-popcnt x86-32-sse2 x86-32 ppc-64 ppc-64-altivec ppc-64-vsx ppc-32 e2k \
                  armv7 armv7-neon armv8 armv8-dotprod apple-silicon general-64 general-32 riscv64 \
                  loongarch64 loongarch64-lsx loongarch64-lasx))
@@ -237,6 +243,15 @@ ifeq ($(findstring -modern,$(ARCH)),-modern)
 endif
 
 ifeq ($(findstring -avx2,$(ARCH)),-avx2)
+	popcnt = yes
+	sse = yes
+	sse2 = yes
+	ssse3 = yes
+	sse41 = yes
+	avx2 = yes
+endif
+
+ifeq ($(findstring -fma3,$(ARCH)),-fma3)
 	popcnt = yes
 	sse = yes
 	sse2 = yes
@@ -912,6 +927,7 @@ help:
 	echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
 	echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
 	echo "x86-64-bmi2             > x86 64-bit with bmi2 support" && \
+	echo "x86-64-fma3             > x86 64-bit with fma3 support" && \
 	echo "x86-64-avx2             > x86 64-bit with avx2 support" && \
 	echo "x86-64-sse41-popcnt     > x86 64-bit with sse41 and popcnt support" && \
 	echo "x86-64-modern           > deprecated, currently x86-64-sse41-popcnt" && \
@@ -964,7 +980,7 @@ ifneq ($(SUPPORTED_ARCH), true)
 endif
 
 
-.PHONY: help analyze build profile-build strip install clean net \
+.PHONY: help analyze build profile-build verify-pgo bench-compare strip install clean net \
 	objclean profileclean config-sanity \
 	icx-profile-use icx-profile-make \
 	gcc-profile-use gcc-profile-make \
@@ -980,32 +996,69 @@ build: net config-sanity
 profile-build: net config-sanity objclean profileclean
 	@echo ""
 	@echo "Step 1/4. Building instrumented executable ..."
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_make)
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE=$(EXE_GEN) $(profile_make) | tee pgo_gen_build.log
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
 	@src="$(abspath $(NNUE_BIG))";   dst="$(EXE_DIR)$(NNUE_BIG)";   [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
 	@src="$(abspath $(NNUE_SMALL))"; dst="$(EXE_DIR)$(NNUE_SMALL)"; [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
 	@(echo "=== PGOBENCH preflight ==="; \
 	  pwd; \
-	  ls -lh "./$(EXE)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
+	  ls -lh "./$(EXE_GEN)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
 	@if [ "$(comp)" = "clang" ]; then \
-	  LLVM_PROFILE_FILE="default.profraw" $(WINE_PATH) "./$(EXE)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  LLVM_PROFILE_FILE="./pgo_%p.profraw" $(WINE_PATH) "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
 	else \
 	  BIG="$(abspath $(NNUE_BIG))"; SMALL="$(abspath $(NNUE_SMALL))"; \
 	  if [ "$(target_windows)" = "yes" ] && command -v cygpath > /dev/null 2>&1; then \
 	    BIG="$$(cygpath -w "$(abspath $(NNUE_BIG))")"; \
 	    SMALL="$$(cygpath -w "$(abspath $(NNUE_SMALL))")"; \
 	  fi; \
-	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | $(WINE_PATH) "./$(EXE)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG" "$$SMALL" | LLVM_PROFILE_FILE="./pgo_%p.profraw" $(WINE_PATH) "./$(EXE_GEN)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	fi
+	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
+		echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
+		exit 1; \
 	fi
 	tail -n 4 PGOBENCH.out
 	@echo ""
 	@echo "Step 3/4. Building optimized executable ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) $(profile_use)
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE=$(EXE_USE) $(profile_use) | tee pgo_use_build.log
+	@echo ""
+	@echo "Verifying PGO invariants ..."
+	@$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE_GEN=$(EXE_GEN) EXE_USE=$(EXE_USE) verify-pgo
 	@echo ""
 	@echo "Step 4/4. Deleting profile data ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profileclean
+
+verify-pgo:
+	@echo "Checking link lines for PGO flags ..."
+	@grep -E -- '-fprofile-(instr-)?generate' pgo_gen_build.log >/dev/null || (echo "ERROR: GEN link/compile line missing profile generate flags."; exit 1)
+	@grep -E -- '-fprofile-(instr-)?use=stockfish\.profdata' pgo_use_build.log >/dev/null || (echo "ERROR: USE link/compile line missing profile use flag."; exit 1)
+	@if grep -E -- '-fprofile-(instr-)?generate|libclang_rt\.profile' pgo_use_build.log >/dev/null; then \
+		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
+		exit 1; \
+	fi
+	@rm -f __pgo_use_test_*.profraw __pgo_gen_test_*.profraw
+	@LLVM_PROFILE_FILE=./__pgo_use_test_%p.profraw $(WINE_PATH) ./$(EXE_USE) bench >/dev/null 2>&1 || true
+	@if find . -maxdepth 1 -name '__pgo_use_test_*.profraw' -type f -size +0c | grep -q .; then \
+		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
+		exit 1; \
+	fi
+	@LLVM_PROFILE_FILE=./__pgo_gen_test_%p.profraw $(WINE_PATH) ./$(EXE_GEN) bench >/dev/null 2>&1 || true
+	@if ! find . -maxdepth 1 -name '__pgo_gen_test_*.profraw' -type f -size +0c | grep -q .; then \
+		echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
+		exit 1; \
+	fi
+
+bench-compare: net config-sanity
+	@echo "Building non-PGO binary ($(RELEASE_EXE)) ..."
+	@$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean
+	@$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE=$(RELEASE_EXE) build
+	@echo "Building PGO binary ($(EXE_USE)) ..."
+	@$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profile-build
+	@echo "Collecting bench NPS ..."
+	@echo "Non-PGO:"; $(WINE_PATH) ./$(RELEASE_EXE) bench | tee bench_non_pgo.out | tail -n 5
+	@echo "PGO:"; $(WINE_PATH) ./$(EXE_USE) bench | tee bench_pgo.out | tail -n 5
 
 strip:
 	$(STRIP) $(EXE)
@@ -1021,13 +1074,16 @@ clean: objclean profileclean
 
 # clean binaries and objects
 objclean:
-	@rm -f stockfish stockfish.exe *.o ./syzygy/*.o ./nnue/*.o ./nnue/features/*.o
+	@rm -f stockfish stockfish.exe revolution revolution.exe $(EXE_GEN) $(EXE_USE) $(RELEASE_EXE)
+	@find . -type f \( -name '*.o' -o -name '*.d' \) -delete
 
 # clean auxiliary profiling files
 profileclean:
 	@rm -rf profdir
 	@rm -f bench.txt *.gcda *.gcno ./syzygy/*.gcda ./nnue/*.gcda ./nnue/features/*.gcda *.s PGOBENCH.out
 	@rm -f stockfish.profdata default.profdata default.profraw *.profraw
+	@rm -f pgo_*.profraw __pgo_use_test_*.profraw __pgo_gen_test_*.profraw
+	@rm -f pgo_gen_build.log pgo_use_build.log bench_non_pgo.out bench_pgo.out
 	@rm -f stockfish.*args*
 	@rm -f stockfish.*lt*
 	@rm -f stockfish.res
@@ -1053,6 +1109,7 @@ config-sanity: net
 	echo "sanitize: '$(sanitize)'" && \
 	echo "optimize: '$(optimize)'" && \
 	echo "lto: '$(lto)'" && \
+	echo "arch_input: '$(ARCH_ORIG)'" && \
 	echo "arch: '$(arch)'" && \
 	echo "bits: '$(bits)'" && \
 	echo "kernel: '$(KERNEL)'" && \
@@ -1130,25 +1187,32 @@ clang-profile-make:
 		exit 1; \
 	fi
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXE=$(EXE) \
 	EXTRACXXFLAGS='-fprofile-instr-generate' \
 	EXTRALDFLAGS='-fprofile-instr-generate $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
 	all
 
 clang-profile-use:
 	@command -v $(LLVM_PROFDATA) >/dev/null 2>&1 || (echo "ERROR: $(LLVM_PROFDATA) not found"; exit 1)
-	@if [ "$(target_windows)" = "yes" ] && [ ! -f "$(CLANG_PROFILE_RT_WIN)" ]; then \
-		echo "ERROR: missing Clang profile runtime: $(CLANG_PROFILE_RT_WIN)"; \
+	@if ! find . -maxdepth 1 -name 'pgo_*.profraw' -type f -size +0c | grep -q .; then \
+		echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
 		exit 1; \
 	fi
-	$(XCRUN) $(LLVM_PROFDATA) merge -output=default.profdata default.profraw
+	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata pgo_*.profraw
+	@if [ ! -s stockfish.profdata ]; then \
+		echo "ERROR: PGO failed: stockfish.profdata missing/empty. Aborting."; \
+		exit 1; \
+	fi
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
-	EXTRACXXFLAGS='-fprofile-instr-use=default.profdata' \
-	EXTRALDFLAGS='-fprofile-instr-use=default.profdata $(if $(filter yes,$(target_windows)),$(CLANG_PROFILE_RT_WIN))' \
+	EXE=$(EXE) \
+	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
+	EXTRALDFLAGS='-fprofile-instr-use=stockfish.profdata' \
 	all
 
 gcc-profile-make:
 	@mkdir -p profdir
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXE=$(EXE) \
 	EXTRACXXFLAGS='-fprofile-generate=profdir' \
 	EXTRACXXFLAGS+=$(EXTRAPROFILEFLAGS) \
 	EXTRALDFLAGS='-lgcov' \
@@ -1156,6 +1220,7 @@ gcc-profile-make:
 
 gcc-profile-use:
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXE=$(EXE) \
 	EXTRACXXFLAGS='-fprofile-use=profdir -fno-peel-loops -fno-tracer' \
 	EXTRACXXFLAGS+=$(EXTRAPROFILEFLAGS) \
 	EXTRALDFLAGS='-lgcov' \
@@ -1163,6 +1228,7 @@ gcc-profile-use:
 
 icx-profile-make:
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXE=$(EXE) \
 	EXTRACXXFLAGS='-fprofile-instr-generate ' \
 	EXTRALDFLAGS=' -fprofile-instr-generate' \
 	all
@@ -1170,6 +1236,7 @@ icx-profile-make:
 icx-profile-use:
 	$(XCRUN) $(LLVM_PROFDATA) merge -output=stockfish.profdata *.profraw
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) \
+	EXE=$(EXE) \
 	EXTRACXXFLAGS='-fprofile-instr-use=stockfish.profdata' \
 	EXTRALDFLAGS='-fprofile-use ' \
 	all
