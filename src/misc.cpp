@@ -43,7 +43,7 @@ namespace {
 #ifdef ENGINE_VERSION
 constexpr std::string_view version = ENGINE_VERSION;
 #else
-constexpr std::string_view version = "4.90-210226";
+constexpr std::string_view version = "4.90-020326";
 #endif
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
