@@ -39,7 +39,13 @@ namespace Stockfish {
 
 namespace {
 
-// Version number or dev.
+// Engine name and version.
+#ifdef ENGINE_NAME
+constexpr std::string_view engineName = ENGINE_NAME;
+#else
+constexpr std::string_view engineName = "Revolution";
+#endif
+
 #ifdef ENGINE_VERSION
 constexpr std::string_view version = ENGINE_VERSION;
 #else
@@ -133,7 +139,7 @@ std::string engine_version_info() {
     return ENGINE_ID;
 #else
     std::stringstream ss;
-    ss << "Revolution-" << version << std::setfill('0');
+    ss << engineName << "-" << version << std::setfill('0');
 
     if constexpr (version == "dev")
     {
@@ -165,7 +171,10 @@ std::string engine_version_info() {
 }
 
 std::string engine_info(bool to_uci) {
-    return engine_version_info() + (to_uci ? "\nid author " : " by ")
+    const std::string name = to_uci ? std::string(engineName) + " " + std::string(version)
+                                    : engine_version_info();
+
+    return name + (to_uci ? "\nid author " : " by ")
          + "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
 }
 
