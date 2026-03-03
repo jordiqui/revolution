@@ -43,12 +43,8 @@ ifeq ($(target_windows),yes)
 else
 	EXESUF =
 endif
-EXE = revolution$(EXESUF)
-RELEASE_TAG ?= 4.90-020326
-BUILD_ARCH_SUFFIX ?= -$(ARCH)
-RELEASE_EXE ?= revolution-$(RELEASE_TAG)$(BUILD_ARCH_SUFFIX)$(EXESUF)
-EXE_USE ?= $(RELEASE_EXE)
-EXE_GEN ?= revolution-$(RELEASE_TAG)$(BUILD_ARCH_SUFFIX)-pgo-gen$(EXESUF)
+ENGINE_BASENAME = Revolution
+RELEASE_TAG ?= 5.0-030326
 
 NNUE_BIG = nn-5227780996d3.nnue
 NNUE_SMALL = nn-37f18f62d772.nnue
@@ -145,6 +141,28 @@ ifeq ($(ARCH), native)
    override ARCH := $(shell $(SHELL) ../scripts/get_native_properties.sh | cut -d " " -f 1)
 endif
 
+ARCH_TAG ?= $(ARCH)
+ifeq ($(ARCH),x86-64-sse41-popcnt)
+   ARCH_TAG := sse41popcnt
+endif
+ifeq ($(ARCH),x86-64-avx2)
+   ARCH_TAG := avx2
+endif
+ifeq ($(ARCH),x86-64-bmi2)
+   ARCH_TAG := bmi2
+endif
+ifeq ($(ARCH),x86-64-avx512)
+   ARCH_TAG := avx512
+endif
+ifeq ($(ARCH),x86-64-fma3)
+   ARCH_TAG := FMA3
+endif
+
+EXE ?= $(ENGINE_BASENAME)-$(RELEASE_TAG)-$(ARCH_TAG)$(EXESUF)
+RELEASE_EXE ?= $(ENGINE_BASENAME)-$(RELEASE_TAG)-$(ARCH_TAG)$(EXESUF)
+EXE_USE ?= $(ENGINE_BASENAME)-$(RELEASE_TAG)-$(ARCH_TAG)$(EXESUF)
+EXE_GEN ?= $(ENGINE_BASENAME)-$(RELEASE_TAG)-$(ARCH_TAG)-pgo-gen$(EXESUF)
+
 # explicitly check for the list of supported architectures (as listed with make help),
 # the user can override with `make ARCH=x86-64-avx512icl SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
@@ -172,6 +190,7 @@ sse2 = no
 ssse3 = no
 sse41 = no
 avx2 = no
+fma3 = no
 avxvnni = no
 avx512 = no
 vnni512 = no
@@ -264,6 +283,7 @@ ifeq ($(findstring -fma3,$(ARCH)),-fma3)
 	ssse3 = yes
 	sse41 = yes
 	avx2 = yes
+	fma3 = yes
 endif
 
 ifeq ($(findstring -avxvnni,$(ARCH)),-avxvnni)
@@ -729,8 +749,13 @@ endif
 ifeq ($(avx2),yes)
 	CXXFLAGS += -DUSE_AVX2
 	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
-		# Zen4: AVX2+BMI2+FMA3 bench target.
-		CXXFLAGS += -mavx2 -mbmi2 -mfma
+		CXXFLAGS += -mavx2
+	endif
+endif
+
+ifeq ($(fma3),yes)
+	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
+		CXXFLAGS += -mfma
 	endif
 endif
 
@@ -854,6 +879,8 @@ endif
 ifneq ($(ARCH), )
 	CXXFLAGS += -DARCH=$(ARCH)
 endif
+
+CXXFLAGS += -DENGINE_NAME='"$(ENGINE_BASENAME)"' -DENGINE_VERSION='"$(RELEASE_TAG)-$(ARCH_TAG)"'
 
 ### 3.9 Link Time Optimization
 ### This is a mix of compile and link time options because the lto link phase
