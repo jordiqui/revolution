@@ -1,10 +1,10 @@
-# Revolution-4.80-120226
+# Revolution-5.10-090326
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-4.80-120226** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.10-090326** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
 ## Overview
 
@@ -172,14 +172,21 @@ Run `make help` inside `src` to see all available build targets and configuratio
 
 ### Matriz de builds y enlazador
 
-Revolution sigue la matriz de arquitecturas de Stockfish y permite compilar los perfiles principales con **gcc** o **clang**, usando el enlazador por defecto o `lld` cuando se trabaja con Clang. Ejemplos representativos:
+El flujo recomendado para esta rama es:
 
-| Perfil | Compilador | Enlazador | Ejemplo |
-| --- | --- | --- | --- |
-| `x86-64-v2` (SSE4.1/POPCNT) | gcc | `bfd` (predeterminado) | `make -j build ARCH=x86-64-v2 COMP=gcc` |
-| `x86-64-v3` (AVX2/BMI2/FMA3) | clang | `lld` | `make -j build ARCH=x86-64-v3 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` |
-| `x86-64-v4` (AVX-512 base) | clang | `lld` | `make -j build ARCH=x86-64-v4 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"` |
-| `x86-64-avx512icl` (AVX-512 + VNNI) | gcc | `bfd` | `make -j build ARCH=x86-64-avx512icl COMP=gcc` |
+```
+make -j profile-build ARCH=<target> COMP=clang EXTRALDFLAGS="-fuse-ld=lld"
+```
+
+Targets normalizados para los binarios oficiales:
+
+| Target (`ARCH`) | Nombre UCI esperado | Ejecutable esperado |
+| --- | --- | --- |
+| `x86-64-sse41-popcnt` | `Revolution 5.10-090326-sse41popcnt` | `Revolution-5.10-090326-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution 5.10-090326-avx2` | `Revolution-5.10-090326-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution 5.10-090326-bmi2` | `Revolution-5.10-090326-bmi2[.exe]` |
+| `x86-64-fma3` | `Revolution 5.10-090326-FMA3` | `Revolution-5.10-090326-FMA3[.exe]` |
+| `x86-64-avx512` | `Revolution 5.10-090326-avx512` | `Revolution-5.10-090326-avx512[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
@@ -208,10 +215,10 @@ El comando `make ci-local` (desde `src`) compila los perfiles x86-64 principales
 Las CPU AMD con nombre en clave **Hawk Point** admiten la instrucción FMA3, lo que permite compilar binarios optimizados para este motor. Para generar un binario compatible con estas CPU usando `clang++` y el enlazador `lld`, ejecuta desde el directorio `src`:
 
 ```
-make -j profile-build ARCH=x86-64-FMA3 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"
+make -j profile-build ARCH=x86-64-fma3 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"
 ```
 
-El objetivo `ARCH=x86-64-FMA3` habilita las instrucciones FMA3 necesarias para aprovechar el hardware de Hawk Point.
+El objetivo `ARCH=x86-64-fma3` habilita las instrucciones FMA3 necesarias para aprovechar el hardware de Hawk Point.
 
 ## Contributing
 
