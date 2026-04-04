@@ -37,6 +37,13 @@ else ifeq ($(COMP),mingw)
 	endif
 endif
 
+RUN_PREFIX :=
+ifeq ($(target_windows),yes)
+	ifneq ($(OS),Windows_NT)
+		RUN_PREFIX := $(WINE_PATH)
+	endif
+endif
+
 ### Executable name
 ifeq ($(target_windows),yes)
 	EXESUF = .exe
@@ -54,13 +61,17 @@ PREFIX = /usr/local
 BINDIR = $(PREFIX)/bin
 
 ### Built-in benchmark for pgo-builds
-EXE_ABS := $(abspath ./$(EXE))
-EXE_DIR := $(dir $(EXE_ABS))
 PROFRAW_PATH := $(CURDIR)/default.profraw
 PROFRAW_WIN := $(shell cygpath -w "$(PROFRAW_PATH)" 2>/dev/null)
 PROFRAW_VERIFY := $(CURDIR)/__pgo_gen_verify.profraw
 PROFRAW_VERIFY_WIN := $(shell cygpath -w "$(PROFRAW_VERIFY)" 2>/dev/null)
-PGOBENCH = cd "$(EXE_DIR)" && $(WINE_PATH) "$(EXE_ABS)" bench
+PROFRAW_RUN := $(PROFRAW_PATH)
+PROFRAW_VERIFY_RUN := $(PROFRAW_VERIFY)
+ifeq ($(target_windows),yes)
+	PROFRAW_RUN := $(PROFRAW_WIN)
+	PROFRAW_VERIFY_RUN := $(PROFRAW_VERIFY_WIN)
+endif
+PGOBENCH = cd "$(CURDIR)" && $(RUN_PREFIX) "./$(EXE_GEN)" bench
 
 ### Source and object files
 SRCS = benchmark.cpp bitboard.cpp evaluate.cpp main.cpp \
@@ -1051,52 +1062,15 @@ profile-build: net config-sanity objclean profileclean
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) EXE=$(EXE_GEN) $(profile_make) | tee pgo_gen_build.log
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
-	@src="$(abspath $(NNUE_BIG))";   dst="$(EXE_DIR)$(NNUE_BIG)";   [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
-	@src="$(abspath $(NNUE_SMALL))"; dst="$(EXE_DIR)$(NNUE_SMALL)"; [ "$$src" = "$$dst" ] || cp -f "$$src" "$$dst"
-	@(echo "=== PGOBENCH preflight ==="; \
-	  pwd; \
-	  ls -lh "./$(EXE_GEN)" "$(NNUE_BIG)" "$(NNUE_SMALL)") > PGOBENCH.out 2>&1
 	@if [ "$(comp)" = "clang" ]; then \
 	  rm -f "$(PROFRAW_PATH)"; \
-	  echo "PGO bench executable: $(EXE_GEN)" >> PGOBENCH.out 2>&1; \
-	  ls -la "./$(EXE_GEN)" >> PGOBENCH.out 2>&1; \
-	  if [ "$(target_windows)" = "yes" ]; then \
-	    BIG_UNIX="$(abspath $(NNUE_BIG))"; \
-	    SMALL_UNIX="$(abspath $(NNUE_SMALL))"; \
-	    if command -v winepath >/dev/null 2>&1; then \
-	      BIG_WIN="$$(winepath -w "$$BIG_UNIX")"; \
-	      SMALL_WIN="$$(winepath -w "$$SMALL_UNIX")"; \
-	    else \
-	      BIG_WIN="Z:$$(printf '%s' "$$BIG_UNIX" | sed 's#/#\\\\#g')"; \
-	      SMALL_WIN="Z:$$(printf '%s' "$$SMALL_UNIX" | sed 's#/#\\\\#g')"; \
-	    fi; \
-	    printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | LLVM_PROFILE_FILE="$(PROFRAW_WIN)" $(WINE_PATH) "./$(EXE_GEN)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
-	  else \
-	    LLVM_PROFILE_FILE="$(CURDIR)/default.profraw" "./$(EXE_GEN)" bench >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
-	  fi; \
-	  ls -la "$(CURDIR)/default.profraw" >> PGOBENCH.out 2>&1 || true; \
-	  find "$(CURDIR)" -maxdepth 1 -name '*.profraw' -type f -size +0c -ls >> PGOBENCH.out 2>&1 || true; \
+	  LLVM_PROFILE_FILE="$(PROFRAW_RUN)" $(PGOBENCH) > PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
 	  if [ ! -s "$(CURDIR)/default.profraw" ]; then \
 	    echo "ERROR: PGO failed loudly: clang bench did not produce a non-empty $(CURDIR)/default.profraw."; \
-	    echo "ERROR: See PGOBENCH.out diagnostics above for executable path/listing and profraw scan."; \
-	    tail -n 80 PGOBENCH.out; \
 	    exit 1; \
 	  fi; \
 	else \
-	  BIG_UNIX="$(abspath $(NNUE_BIG))"; \
-	  SMALL_UNIX="$(abspath $(NNUE_SMALL))"; \
-	  BIG_WIN="$$BIG_UNIX"; \
-	  SMALL_WIN="$$SMALL_UNIX"; \
-	  if [ "$(target_windows)" = "yes" ]; then \
-	    if command -v winepath >/dev/null 2>&1; then \
-	      BIG_WIN="$$(winepath -w "$$BIG_UNIX")"; \
-	      SMALL_WIN="$$(winepath -w "$$SMALL_UNIX")"; \
-	    else \
-	      BIG_WIN="Z:$$(printf '%s' "$$BIG_UNIX" | sed 's#/#\\\\#g')"; \
-	      SMALL_WIN="Z:$$(printf '%s' "$$SMALL_UNIX" | sed 's#/#\\\\#g')"; \
-	    fi; \
-	  fi; \
-	  printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | LLVM_PROFILE_FILE="./pgo_%p.profraw" $(WINE_PATH) "./$(EXE_GEN)" >> PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
+	  LLVM_PROFILE_FILE="./pgo_%p.profraw" $(PGOBENCH) > PGOBENCH.out 2>&1 || (echo ""; echo "PGOBENCH FAILED. Last 80 lines:"; tail -n 80 PGOBENCH.out; exit 1); \
 	fi
 	@if [ "$(comp)" = "clang" ]; then \
 	  if [ ! -s "$(CURDIR)/default.profraw" ]; then \
@@ -1130,20 +1104,7 @@ verify-pgo:
 		exit 1; \
 	fi
 	@rm -f __pgo_use_test_*.profraw __pgo_gen_test_*.profraw "$(PROFRAW_VERIFY)"
-	@BIG_UNIX="$(abspath $(NNUE_BIG))"; \
-	SMALL_UNIX="$(abspath $(NNUE_SMALL))"; \
-	BIG_WIN="$$BIG_UNIX"; \
-	SMALL_WIN="$$SMALL_UNIX"; \
-	if [ "$(target_windows)" = "yes" ]; then \
-	  if command -v winepath >/dev/null 2>&1; then \
-	    BIG_WIN="$$(winepath -w "$$BIG_UNIX")"; \
-	    SMALL_WIN="$$(winepath -w "$$SMALL_UNIX")"; \
-	  else \
-	    BIG_WIN="Z:$$(printf '%s' "$$BIG_UNIX" | sed 's#/#\\\\#g')"; \
-	    SMALL_WIN="Z:$$(printf '%s' "$$SMALL_UNIX" | sed 's#/#\\\\#g')"; \
-	  fi; \
-	fi; \
-	printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | LLVM_PROFILE_FILE=./__pgo_use_test_%p.profraw $(WINE_PATH) ./$(EXE_USE) >/dev/null 2>&1 || true
+	@cd "$(CURDIR)" && LLVM_PROFILE_FILE=./__pgo_use_test_%p.profraw $(RUN_PREFIX) "./$(EXE_USE)" bench >/dev/null 2>&1 || true
 	@if find . -maxdepth 1 -name "__pgo_use_test_*.profraw" -type f -size +0c | grep -q .; then \
 		echo "ERROR: Final binary is instrumented (phantom PGO). Aborting."; \
 		exit 1; \
@@ -1151,27 +1112,9 @@ verify-pgo:
 	@if [ "$(comp)" = "clang" ]; then \
 		rm -f "$(PROFRAW_VERIFY)" verify_pgo.out; \
 		if [ -x "./$(EXE_GEN)" ]; then \
-			printf "verify-pgo runner: %s\n" "./$(EXE_GEN)" > verify_pgo.out 2>&1; \
-			ls -la "./$(EXE_GEN)" >> verify_pgo.out 2>&1; \
-			if [ "$(target_windows)" = "yes" ]; then \
-				BIG_UNIX="$(abspath $(NNUE_BIG))"; \
-				SMALL_UNIX="$(abspath $(NNUE_SMALL))"; \
-				if command -v winepath >/dev/null 2>&1; then \
-					BIG_WIN="$$(winepath -w "$$BIG_UNIX")"; \
-					SMALL_WIN="$$(winepath -w "$$SMALL_UNIX")"; \
-				else \
-					BIG_WIN="Z:$$(printf '%s' "$$BIG_UNIX" | sed 's#/#\\\\#g')"; \
-					SMALL_WIN="Z:$$(printf '%s' "$$SMALL_UNIX" | sed 's#/#\\\\#g')"; \
-				fi; \
-				printf "verify-pgo command: LLVM_PROFILE_FILE=\"%s\" ./$(EXE_GEN) [uci bench]\n" "$(PROFRAW_VERIFY_WIN)" >> verify_pgo.out 2>&1; \
-				printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | LLVM_PROFILE_FILE="$(PROFRAW_VERIFY_WIN)" $(WINE_PATH) "./$(EXE_GEN)" >> verify_pgo.out 2>&1 || true; \
-			else \
-				echo "LLVM_PROFILE_FILE=\"$(PROFRAW_VERIFY)\" \"./$(EXE_GEN)\" bench" >> verify_pgo.out 2>&1; \
-				LLVM_PROFILE_FILE="$(PROFRAW_VERIFY)" "./$(EXE_GEN)" bench >> verify_pgo.out 2>&1 || true; \
-			fi; \
+			LLVM_PROFILE_FILE="$(PROFRAW_VERIFY_RUN)" $(PGOBENCH) > verify_pgo.out 2>&1 || true; \
 			if [ ! -s "$(PROFRAW_VERIFY)" ]; then \
 				echo "ERROR: PGO failed: no .profraw produced at $(PROFRAW_VERIFY)."; \
-				tail -n 80 verify_pgo.out; \
 				exit 1; \
 			fi; \
 		else \
@@ -1182,20 +1125,7 @@ verify-pgo:
 			fi; \
 		fi; \
 	else \
-		BIG_UNIX="$(abspath $(NNUE_BIG))"; \
-		SMALL_UNIX="$(abspath $(NNUE_SMALL))"; \
-		BIG_WIN="$$BIG_UNIX"; \
-		SMALL_WIN="$$SMALL_UNIX"; \
-		if [ "$(target_windows)" = "yes" ]; then \
-			if command -v winepath >/dev/null 2>&1; then \
-				BIG_WIN="$$(winepath -w "$$BIG_UNIX")"; \
-				SMALL_WIN="$$(winepath -w "$$SMALL_UNIX")"; \
-			else \
-				BIG_WIN="Z:$$(printf '%s' "$$BIG_UNIX" | sed 's#/#\\\\#g')"; \
-				SMALL_WIN="Z:$$(printf '%s' "$$SMALL_UNIX" | sed 's#/#\\\\#g')"; \
-			fi; \
-		fi; \
-		printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | LLVM_PROFILE_FILE=./__pgo_gen_test_%p.profraw $(WINE_PATH) ./$(EXE_GEN) >/dev/null 2>&1 || true; \
+		cd "$(CURDIR)" && LLVM_PROFILE_FILE=./__pgo_gen_test_%p.profraw $(RUN_PREFIX) "./$(EXE_GEN)" bench >/dev/null 2>&1 || true; \
 		if ! find . -maxdepth 1 -name "__pgo_gen_test_*.profraw" -type f -size +0c | grep -q .; then \
 			echo "ERROR: PGO failed: no .profraw produced. Aborting to prevent phantom PGO."; \
 			exit 1; \
@@ -1208,24 +1138,10 @@ bench-compare: net config-sanity
 	@echo "Building PGO binary ($(EXE_USE)) ..."
 	@$(MAKE) ARCH=$(ARCH) COMP=$(COMP) profile-build
 	@echo "Collecting bench NPS ..."
-	@BIG_UNIX="$(abspath $(NNUE_BIG))"; \
-	SMALL_UNIX="$(abspath $(NNUE_SMALL))"; \
-	BIG_WIN="$$BIG_UNIX"; \
-	SMALL_WIN="$$SMALL_UNIX"; \
-	if [ "$(target_windows)" = "yes" ]; then \
-	  if command -v winepath >/dev/null 2>&1; then \
-	    BIG_WIN="$$(winepath -w "$$BIG_UNIX")"; \
-	    SMALL_WIN="$$(winepath -w "$$SMALL_UNIX")"; \
-	  else \
-	    BIG_WIN="Z:$$(printf '%s' "$$BIG_UNIX" | sed 's#/#\\\\#g')"; \
-	    SMALL_WIN="Z:$$(printf '%s' "$$SMALL_UNIX" | sed 's#/#\\\\#g')"; \
-	  fi; \
-	fi; \
-	echo "Non-PGO:"; \
-	printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | $(WINE_PATH) ./$(RELEASE_EXE) | tee bench_non_pgo.out | tail -n 5; \
+	@echo "Non-PGO:"; \
+	cd "$(CURDIR)" && $(RUN_PREFIX) "./$(RELEASE_EXE)" bench | tee bench_non_pgo.out | tail -n 5; \
 	echo "PGO:"; \
-	printf "uci\nsetoption name EvalFile value %s\nsetoption name EvalFileSmall value %s\nisready\nbench\nquit\n" "$$BIG_WIN" "$$SMALL_WIN" | $(WINE_PATH) ./$(EXE_USE) | tee bench_pgo.out | tail -n 5
-
+	cd "$(CURDIR)" && $(RUN_PREFIX) "./$(EXE_USE)" bench | tee bench_pgo.out | tail -n 5
 strip:
 	$(STRIP) $(EXE)
 
