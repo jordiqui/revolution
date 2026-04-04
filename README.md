@@ -6,6 +6,18 @@
 
 Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.10-090326** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
+## Technical note (local patch port, not a new public release)
+
+This tree contains a local manual port of the official Stockfish NNUE architecture update from commit `5eeca7392ee90b7a43da69e647e3d596e42992fd`. It aligns NNUE/FullThreats semantics while preserving current Revolution public identity and release naming.
+
+Technical highlights:
+
+- Ports the official Stockfish SFNNv14 NNUE architecture update.
+- Updates default nets to `nn-7bf13f9655c8.nnue` (big) and `nn-47fc8b7fff06.nnue` (small).
+- Expands FullThreats dimensions from `60144` to `60720`.
+- Adds blocked-pawn threat features via `PawnPushOrAttacks` / `pawn_single_push_bb`.
+- Preserves Revolution branding, UCI identity, and custom experience/release logic while aligning NNUE semantics with the upstream patch.
+
 ## Overview
 
 Revolution is a free and strong UCI chess engine derived from Stockfish that analyzes chess positions and computes optimal moves. The project focuses on experimenting with new ideas and structural changes while retaining compatibility with existing UCI-compliant graphical user interfaces (GUIs).

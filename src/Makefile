@@ -46,8 +46,8 @@ endif
 ENGINE_BASENAME = Revolution
 RELEASE_TAG ?= 5.10-090326
 
-NNUE_BIG = nn-5227780996d3.nnue
-NNUE_SMALL = nn-37f18f62d772.nnue
+NNUE_BIG = nn-7bf13f9655c8.nnue
+NNUE_SMALL = nn-47fc8b7fff06.nnue
 
 ### Installation dir definitions
 PREFIX = /usr/local
