@@ -44,7 +44,7 @@ else
 	EXESUF =
 endif
 ENGINE_BASENAME = Revolution
-RELEASE_TAG ?= 5.10-090326
+RELEASE_TAG ?= 5.20-040426
 
 NNUE_BIG = nn-7bf13f9655c8.nnue
 NNUE_SMALL = nn-47fc8b7fff06.nnue
@@ -154,6 +154,12 @@ endif
 ifeq ($(ARCH),x86-64-avx512)
    ARCH_TAG := avx512
 endif
+ifeq ($(ARCH),x86-64-avx512icl)
+   ARCH_TAG := avx512cl
+endif
+ifeq ($(ARCH),x86-64-avx512cl)
+   ARCH_TAG := avx512cl
+endif
 ifeq ($(ARCH),x86-64-fma3)
    ARCH_TAG := FMA3
 endif
@@ -166,7 +172,7 @@ EXE_GEN ?= $(ENGINE_BASENAME)-$(RELEASE_TAG)-$(ARCH_TAG)-pgo-gen$(EXESUF)
 # explicitly check for the list of supported architectures (as listed with make help),
 # the user can override with `make ARCH=x86-64-avx512icl SUPPORTED_ARCH=true`
 ifeq ($(ARCH), $(filter $(ARCH), \
-                 x86-64-avx512icl x86-64-vnni512 x86-64-avx512 x86-64-avxvnni \
+                 x86-64-avx512icl x86-64-avx512cl x86-64-vnni512 x86-64-avx512 x86-64-avxvnni \
                  x86-64-fma3 x86-64-bmi2 x86-64-avx2 x86-64-sse41-popcnt x86-64-modern x86-64-ssse3 x86-64-sse3-popcnt \
                  x86-64 x86-32-sse41-popcnt x86-32-sse2 x86-32 ppc-64 ppc-64-altivec ppc-64-vsx ppc-32 e2k \
                  armv7 armv7-neon armv8 armv8-dotprod apple-silicon general-64 general-32 riscv64 \
@@ -328,6 +334,18 @@ ifeq ($(findstring -vnni512,$(ARCH)),-vnni512)
 	pext = yes
 	avx512 = yes
 	vnni512 = yes
+endif
+
+ifeq ($(findstring -avx512cl,$(ARCH)),-avx512cl)
+	popcnt = yes
+	sse = yes
+	sse2 = yes
+	ssse3 = yes
+	sse41 = yes
+	avx2 = yes
+	pext = yes
+	avx512 = yes
+	avx512icl = yes
 endif
 
 ifeq ($(findstring -avx512icl,$(ARCH)),-avx512icl)
@@ -956,6 +974,7 @@ help:
 	echo "" && \
 	echo "native                  > select the best architecture for the host processor (default)" && \
 	echo "x86-64-avx512icl        > x86 64-bit with minimum avx512 support of Intel Ice Lake or AMD Zen 4" && \
+	echo "x86-64-avx512cl         > alias of x86-64-avx512icl with avx512cl release suffix" && \
 	echo "x86-64-vnni512          > x86 64-bit with vnni 512bit support" && \
 	echo "x86-64-avx512           > x86 64-bit with avx512 support" && \
 	echo "x86-64-avxvnni          > x86 64-bit with vnni 256bit support" && \
