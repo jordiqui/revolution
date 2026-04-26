@@ -53,7 +53,7 @@ endif
 ENGINE_BASENAME = Revolution
 RELEASE_TAG ?= 5.40-190426
 
-NNUE_BIG = nn-7bf13f9655c8.nnue
+NNUE_BIG = nn-f68ec79f0fe3.nnue
 NNUE_SMALL = nn-47fc8b7fff06.nnue
 
 ### Installation dir definitions
@@ -170,6 +170,9 @@ ifeq ($(ARCH),x86-64-avx512icl)
 endif
 ifeq ($(ARCH),x86-64-avx512cl)
    ARCH_TAG := avx512cl
+endif
+ifeq ($(ARCH),x86-64-FMA3)
+   ARCH := x86-64-fma3
 endif
 ifeq ($(ARCH),x86-64-fma3)
    ARCH_TAG := FMA3
