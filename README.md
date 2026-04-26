@@ -1,14 +1,14 @@
-# Revolution-5.40-190426
+# Revolution-5.50-260426
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.40-190426** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.50-260426** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
 ## Technical note
 
-This release is **Revolution-5.40-190426**. It includes the already-ported official Stockfish SFNNv14 NNUE architecture update while preserving Revolution identity and custom code.
+This release is **Revolution-5.50-260426**. It includes the already-ported official Stockfish SFNNv14 NNUE architecture update while preserving Revolution identity and custom code.
 
 Technical highlights:
 
@@ -175,6 +175,8 @@ This distribution of Revolution consists of the following files:
 
 Revolution supports 32-bit and 64-bit CPUs and the same hardware instruction sets as Stockfish. On Unix-like systems you can compile the engine from the `src` directory with:
 
+The final UCI engine name reported to Fritz/Cute Chess is derived directly from `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` in `src/Makefile`, so each binary announces the architecture-specific suffix shown below.
+
 ```
 cd src
 make -j profile-build
@@ -194,12 +196,12 @@ Targets normalizados para los binarios oficiales:
 
 | Target (`ARCH`) | Nombre UCI esperado | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64-sse41-popcnt` | `Revolution-5.40-190426-sse41popcnt` | `Revolution-5.40-190426-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-5.40-190426-avx2` | `Revolution-5.40-190426-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-5.40-190426-bmi2` | `Revolution-5.40-190426-bmi2[.exe]` |
-| `x86-64-fma3` | `Revolution-5.40-190426-FMA3` | `Revolution-5.40-190426-FMA3[.exe]` |
-| `x86-64-avx512` | `Revolution-5.40-190426-avx512` | `Revolution-5.40-190426-avx512[.exe]` |
-| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.40-190426-avx512cl` | `Revolution-5.40-190426-avx512cl[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-5.50-260426-sse41popcnt` | `Revolution-5.50-260426-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-5.50-260426-avx2` | `Revolution-5.50-260426-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-5.50-260426-bmi2` | `Revolution-5.50-260426-bmi2[.exe]` |
+| `x86-64-fma3` | `Revolution-5.50-260426-FMA3` | `Revolution-5.50-260426-FMA3[.exe]` |
+| `x86-64-avx512` | `Revolution-5.50-260426-avx512` | `Revolution-5.50-260426-avx512[.exe]` |
+| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.50-260426-avx512cl` | `Revolution-5.50-260426-avx512cl[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 

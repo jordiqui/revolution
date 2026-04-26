@@ -51,7 +51,7 @@ else
 	EXESUF =
 endif
 ENGINE_BASENAME = Revolution
-RELEASE_TAG ?= 5.40-190426
+RELEASE_TAG ?= 5.50-260426
 
 NNUE_BIG = nn-f68ec79f0fe3.nnue
 NNUE_SMALL = nn-47fc8b7fff06.nnue
