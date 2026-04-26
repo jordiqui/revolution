@@ -737,7 +737,6 @@ void Position::do_move(Move                      m,
     dp.add_sq         = SQ_NONE;
     dts.us            = us;
     dts.prevKsq       = square<KING>(us);
-    dts.threatenedSqs = dts.threateningSqs = 0;
 
     assert(color_of(pc) == us);
     assert(captured == NO_PIECE || color_of(captured) == (m.type_of() != CASTLING ? them : us));
@@ -1054,16 +1053,13 @@ void Position::undo_move(Move m) {
     assert(pos_is_ok());
 }
 
-template<bool PutPiece>
-inline void add_dirty_threat(
-  DirtyThreats* const dts, Piece pc, Piece threatened, Square s, Square threatenedSq) {
-    if (PutPiece)
-    {
-        dts->threatenedSqs |= square_bb(threatenedSq);
-        dts->threateningSqs |= square_bb(s);
-    }
-
-    dts->list.push_back({pc, threatened, s, threatenedSq, PutPiece});
+inline void add_dirty_threat(DirtyThreats* const dts,
+                             bool              putPiece,
+                             Piece             pc,
+                             Piece             threatened,
+                             Square            s,
+                             Square            threatenedSq) {
+    dts->list.push_back({pc, threatened, s, threatenedSq, putPiece});
 }
 
 #ifdef USE_AVX512ICL
@@ -1106,8 +1102,9 @@ void write_multiple_dirties(const Position& p,
 }
 #endif
 
-template<bool PutPiece, bool ComputeRay>
+template<bool ComputeRay>
 void Position::update_piece_threats(Piece                     pc,
+                                    bool                      putPiece,
                                     Square                    s,
                                     DirtyThreats* const       dts,
                                     [[maybe_unused]] Bitboard noRaysContaining) const {
@@ -1146,15 +1143,7 @@ void Position::update_piece_threats(Piece                     pc,
 #ifdef USE_AVX512ICL
     if (threatened)
     {
-        if constexpr (PutPiece)
-        {
-            dts->threatenedSqs |= threatened;
-            // A bit may only be set if that square actually produces a threat, so we
-            // must guard setting the square accordingly
-            dts->threateningSqs |= Bitboard(bool(threatened)) << s;
-        }
-
-        DirtyThreat dt_template{pc, NO_PIECE, s, Square(0), PutPiece};
+        DirtyThreat dt_template{pc, NO_PIECE, s, Square(0), putPiece};
         write_multiple_dirties<DirtyThreat::ThreatenedSqOffset, DirtyThreat::ThreatenedPcOffset>(
           *this, threatened, dt_template, dts);
     }
@@ -1163,13 +1152,7 @@ void Position::update_piece_threats(Piece                     pc,
     if (!all_attackers)
         return;  // Square s is threatened iff there's at least one attacker
 
-    if constexpr (PutPiece)
-    {
-        dts->threatenedSqs |= Bitboard(bool(all_attackers)) << s;  // same as above
-        dts->threateningSqs |= all_attackers;
-    }
-
-    DirtyThreat dt_template{NO_PIECE, pc, Square(0), s, PutPiece};
+    DirtyThreat dt_template{NO_PIECE, pc, Square(0), s, putPiece};
     write_multiple_dirties<DirtyThreat::PcSqOffset, DirtyThreat::PcOffset>(*this, all_attackers,
                                                                            dt_template, dts);
 #else
@@ -1181,7 +1164,7 @@ void Position::update_piece_threats(Piece                     pc,
         assert(threatenedSq != s);
         assert(threatenedPc);
 
-        add_dirty_threat<PutPiece>(dts, pc, threatenedPc, s, threatenedSq);
+        add_dirty_threat(dts, putPiece, pc, threatenedPc, s, threatenedSq);
     }
 #endif
 
@@ -1200,11 +1183,11 @@ void Position::update_piece_threats(Piece                     pc,
             {
                 const Square threatenedSq = lsb(discovered);
                 const Piece  threatenedPc = piece_on(threatenedSq);
-                add_dirty_threat<!PutPiece>(dts, slider, threatenedPc, sliderSq, threatenedSq);
+                add_dirty_threat(dts, !putPiece, slider, threatenedPc, sliderSq, threatenedSq);
             }
 
 #ifndef USE_AVX512ICL  // for ICL, direct threats were processed earlier (all_attackers)
-            add_dirty_threat<PutPiece>(dts, slider, pc, sliderSq, s);
+            add_dirty_threat(dts, putPiece, slider, pc, sliderSq, s);
 #endif
         }
     }
@@ -1222,7 +1205,7 @@ void Position::update_piece_threats(Piece                     pc,
         assert(srcSq != s);
         assert(srcPc != NO_PIECE);
 
-        add_dirty_threat<PutPiece>(dts, srcPc, pc, srcSq, s);
+        add_dirty_threat(dts, putPiece, srcPc, pc, srcSq, s);
     }
 #endif
 }
