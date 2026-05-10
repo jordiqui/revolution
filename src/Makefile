@@ -53,7 +53,7 @@ endif
 ENGINE_BASENAME = Revolution
 RELEASE_TAG ?= 5.50-260426
 
-NNUE_BIG = nn-f68ec79f0fe3.nnue
+NNUE_BIG = nn-fcf986aea78a.nnue
 NNUE_SMALL = nn-47fc8b7fff06.nnue
 
 ### Installation dir definitions
