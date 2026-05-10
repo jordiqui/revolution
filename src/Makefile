@@ -51,7 +51,7 @@ else
 	EXESUF =
 endif
 ENGINE_BASENAME = Revolution
-RELEASE_TAG ?= 5.50-260426
+RELEASE_TAG ?= 5.60-100526
 
 NNUE_BIG = nn-fcf986aea78a.nnue
 NNUE_SMALL = nn-47fc8b7fff06.nnue
@@ -175,7 +175,7 @@ ifeq ($(ARCH),x86-64-FMA3)
    ARCH := x86-64-fma3
 endif
 ifeq ($(ARCH),x86-64-fma3)
-   ARCH_TAG := FMA3
+   ARCH_TAG := fma3
 endif
 
 EXE ?= $(ENGINE_BASENAME)-$(RELEASE_TAG)-$(ARCH_TAG)$(EXESUF)

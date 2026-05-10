@@ -49,7 +49,7 @@ constexpr std::string_view engineName = "Revolution";
 #ifdef ENGINE_VERSION
 constexpr std::string_view version = ENGINE_VERSION;
 #else
-constexpr std::string_view version = "5.50-260426";
+constexpr std::string_view version = "5.60-100526";
 #endif
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
