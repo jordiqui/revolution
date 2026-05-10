@@ -1,14 +1,14 @@
-# Revolution-5.50-260426
+# Revolution-5.60-100526
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.50-260426** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.60-100526** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
 ## Technical note
 
-This release is **Revolution-5.50-260426**. It includes the already-ported official Stockfish SFNNv14 NNUE architecture update while preserving Revolution identity and custom code.
+This release is **Revolution-5.60-100526**. It includes the already-ported official Stockfish SFNNv14 NNUE architecture update while preserving Revolution identity and custom code.
 
 Technical highlights:
 
@@ -196,12 +196,12 @@ Targets normalizados para los binarios oficiales:
 
 | Target (`ARCH`) | Nombre UCI esperado | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64-sse41-popcnt` | `Revolution-5.50-260426-sse41popcnt` | `Revolution-5.50-260426-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-5.50-260426-avx2` | `Revolution-5.50-260426-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-5.50-260426-bmi2` | `Revolution-5.50-260426-bmi2[.exe]` |
-| `x86-64-fma3` | `Revolution-5.50-260426-FMA3` | `Revolution-5.50-260426-FMA3[.exe]` |
-| `x86-64-avx512` | `Revolution-5.50-260426-avx512` | `Revolution-5.50-260426-avx512[.exe]` |
-| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.50-260426-avx512cl` | `Revolution-5.50-260426-avx512cl[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-5.60-100526-sse41popcnt` | `Revolution-5.60-100526-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-5.60-100526-avx2` | `Revolution-5.60-100526-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-5.60-100526-bmi2` | `Revolution-5.60-100526-bmi2[.exe]` |
+| `x86-64-fma3` | `Revolution-5.60-100526-fma3` | `Revolution-5.60-100526-fma3[.exe]` |
+| `x86-64-avx512` | `Revolution-5.60-100526-avx512` | `Revolution-5.60-100526-avx512[.exe]` |
+| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.60-100526-avx512cl` | `Revolution-5.60-100526-avx512cl[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
