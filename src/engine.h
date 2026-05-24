@@ -94,7 +94,6 @@ class Engine {
     void load_network(const std::string& file);
     void load_big_network(const std::string& file);
     void save_network(const std::pair<std::optional<std::string>, std::string>& file);
-    void save_network(const std::pair<std::optional<std::string>, std::string> files[2]);
 
     // utility functions
 
