@@ -65,6 +65,10 @@ using namespace Search;
 
 namespace {
 
+const Eval::NNUE::NetworkBig& big_network_from_networks(const Eval::NNUE::Networks& networks) {
+    return networks.big;
+}
+
 constexpr int SEARCHEDLIST_CAPACITY = 32;
 using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 
@@ -644,7 +648,7 @@ void Search::Worker::clear() {
     for (size_t i = 1; i < reductions.size(); ++i)
         reductions[i] = int(2747 / 128.0 * std::log(i));
 
-    refreshTable.clear(networks[numaAccessToken]);
+    refreshTable.big.clear(big_network());
 }
 
 
@@ -1803,7 +1807,7 @@ TimePoint Search::Worker::elapsed_time() const { return main_manager()->tm.elaps
 }
 
 const Eval::NNUE::NetworkBig& Search::Worker::big_network() const {
-    return networks[numaAccessToken].big;
+    return big_network_from_networks(networks[numaAccessToken]);
 }
 
 Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
