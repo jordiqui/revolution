@@ -817,6 +817,9 @@ ifeq ($(avx512icl),yes)
 	ifeq ($(comp),$(filter $(comp),gcc clang mingw icx))
 		CXXFLAGS += -mavx512f -mavx512cd -mavx512vl -mavx512dq -mavx512bw -mavx512ifma -mavx512vbmi -mavx512vbmi2 -mavx512vpopcntdq -mavx512bitalg -mavx512vnni -mvpclmulqdq -mgfni -mvaes
 	endif
+	ifeq ($(comp),clang)
+		CXXFLAGS += -Wno-c++11-narrowing
+	endif
 endif
 
 ifeq ($(sse41),yes)
