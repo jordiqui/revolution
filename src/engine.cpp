@@ -59,6 +59,19 @@ int            MaxThreads = std::max(1024, 4 * int(get_hardware_concurrency()));
 // PR#6526). The user can always explicitly override this behavior.
 constexpr NumaAutoPolicy DefaultNumaPolicy = BundledL3Policy{32};
 
+namespace {
+
+std::unique_ptr<NN::NetworkBig> make_default_big_network(const std::string& binaryDirectory) {
+    auto network =
+      std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
+                                       NN::EmbeddedNNUEType::BIG);
+
+    network->load(binaryDirectory, "");
+    return network;
+}
+
+}  // namespace
+
 Engine::Engine(std::optional<std::string> path) :
     binaryDirectory(path ? CommandLine::get_binary_directory(*path) : ""),
     numaContext(NumaConfig::from_system(DefaultNumaPolicy)),
@@ -391,20 +404,14 @@ std::unique_ptr<Eval::NNUE::Networks> Engine::get_default_networks() const {
       std::make_unique<NN::Networks>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
                                      NN::EvalFile{EvalFileDefaultNameSmall, "None", ""});
 
-    networks_->big.load(binaryDirectory, "");
+    networks_->big = *make_default_big_network(binaryDirectory);
     networks_->small.load(binaryDirectory, "");
 
     return networks_;
 }
 
 std::unique_ptr<Eval::NNUE::NetworkBig> Engine::get_default_network() const {
-    auto network =
-      std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
-                                       NN::EmbeddedNNUEType::BIG);
-
-    network->load(binaryDirectory, "");
-
-    return network;
+    return make_default_big_network(binaryDirectory);
 }
 
 void Engine::load_network(const std::string& file) { load_big_network(file); }
