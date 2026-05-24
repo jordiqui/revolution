@@ -270,9 +270,9 @@ void Search::Worker::iterative_deepening() {
 
     Move pv[MAX_PLY + 1];
 
-    Depth lastBestMoveDepth = 0;
-    Value lastBestScore     = -VALUE_INFINITE;
-    auto  lastBestPV        = std::vector{Move::none()};
+    Depth            lastBestMoveDepth = 0;
+    Value            lastIterationScore = -VALUE_INFINITE;
+    std::vector<Move> lastIterationPV;
 
     Value  alpha, beta;
     Value  bestValue     = -VALUE_INFINITE;
@@ -427,54 +427,85 @@ void Search::Worker::iterative_deepening() {
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
 
+            // In multiPV analysis we do not let aborted searches spoil mated-in /
+            // TB-loss scores from a completed search in an earlier PV line.
+            // A mated-in/TB-loss from an aborted search for pvIdx > 0 can only become
+            // bestmove in the sorting below if the current bestmove, and therefore the
+            // previously searched pvIdx - 1 line, is already a proven loss.
+            if (threads.stop && pvIdx && is_loss(rootMoves[pvIdx - 1].score)
+                && rootMoves[pvIdx] < rootMoves[pvIdx - 1])
+            {
+                rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
+                  (rootMoves[pvIdx].previousScore != -VALUE_INFINITE
+                   && rootMoves[pvIdx].previousScore < rootMoves[pvIdx - 1].score)
+                    ? rootMoves[pvIdx].previousScore
+                    : rootMoves[pvIdx - 1].score;
+
+                rootMoves[pvIdx].previousScore = -VALUE_INFINITE;
+                rootMoves[pvIdx].unset_bound_flags();
+                rootMoves[pvIdx].pv.resize(1);
+            }
+
             // Sort the PV lines searched so far and update the GUI
             std::stable_sort(rootMoves.begin() + pvFirst, rootMoves.begin() + pvIdx + 1);
 
-            if (mainThread
-                && (threads.stop || pvIdx + 1 == multiPV || nodes > 10000000)
-                // A thread that aborted search can have mated-in/TB-loss PV and
-                // score that cannot be trusted, i.e. it can be delayed or refuted
-                // if we would have had time to fully search other root-moves. Thus
-                // we suppress this output and below pick a proven score/PV for this
-                // thread (from the previous iteration).
-                && !(threads.abortedSearch && is_loss(rootMoves[0].uciScore)))
+            if (mainThread && !threads.stop && (pvIdx + 1 == multiPV || nodes > 10000000))
                 main_manager()->pv(*this, threads, tt, rootDepth);
 
             if (threads.stop)
                 break;
         }
 
+        const bool forgottenMate = lastIterationScore != -VALUE_INFINITE
+                                && is_mate_or_mated(lastIterationScore)
+                                && (std::abs(rootMoves[0].score) < std::abs(lastIterationScore)
+                                    || rootMoves[0].score_is_bound());
+
         if (!threads.stop)
+        {
             completedDepth = rootDepth;
 
-        // We make sure not to pick an unproven mated-in score,
-        // in case this thread prematurely stopped search (aborted-search).
-        if (threads.abortedSearch && rootMoves[0].score != -VALUE_INFINITE
-            && is_loss(rootMoves[0].score))
-        {
-            // Bring the last best move to the front for best thread selection.
-            Utility::move_to_front(rootMoves, [&lastBestPV = std::as_const(lastBestPV)](
-                                                const auto& rm) { return rm == lastBestPV[0]; });
-            rootMoves[0].pv    = lastBestPV;
-            rootMoves[0].score = rootMoves[0].uciScore = lastBestScore;
+            if (lastIterationPV.empty() || rootMoves[0].pv[0] != lastIterationPV[0])
+                lastBestMoveDepth = rootDepth;
+
+            // Do not replace shorter mate scores from a previous iteration.
+            if (!forgottenMate)
+            {
+                lastIterationPV    = rootMoves[0].pv;
+                lastIterationScore = rootMoves[0].score;
+            }
         }
-        else if (rootMoves[0].pv[0] != lastBestPV[0])
+
+        const bool abortedLossSearch =
+          threads.stop && !pvIdx && rootMoves[0].score != -VALUE_INFINITE
+          && is_loss(rootMoves[0].score) && !rootMoves[0].score_is_bound();
+
+        // An exact mated-in/TB-loss score from an aborted search cannot be trusted:
+        // the loss could be delayed or refuted upon exploring the remaining root moves.
+        // Thus here we roll back to the score from the previous iteration.
+        // We do the same if a search has failed to recover a mate score that was found
+        // in a previous iteration.
+        if (abortedLossSearch || (rootMoves[0].score != -VALUE_INFINITE && forgottenMate))
         {
-            lastBestPV        = rootMoves[0].pv;
-            lastBestScore     = rootMoves[0].score;
-            lastBestMoveDepth = rootDepth;
+            if (!lastIterationPV.empty())
+            {
+                Utility::move_to_front(rootMoves, [&lastPV = std::as_const(lastIterationPV)](
+                                                    const auto& rm) { return rm == lastPV[0]; });
+
+                rootMoves[0].pv    = lastIterationPV;
+                rootMoves[0].score = rootMoves[0].uciScore = lastIterationScore;
+                rootMoves[0].unset_bound_flags();
+            }
+            else if (abortedLossSearch)
+                rootMoves[0].scoreLowerbound = true;
         }
 
         if (!mainThread)
             continue;
 
-        // Have we found a "mate in x"?
-        if (limits.mate && rootMoves[0].score == rootMoves[0].uciScore
-            && ((rootMoves[0].score >= VALUE_MATE_IN_MAX_PLY
-                 && VALUE_MATE - rootMoves[0].score <= 2 * limits.mate)
-                || (rootMoves[0].score != -VALUE_INFINITE
-                    && rootMoves[0].score <= VALUE_MATED_IN_MAX_PLY
-                    && VALUE_MATE + rootMoves[0].score <= 2 * limits.mate)))
+        // Have we found a "mate in x" after a completed iteration?
+        if (limits.mate && !threads.stop && is_mate_or_mated(rootMoves[0].score)
+            && VALUE_MATE - std::abs(rootMoves[0].score) <= 2 * limits.mate)
             threads.stop = true;
 
         // If the skill level is enabled and time is up, pick a sub-optimal best move
