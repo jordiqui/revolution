@@ -93,6 +93,9 @@ struct RootMove {
         return m.score != score ? m.score < score : m.previousScore < previousScore;
     }
 
+    bool score_is_bound() const { return scoreLowerbound || scoreUpperbound; }
+    void unset_bound_flags() { scoreLowerbound = scoreUpperbound = false; }
+
     uint64_t          effort           = 0;
     Value             score            = -VALUE_INFINITE;
     Value             previousScore    = -VALUE_INFINITE;
