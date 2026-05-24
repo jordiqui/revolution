@@ -188,12 +188,6 @@ Engine::Engine(std::optional<std::string> path) :
           return std::nullopt;
       }));
 
-    options.add(  //
-      "EvalFileSmall", Option(EvalFileDefaultNameSmall, [this](const Option& o) {
-          load_small_network(o);
-          return std::nullopt;
-      }));
-
     threads.clear();
     threads.ensure_network_replicated();
     resize_threads();
@@ -327,7 +321,7 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 
 void Engine::verify_networks() const {
     networks->big.verify(options["EvalFile"], onVerifyNetworks);
-    networks->small.verify(options["EvalFileSmall"], onVerifyNetworks);
+    networks->small.verify(EvalFileDefaultNameSmall, onVerifyNetworks);
 
     auto statuses = networks.get_status_and_errors();
     for (size_t i = 0; i < statuses.size(); ++i)
