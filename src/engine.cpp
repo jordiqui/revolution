@@ -244,6 +244,10 @@ void Engine::set_on_verify_networks(std::function<void(std::string_view)>&& f) {
     onVerifyNetworks = std::move(f);
 }
 
+void Engine::set_on_verify_network(std::function<void(std::string_view)>&& f) {
+    set_on_verify_networks(std::move(f));
+}
+
 void Engine::wait_for_search_finished() { threads.main_thread()->wait_for_search_finished(); }
 
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves) {
@@ -317,6 +321,43 @@ void Engine::verify_networks() const {
     {
         const auto [status, error] = statuses[i];
         std::string message        = "Network replica " + std::to_string(i + 1) + ": ";
+        if (status == SystemWideSharedConstantAllocationStatus::NoAllocation)
+        {
+            message += "No allocation.";
+        }
+        else if (status == SystemWideSharedConstantAllocationStatus::LocalMemory)
+        {
+            message += "Local memory.";
+        }
+        else if (status == SystemWideSharedConstantAllocationStatus::SharedMemory)
+        {
+            message += "Shared memory.";
+        }
+        else
+        {
+            message += "Unknown status.";
+        }
+
+        if (error.has_value())
+        {
+            message += " " + *error;
+        }
+
+        onVerifyNetworks(message);
+    }
+}
+
+void Engine::verify_network() const {
+    networks->big.verify(options["EvalFile"], onVerifyNetworks);
+
+    auto statuses = networks.get_status_and_errors();
+
+    for (size_t i = 0; i < statuses.size(); ++i)
+    {
+        const auto [status, error] = statuses[i];
+
+        std::string message = "Network replica " + std::to_string(i + 1) + ": ";
+
         if (status == SystemWideSharedConstantAllocationStatus::NoAllocation)
         {
             message += "No allocation.";
