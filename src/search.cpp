@@ -648,7 +648,7 @@ void Search::Worker::clear() {
     for (size_t i = 1; i < reductions.size(); ++i)
         reductions[i] = int(2747 / 128.0 * std::log(i));
 
-    refreshTable.big.clear(big_network());
+    refreshTable.clear_big(big_network());
 }
 
 

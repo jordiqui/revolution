@@ -95,9 +95,14 @@ struct AccumulatorCaches {
         std::array<std::array<Entry, COLOR_NB>, SQUARE_NB> entries;
     };
 
+    template<typename Network>
+    void clear_big(const Network& network) {
+        big.clear(network);
+    }
+
     template<typename Networks>
     void clear(const Networks& networks) {
-        big.clear(networks.big);
+        clear_big(networks.big);
         small.clear(networks.small);
     }
 
