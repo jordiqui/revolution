@@ -1812,8 +1812,8 @@ Search::Worker::big_cache() {
 }
 
 Value Search::Worker::evaluate(const Position& pos) {
-    return Eval::evaluate(networks[numaAccessToken], pos, accumulatorStack, refreshTable,
-                          optimism[pos.side_to_move()]);
+    return evaluate_with_big_network_bridge(big_network(), pos, accumulatorStack, big_cache(),
+                                            optimism[pos.side_to_move()]);
 }
 
 namespace {
