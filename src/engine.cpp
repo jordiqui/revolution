@@ -354,6 +354,18 @@ std::unique_ptr<Eval::NNUE::Networks> Engine::get_default_networks() const {
     return networks_;
 }
 
+std::unique_ptr<Eval::NNUE::NetworkBig> Engine::get_default_network() const {
+    auto network =
+      std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
+                                       NN::EmbeddedNNUEType::BIG);
+
+    network->load(binaryDirectory, "");
+
+    return network;
+}
+
+void Engine::load_network(const std::string& file) { load_big_network(file); }
+
 void Engine::load_big_network(const std::string& file) {
     networks.modify_and_replicate(
       [this, &file](NN::Networks& networks_) { networks_.big.load(binaryDirectory, file); });
@@ -373,6 +385,11 @@ void Engine::save_network(const std::pair<std::optional<std::string>, std::strin
         networks_.big.save(files[0].first);
         networks_.small.save(files[1].first);
     });
+}
+
+void Engine::save_network(const std::pair<std::optional<std::string>, std::string>& file) {
+    networks.modify_and_replicate(
+      [&file](NN::Networks& networks_) { networks_.big.save(file.first); });
 }
 
 // utility functions
