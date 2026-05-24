@@ -1793,6 +1793,15 @@ TimePoint Search::Worker::elapsed() const {
 
 TimePoint Search::Worker::elapsed_time() const { return main_manager()->tm.elapsed_time(); }
 
+[[maybe_unused]] Value Search::evaluate_with_big_network_bridge(
+  const Eval::NNUE::NetworkBig&                                                         network,
+  const Position&                                                                        pos,
+  Eval::NNUE::AccumulatorStack&                                                          accumulators,
+  Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>& cache,
+  Value                                                                                  optimism) {
+    return Eval::evaluate(network, pos, accumulators, cache, optimism);
+}
+
 Value Search::Worker::evaluate(const Position& pos) {
     return Eval::evaluate(networks[numaAccessToken], pos, accumulatorStack, refreshTable,
                           optimism[pos.side_to_move()]);
