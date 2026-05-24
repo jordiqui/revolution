@@ -83,11 +83,13 @@ class Engine {
     void set_on_iter(std::function<void(const InfoIter&)>&&);
     void set_on_bestmove(std::function<void(std::string_view, std::string_view)>&&);
     void set_on_verify_networks(std::function<void(std::string_view)>&&);
+    void set_on_verify_network(std::function<void(std::string_view)>&&);
 
     // network related
 
     std::unique_ptr<Eval::NNUE::NetworkBig> get_default_network() const;
     std::unique_ptr<Eval::NNUE::Networks> get_default_networks() const;
+    void verify_network() const;
     void verify_networks() const;
     void load_network(const std::string& file);
     void load_big_network(const std::string& file);
