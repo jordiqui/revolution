@@ -141,7 +141,7 @@ struct SharedState {
                 ThreadPool&                                               threadPool,
                 TranspositionTable&                                       transpositionTable,
                 std::map<NumaIndex, SharedHistories>&                     sharedHists,
-                const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& nets) :
+                const LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig>& nets) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
@@ -152,7 +152,7 @@ struct SharedState {
     ThreadPool&                                               threads;
     TranspositionTable&                                       tt;
     std::map<NumaIndex, SharedHistories>&                     sharedHistories;
-    const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& networks;
+    const LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig>& networks;
 };
 
 class Worker;
@@ -370,7 +370,7 @@ class Worker {
     const OptionsMap&                                         options;
     ThreadPool&                                               threads;
     TranspositionTable&                                       tt;
-    const LazyNumaReplicatedSystemWide<Eval::NNUE::Networks>& networks;
+    const LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig>& networks;
 
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;

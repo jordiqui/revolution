@@ -88,7 +88,6 @@ class Engine {
     // network related
 
     std::unique_ptr<Eval::NNUE::NetworkBig> get_default_network() const;
-    std::unique_ptr<Eval::NNUE::Networks> get_default_networks() const;
     void verify_network() const;
     void verify_networks() const;
     void load_network(const std::string& file);
@@ -124,7 +123,7 @@ class Engine {
     OptionsMap                                         options;
     ThreadPool                                         threads;
     TranspositionTable                                 tt;
-    LazyNumaReplicatedSystemWide<Eval::NNUE::Networks> networks;
+    LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig> networks;
     BookManager                                       bookManager;
 
     Search::SearchManager::UpdateContext  updateContext;
