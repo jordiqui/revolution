@@ -180,15 +180,23 @@ void UCIEngine::loop() {
             sync_cout << compiler_info() << sync_endl;
         else if (token == "export_net")
         {
-            std::pair<std::optional<std::string>, std::string> files[2];
+            std::pair<std::optional<std::string>, std::string> file;
 
-            if (is >> std::skipws >> files[0].second)
-                files[0].first = files[0].second;
+            if (is >> std::skipws >> file.second)
+                file.first = file.second;
 
-            if (is >> std::skipws >> files[1].second)
-                files[1].first = files[1].second;
+            if (!(is >> std::skipws).eof())
+            {
+                std::pair<std::optional<std::string>, std::string> files[2];
+                files[0] = file;
 
-            engine.save_network(files);
+                if (is >> files[1].second)
+                    files[1].first = files[1].second;
+
+                engine.save_network(files);
+            }
+            else
+                engine.save_network(file);
         }
         else if (token == "--help" || token == "help" || token == "--license" || token == "license")
             sync_cout
