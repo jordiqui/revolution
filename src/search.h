@@ -157,6 +157,13 @@ struct SharedState {
 
 class Worker;
 
+[[maybe_unused]] Value evaluate_with_big_network_bridge(
+  const Eval::NNUE::NetworkBig&                                                         network,
+  const Position&                                                                        pos,
+  Eval::NNUE::AccumulatorStack&                                                          accumulators,
+  Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>& cache,
+  Value                                                                                  optimism);
+
 // Null Object Pattern, implement a common interface for the SearchManagers.
 // A Null Object will be given to non-mainthread workers.
 class ISearchManager {
