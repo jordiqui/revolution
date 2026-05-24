@@ -51,7 +51,7 @@ else
 	EXESUF =
 endif
 ENGINE_BASENAME = Revolution
-RELEASE_TAG ?= 5.60-100526
+RELEASE_TAG ?= 5.70-250526
 
 NNUE_BIG = nn-83a0d6daf7e5.nnue
 NNUE_SMALL = nn-47fc8b7fff06.nnue
@@ -166,7 +166,7 @@ ifeq ($(ARCH),x86-64-avx512)
    ARCH_TAG := avx512
 endif
 ifeq ($(ARCH),x86-64-avx512icl)
-   ARCH_TAG := avx512cl
+   ARCH_TAG := avx512icl
 endif
 ifeq ($(ARCH),x86-64-avx512cl)
    ARCH_TAG := avx512cl
@@ -915,7 +915,7 @@ ifneq ($(ARCH), )
 	CXXFLAGS += -DARCH=$(ARCH)
 endif
 
-CXXFLAGS += -DENGINE_NAME='"$(ENGINE_BASENAME)"' -DENGINE_VERSION='"$(RELEASE_TAG)-$(ARCH_TAG)"'
+CXXFLAGS += -DENGINE_NAME='"$(ENGINE_BASENAME)"' -DENGINE_VERSION='"$(RELEASE_TAG)"'
 
 ### 3.9 Link Time Optimization
 ### This is a mix of compile and link time options because the lto link phase
