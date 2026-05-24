@@ -65,13 +65,6 @@ using namespace Search;
 
 namespace {
 
-Eval::NNUE::Networks make_networks_cache_seed_from_big(const Eval::NNUE::NetworkBig& network) {
-    Eval::NNUE::Networks networks_{Eval::NNUE::EvalFile{"", "None", ""},
-                                   Eval::NNUE::EvalFile{"", "None", ""}};
-    networks_.big = network;
-    return networks_;
-}
-
 constexpr int SEARCHEDLIST_CAPACITY = 32;
 using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 
@@ -177,7 +170,8 @@ Search::Worker::Worker(SharedState&                    sharedState,
     threads(sharedState.threads),
     tt(sharedState.tt),
     networks(sharedState.networks),
-    refreshTable(make_networks_cache_seed_from_big(networks[token])) {
+    refreshTable() {
+    refreshTable.init_big(networks[token]);
     clear();
 }
 
