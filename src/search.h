@@ -336,6 +336,10 @@ class Worker {
     TimePoint elapsed() const;
     TimePoint elapsed_time() const;
 
+    const Eval::NNUE::NetworkBig& big_network() const;
+    Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
+    big_cache();
+
     Value evaluate(const Position&);
 
     LimitsType limits;

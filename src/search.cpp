@@ -1802,6 +1802,15 @@ TimePoint Search::Worker::elapsed_time() const { return main_manager()->tm.elaps
     return Eval::evaluate(network, pos, accumulators, cache, optimism);
 }
 
+const Eval::NNUE::NetworkBig& Search::Worker::big_network() const {
+    return networks[numaAccessToken].big;
+}
+
+Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
+Search::Worker::big_cache() {
+    return refreshTable.big;
+}
+
 Value Search::Worker::evaluate(const Position& pos) {
     return Eval::evaluate(networks[numaAccessToken], pos, accumulatorStack, refreshTable,
                           optimism[pos.side_to_move()]);
