@@ -348,7 +348,9 @@ void Engine::verify_networks() const {
 }
 
 void Engine::verify_network() const {
-    networks->big.verify(options["EvalFile"], onVerifyNetworks);
+    const auto report = onVerifyNetworks ? onVerifyNetworks : [](std::string_view) {};
+
+    networks->big.verify(options["EvalFile"], report);
 
     auto statuses = networks.get_status_and_errors();
 
@@ -380,7 +382,7 @@ void Engine::verify_network() const {
             message += " " + *error;
         }
 
-        onVerifyNetworks(message);
+        report(message);
     }
 }
 
