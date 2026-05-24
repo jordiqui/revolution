@@ -89,10 +89,63 @@ Value Eval::evaluate(const Eval::NNUE::Networks&    networks,
     return v;
 }
 
+
+Value Eval::evaluate(const Eval::NNUE::NetworkBig& network,
+                     const Position&               pos,
+                     Eval::NNUE::AccumulatorStack& accumulators,
+                     Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
+                       cache,
+                     int optimism) {
+
+    assert(!pos.checkers());
+
+    auto [psqt, positional] = network.evaluate(pos, accumulators, cache);
+
+    Value nnue = (125 * psqt + 131 * positional) / 128;
+
+    int nnueComplexity = std::abs(psqt - positional);
+    optimism += optimism * nnueComplexity / 476;
+    nnue -= nnue * nnueComplexity / 18236;
+
+    int material = 534 * pos.count<PAWN>() + pos.non_pawn_material();
+    int v        = (nnue * (77871 + material) + optimism * (7191 + material)) / 77871;
+
+    v -= v * pos.rule50_count() / 199;
+
+    v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
+
+    return v;
+}
+
 // Like evaluate(), but instead of returning a value, it returns
 // a string (suitable for outputting to stdout) that contains the detailed
 // descriptions and values of each evaluation term. Useful for debugging.
 // Trace scores are from white's point of view
+std::string Eval::trace(Position& pos, const Eval::NNUE::NetworkBig& network) {
+
+    if (pos.checkers())
+        return "Final evaluation: none (in check)";
+
+    auto accumulators = std::make_unique<Eval::NNUE::AccumulatorStack>();
+    auto caches       = std::make_unique<Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>>();
+
+    std::stringstream ss;
+    ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);
+
+    auto [psqt, positional] = network.evaluate(pos, *accumulators, *caches);
+    Value v                 = psqt + positional;
+    v                       = pos.side_to_move() == WHITE ? v : -v;
+    ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)\n";
+
+    v = evaluate(network, pos, *accumulators, *caches, VALUE_ZERO);
+    v = pos.side_to_move() == WHITE ? v : -v;
+    ss << "Final evaluation       " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)";
+    ss << " [with scaled NNUE, ...]";
+    ss << "\n";
+
+    return ss.str();
+}
+
 std::string Eval::trace(Position& pos, const Eval::NNUE::Networks& networks) {
 
     if (pos.checkers())

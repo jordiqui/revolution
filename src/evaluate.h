@@ -22,6 +22,8 @@
 #include <string>
 
 #include "types.h"
+#include "nnue/network.h"
+#include "nnue/nnue_accumulator.h"
 
 namespace Stockfish {
 
@@ -43,6 +45,7 @@ class AccumulatorStack;
 }
 
 std::string trace(Position& pos, const Eval::NNUE::Networks& networks);
+std::string trace(Position& pos, const Eval::NNUE::NetworkBig& network);
 
 int   simple_eval(const Position& pos);
 bool  use_smallnet(const Position& pos);
@@ -51,6 +54,11 @@ Value evaluate(const NNUE::Networks&          networks,
                Eval::NNUE::AccumulatorStack&  accumulators,
                Eval::NNUE::AccumulatorCaches& caches,
                int                            optimism);
+Value evaluate(const NNUE::NetworkBig& network,
+               const Position&         pos,
+               Eval::NNUE::AccumulatorStack& accumulators,
+               Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>& cache,
+               int optimism);
 }  // namespace Eval
 
 }  // namespace Stockfish
