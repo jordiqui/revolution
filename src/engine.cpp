@@ -395,10 +395,9 @@ void Engine::verify_network() const {
 std::unique_ptr<Eval::NNUE::Networks> Engine::get_default_networks() const {
     auto networks_ =
       std::make_unique<NN::Networks>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
-                                     NN::EvalFile{EvalFileDefaultNameSmall, "None", ""});
+                                     NN::EvalFile{"", "None", ""});
 
     networks_->big = *make_default_big_network(binaryDirectory);
-    networks_->small.load(binaryDirectory, "");
 
     return networks_;
 }
