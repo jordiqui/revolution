@@ -416,13 +416,6 @@ void Engine::load_big_network(const std::string& file) {
     threads.ensure_network_replicated();
 }
 
-void Engine::save_network(const std::pair<std::optional<std::string>, std::string> files[2]) {
-    networks.modify_and_replicate([&files](NN::Networks& networks_) {
-        networks_.big.save(files[0].first);
-        networks_.small.save(files[1].first);
-    });
-}
-
 void Engine::save_network(const std::pair<std::optional<std::string>, std::string>& file) {
     networks.modify_and_replicate(
       [&file](NN::Networks& networks_) { networks_.big.save(file.first); });
