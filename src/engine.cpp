@@ -63,7 +63,7 @@ namespace {
 
 std::unique_ptr<NN::NetworkBig> make_default_big_network(const std::string& binaryDirectory) {
     auto network =
-      std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultNameBig, "None", ""},
+      std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultName, "None", ""},
                                        NN::EmbeddedNNUEType::BIG);
 
     network->load(binaryDirectory, "");
@@ -183,7 +183,7 @@ Engine::Engine(std::optional<std::string> path) :
                 }));
 
     options.add(  //
-      "EvalFile", Option(EvalFileDefaultNameBig, [this](const Option& o) {
+      "EvalFile", Option(EvalFileDefaultName, [this](const Option& o) {
           load_big_network(o);
           return std::nullopt;
       }));
