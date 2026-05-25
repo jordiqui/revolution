@@ -62,11 +62,6 @@ struct AccumulatorCaches {
 
     AccumulatorCaches() = default;
 
-    template<typename Networks>
-    AccumulatorCaches(const Networks& networks) {
-        clear(networks);
-    }
-
     template<typename Network>
     void init_big(const Network& network) {
         clear_big(network);
@@ -107,14 +102,7 @@ struct AccumulatorCaches {
         big.clear(network);
     }
 
-    template<typename Networks>
-    void clear(const Networks& networks) {
-        clear_big(networks.big);
-        small.clear(networks.small);
-    }
-
-    Cache<TransformedFeatureDimensionsBig>   big;
-    Cache<TransformedFeatureDimensionsSmall> small;
+    Cache<TransformedFeatureDimensionsBig> big;
 };
 
 
