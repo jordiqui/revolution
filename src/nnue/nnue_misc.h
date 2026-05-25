@@ -36,7 +36,7 @@ namespace Eval::NNUE {
 
 // EvalFile uses fixed string types because it's part of the network structure which must be trivial.
 struct EvalFile {
-    // Default net name, will use one of the EvalFileDefaultName* macros defined
+    // Default net name, will use the EvalFileDefaultName macro defined
     // in evaluate.h
     FixedString<256> defaultName;
     // Selected net name, either via uci option or default
