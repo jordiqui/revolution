@@ -53,8 +53,7 @@ endif
 ENGINE_BASENAME = Revolution
 RELEASE_TAG ?= 5.70-250526
 
-NNUE_BIG = nn-83a0d6daf7e5.nnue
-NNUE_SMALL = nn-47fc8b7fff06.nnue
+NNUE_NET = nn-83a0d6daf7e5.nnue
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -1179,7 +1178,7 @@ profileclean:
 
 # evaluation network (nnue)
 net:
-	@NNUE_BIG=$(NNUE_BIG) NNUE_SMALL=$(NNUE_SMALL) $(SHELL) ../scripts/net.sh
+	@NNUE_NET=$(NNUE_NET) $(SHELL) ../scripts/net.sh
 
 format:
 	$(CLANG-FORMAT) -i $(SRCS) $(HEADERS) -style=file
