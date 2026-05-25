@@ -39,7 +39,6 @@ namespace Eval {
 #define EvalFileDefaultNameSmall "nn-47fc8b7fff06.nnue"
 
 namespace NNUE {
-struct Networks;
 struct AccumulatorCaches;
 class AccumulatorStack;
 }
