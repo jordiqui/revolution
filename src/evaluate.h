@@ -36,9 +36,6 @@ namespace Eval {
 // name of the macro or the location where this macro is defined, as it is used
 // in the Makefile/Fishtest.
 #define EvalFileDefaultName "nn-83a0d6daf7e5.nnue"
-// Transitional build-script fossils (P0AF): retained for src/Makefile + scripts/net.sh only.
-#define EvalFileDefaultNameBig "nn-83a0d6daf7e5.nnue"
-#define EvalFileDefaultNameSmall "nn-47fc8b7fff06.nnue"
 
 namespace NNUE {
 struct AccumulatorCaches;
