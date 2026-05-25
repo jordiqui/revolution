@@ -248,7 +248,7 @@ void Engine::set_on_bestmove(std::function<void(std::string_view, std::string_vi
 }
 
 void Engine::set_on_verify_networks(std::function<void(std::string_view)>&& f) {
-    onVerifyNetworks = std::move(f);
+    onVerifyNetwork = std::move(f);
 }
 
 void Engine::set_on_verify_network(std::function<void(std::string_view)>&& f) {
@@ -320,7 +320,7 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 // network related
 
 void Engine::verify_networks() const {
-    networks->verify(options["EvalFile"], onVerifyNetworks);
+    networks->verify(options["EvalFile"], onVerifyNetwork);
 
     auto statuses = networks.get_status_and_errors();
     for (size_t i = 0; i < statuses.size(); ++i)
@@ -349,12 +349,12 @@ void Engine::verify_networks() const {
             message += " " + *error;
         }
 
-        onVerifyNetworks(message);
+        onVerifyNetwork(message);
     }
 }
 
 void Engine::verify_network() const {
-    const auto report = onVerifyNetworks ? onVerifyNetworks : [](std::string_view) {};
+    const auto report = onVerifyNetwork ? onVerifyNetwork : [](std::string_view) {};
 
     networks->verify(options["EvalFile"], report);
 

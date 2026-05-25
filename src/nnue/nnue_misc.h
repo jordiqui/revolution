@@ -26,6 +26,7 @@
 #include "../misc.h"
 #include "../types.h"
 #include "nnue_architecture.h"
+#include "nnue_feature_transformer.h"
 
 namespace Stockfish {
 
@@ -52,10 +53,14 @@ struct NnueEvalTrace {
     std::size_t correctBucket;
 };
 
-struct Networks;
+template<typename Arch, typename Transformer>
+class Network;
+using BigFeatureTransformer  = FeatureTransformer<TransformedFeatureDimensionsBig>;
+using BigNetworkArchitecture = NetworkArchitecture<TransformedFeatureDimensionsBig, L2Big, L3Big>;
+using NetworkBig             = Network<BigNetworkArchitecture, BigFeatureTransformer>;
 struct AccumulatorCaches;
 
-std::string trace(Position& pos, const Networks& networks, AccumulatorCaches& caches);
+std::string trace(Position& pos, const NetworkBig& network, AccumulatorCaches& caches);
 
 }  // namespace Stockfish::Eval::NNUE
 }  // namespace Stockfish

@@ -127,7 +127,7 @@ class Engine {
     BookManager                                       bookManager;
 
     Search::SearchManager::UpdateContext  updateContext;
-    std::function<void(std::string_view)> onVerifyNetworks;
+    std::function<void(std::string_view)> onVerifyNetwork;
     std::map<NumaIndex, SharedHistories>  sharedHists;
 };
 

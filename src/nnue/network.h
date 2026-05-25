@@ -122,14 +122,6 @@ using BigNetworkArchitecture = NetworkArchitecture<TransformedFeatureDimensionsB
 using NetworkBig = Network<BigNetworkArchitecture, BigFeatureTransformer>;
 
 
-struct Networks {
-    explicit Networks(EvalFile bigFile) :
-        big(bigFile, EmbeddedNNUEType::BIG) {}
-
-    NetworkBig big;
-};
-
-
 }  // namespace Stockfish
 
 template<typename ArchT, typename FeatureTransformerT>
