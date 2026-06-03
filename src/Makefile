@@ -53,7 +53,7 @@ endif
 ENGINE_BASENAME = Revolution
 RELEASE_TAG ?= 5.70-250526
 
-NNUE_NET = nn-83a0d6daf7e5.nnue
+NNUE_NET = nn-71d6d32cb962.nnue
 
 ### Installation dir definitions
 PREFIX = /usr/local
