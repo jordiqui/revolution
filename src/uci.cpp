@@ -456,7 +456,7 @@ void UCIEngine::benchmark(std::istream& args) {
 
     std::cerr << "==========================="
               << "\nVersion                    : "
-              << engine_version_info()
+              << engine_architecture_info()
               // "\nCompiled by                : "
               << compiler_info()
               << "Large pages                : " << (has_large_pages() ? "yes" : "no")
