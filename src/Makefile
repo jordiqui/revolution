@@ -51,7 +51,7 @@ else
 	EXESUF =
 endif
 ENGINE_BASENAME = Revolution
-RELEASE_TAG ?= 5.70-250526
+RELEASE_TAG ?= 5.80-030625
 
 NNUE_NET = nn-71d6d32cb962.nnue
 
@@ -914,7 +914,7 @@ ifneq ($(ARCH), )
 	CXXFLAGS += -DARCH=$(ARCH)
 endif
 
-CXXFLAGS += -DENGINE_NAME='"$(ENGINE_BASENAME)"' -DENGINE_VERSION='"$(RELEASE_TAG)"'
+CXXFLAGS += -DENGINE_NAME='"$(ENGINE_BASENAME)"' -DENGINE_VERSION='"$(RELEASE_TAG)"' -DENGINE_ARCH_TAG='"$(ARCH_TAG)"'
 
 ### 3.9 Link Time Optimization
 ### This is a mix of compile and link time options because the lto link phase

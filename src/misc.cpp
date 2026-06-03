@@ -49,7 +49,7 @@ constexpr std::string_view engineName = "Revolution";
 #ifdef ENGINE_VERSION
 constexpr std::string_view version = ENGINE_VERSION;
 #else
-constexpr std::string_view version = "5.70-250526";
+constexpr std::string_view version = "5.80-030625";
 #endif
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
@@ -170,8 +170,18 @@ std::string engine_version_info() {
 #endif
 }
 
+std::string engine_architecture_info() {
+#ifdef ENGINE_ARCH_TAG
+    constexpr std::string_view archTag = ENGINE_ARCH_TAG;
+    if constexpr (!archTag.empty())
+        return engine_version_info() + "-" + std::string(archTag);
+#endif
+
+    return engine_version_info();
+}
+
 std::string engine_info(bool to_uci) {
-    const std::string name = engine_version_info();
+    const std::string name = to_uci ? engine_version_info() : engine_architecture_info();
 
     return name + (to_uci ? "\nid author " : " by ")
          + "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";

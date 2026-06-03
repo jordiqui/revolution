@@ -47,6 +47,7 @@
 namespace Stockfish {
 
 std::string engine_version_info();
+std::string engine_architecture_info();
 std::string engine_info(bool to_uci = false);
 std::string compiler_info();
 
