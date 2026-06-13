@@ -44,6 +44,34 @@
 #include "../types.h"
 #include "../ucioption.h"
 
+#ifdef NO_TABLEBASES
+
+namespace Stockfish::Tablebases {
+
+int MaxCardinality;
+
+void init(const std::string&) {}
+
+WDLScore probe_wdl(Position&, ProbeState* result) {
+    *result = FAIL;
+    return WDLDraw;
+}
+
+int probe_dtz(Position&, ProbeState* result) {
+    *result = FAIL;
+    return 0;
+}
+
+bool root_probe(Position&, Search::RootMoves&, bool, bool) { return false; }
+
+bool root_probe_wdl(Position&, Search::RootMoves&, bool) { return false; }
+
+Config rank_root_moves(const OptionsMap&, Position&, Search::RootMoves&, bool) { return Config{}; }
+
+}  // namespace Stockfish::Tablebases
+
+#else
+
 #ifndef _WIN32
     #include <fcntl.h>
     #include <sys/mman.h>
@@ -1762,3 +1790,5 @@ Config Tablebases::rank_root_moves(const OptionsMap&  options,
     return config;
 }
 }  // namespace Stockfish
+
+#endif  // NO_TABLEBASES

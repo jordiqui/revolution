@@ -94,6 +94,9 @@ struct RootMove {
     }
 
     bool score_is_bound() const { return scoreLowerbound || scoreUpperbound; }
+    bool score_is_exact_loss() const {
+        return score != -VALUE_INFINITE && is_loss(score) && !score_is_bound();
+    }
     void unset_bound_flags() { scoreLowerbound = scoreUpperbound = false; }
 
     u64          effort           = 0;
@@ -107,7 +110,7 @@ struct RootMove {
     int               selDepth         = 0;
     int               tbRank           = 0;
     Value             tbScore;
-    std::vector<Move> pv;
+    std::vector<Move> pv, previousPV;
 };
 
 using RootMoves = std::vector<RootMove>;
@@ -344,9 +347,9 @@ class Worker {
 
     LimitsType limits;
 
-    usize                pvIdx, pvLast;
-    std::atomic<u64> nodes, tbHits, bestMoveChanges;
-    int                   selDepth, nmpMinPly;
+    usize              pvIdx, pvLast;
+    RelaxedAtomic<u64> nodes, tbHits, bestMoveChanges;
+    int                selDepth, nmpMinPly;
 
     Value optimism[COLOR_NB];
 

@@ -337,7 +337,10 @@ void Search::Worker::iterative_deepening() {
         // Save the last iteration's scores before the first PV line is searched and
         // all the move scores except the (new) PV are set to -VALUE_INFINITE.
         for (RootMove& rm : rootMoves)
+        {
             rm.previousScore = rm.score;
+            rm.previousPV    = rm.pv;
+        }
 
         usize pvFirst = 0;
         pvLast         = 0;
@@ -428,23 +431,36 @@ void Search::Worker::iterative_deepening() {
                 assert(alpha >= -VALUE_INFINITE && beta <= VALUE_INFINITE);
             }
 
-            // In multiPV analysis we do not let aborted searches spoil mated-in /
-            // TB-loss scores from a completed search in an earlier PV line.
-            // A mated-in/TB-loss from an aborted search for pvIdx > 0 can only become
-            // bestmove in the sorting below if the current bestmove, and therefore the
-            // previously searched pvIdx - 1 line, is already a proven loss.
-            if (threads.stop && pvIdx && is_loss(rootMoves[pvIdx - 1].score)
-                && rootMoves[pvIdx] < rootMoves[pvIdx - 1])
+            // In multiPV analysis we do not let aborted searches spoil mated-in/
+            // TB loss scores from a completed search in an earlier PV line.
+            if (threads.stop && pvIdx
+                && ((is_loss(rootMoves[pvIdx - 1].score) && rootMoves[pvIdx] < rootMoves[pvIdx - 1])
+                    || rootMoves[pvIdx].score_is_exact_loss()))
             {
-                rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
-                  (rootMoves[pvIdx].previousScore != -VALUE_INFINITE
-                   && rootMoves[pvIdx].previousScore < rootMoves[pvIdx - 1].score)
-                    ? rootMoves[pvIdx].previousScore
-                    : rootMoves[pvIdx - 1].score;
+                if (rootMoves[pvIdx].previousScore != -VALUE_INFINITE
+                    && rootMoves[pvIdx].previousScore <= rootMoves[pvIdx - 1].score)
+                {
+                    rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
+                      rootMoves[pvIdx].previousScore;
+                    rootMoves[pvIdx].previousScore = -VALUE_INFINITE;
+                    rootMoves[pvIdx].pv            = rootMoves[pvIdx].previousPV;
+                    rootMoves[pvIdx].unset_bound_flags();
+                }
+                else
+                {
+                    if (is_loss(rootMoves[pvIdx - 1].score))
+                    {
+                        rootMoves[pvIdx].score = rootMoves[pvIdx].uciScore =
+                          rootMoves[pvIdx - 1].score;
+                        rootMoves[pvIdx].previousScore = -VALUE_INFINITE;
+                        rootMoves[pvIdx].pv.resize(1);
+                        rootMoves[pvIdx].scoreUpperbound = true;
+                    }
+                    else
+                        rootMoves[pvIdx].scoreUpperbound = false;
 
-                rootMoves[pvIdx].previousScore = -VALUE_INFINITE;
-                rootMoves[pvIdx].unset_bound_flags();
-                rootMoves[pvIdx].pv.resize(1);
+                    rootMoves[pvIdx].scoreLowerbound = !rootMoves[pvIdx].scoreUpperbound;
+                }
             }
 
             // Sort the PV lines searched so far and update the GUI
@@ -477,9 +493,7 @@ void Search::Worker::iterative_deepening() {
             }
         }
 
-        const bool abortedLossSearch =
-          threads.stop && !pvIdx && rootMoves[0].score != -VALUE_INFINITE
-          && is_loss(rootMoves[0].score) && !rootMoves[0].score_is_bound();
+        const bool abortedLossSearch = threads.stop && !pvIdx && rootMoves[0].score_is_exact_loss();
 
         // An exact mated-in/TB-loss score from an aborted search cannot be trusted:
         // the loss could be delayed or refuted upon exploring the remaining root moves.
@@ -590,8 +604,7 @@ void Search::Worker::do_move(Position& pos, const Move move, StateInfo& st, Stac
 void Search::Worker::do_move(
   Position& pos, const Move move, StateInfo& st, const bool givesCheck, Stack* const ss) {
     bool capture = pos.capture_stage(move);
-    // Preferable over fetch_add to avoid locking instructions
-    nodes.store(nodes.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
+    ++nodes;
 
     auto [dirtyPiece, dirtyThreats] = accumulatorStack.push();
     pos.do_move(move, st, givesCheck, dirtyPiece, dirtyThreats, &tt, &sharedHistory);
@@ -864,8 +877,7 @@ Value Search::Worker::search(
 
             if (err != TB::ProbeState::FAIL)
             {
-                // Preferable over fetch_add to avoid locking instructions
-                tbHits.store(tbHits.load(std::memory_order_relaxed) + 1, std::memory_order_relaxed);
+                ++tbHits;
 
                 int drawScore = tbConfig.useRule50 ? 1 : 0;
 
@@ -2188,7 +2200,8 @@ void SearchManager::pv(Search::Worker&           worker,
 
     for (usize i = 0; i < multiPV; ++i)
     {
-        bool updated = rootMoves[i].score != -VALUE_INFINITE;
+        bool updated          = rootMoves[i].score != -VALUE_INFINITE;
+        bool usePreviousScore = !updated;
 
         if (depth == 1 && !updated && i > 0)
             continue;
@@ -2202,15 +2215,16 @@ void SearchManager::pv(Search::Worker&           worker,
         bool tb = worker.tbConfig.rootInTB && std::abs(v) <= VALUE_TB;
         v       = tb ? rootMoves[i].tbScore : v;
 
-        bool isExact = i != pvIdx || tb || !updated;  // tablebase- and previous-scores are exact
+        bool isExact = i != pvIdx || tb || usePreviousScore;
 
         // Potentially correct and extend the PV, and in exceptional cases v
         if (is_decisive(v) && std::abs(v) < VALUE_MATE_IN_MAX_PLY
+            && !usePreviousScore
             && ((!rootMoves[i].scoreLowerbound && !rootMoves[i].scoreUpperbound) || isExact))
             syzygy_extend_pv(worker.options, worker.limits, pos, rootMoves[i], v);
 
         std::string pv;
-        for (Move m : rootMoves[i].pv)
+        for (Move m : usePreviousScore ? rootMoves[i].previousPV : rootMoves[i].pv)
             pv += UCIEngine::move(m, pos.is_chess960()) + " ";
 
         // Remove last whitespace
