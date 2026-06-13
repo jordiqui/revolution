@@ -27,10 +27,22 @@
 #include <new>
 #include <string>
 
+#include "attacks.h"
 #include "bitboard.h"
 #include "types.h"
 
 namespace Stockfish {
+
+// Keep Revolution's existing attack call sites source-compatible while attack
+// initialization and storage live in the dedicated Attacks topology.
+using Attacks::PseudoAttacks;
+using Attacks::PawnPushOrAttacks;
+using Attacks::BetweenBB;
+using Attacks::RayPassBB;
+using Attacks::attacks_bb;
+using Attacks::between_bb;
+using Attacks::line_bb;
+using Attacks::ray_pass_bb;
 
 class TranspositionTable;
 struct SharedHistories;
@@ -293,7 +305,7 @@ inline Bitboard Position::attacks_by(Color c) const {
         Bitboard threats   = 0;
         Bitboard attackers = pieces(c, Pt);
         while (attackers)
-            threats |= attacks_bb<Pt>(pop_lsb(attackers), pieces());
+            threats |= Attacks::attacks_bb<Pt>(pop_lsb(attackers), pieces());
         return threats;
     }
 }

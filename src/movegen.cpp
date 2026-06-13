@@ -21,6 +21,7 @@
 #include <cassert>
 #include <initializer_list>
 
+#include "attacks.h"
 #include "bitboard.h"
 #include "position.h"
 
@@ -193,7 +194,7 @@ Move* generate_pawn_moves(const Position& pos, Move* moveList, Bitboard target) 
             if (Type == EVASIONS && (target & (pos.ep_square() + Up)))
                 return moveList;
 
-            b1 = pawnsNotOn7 & attacks_bb<PAWN>(pos.ep_square(), Them);
+            b1 = pawnsNotOn7 & Attacks::attacks_bb<PAWN>(pos.ep_square(), Them);
 
             assert(b1);
 
@@ -216,7 +217,7 @@ Move* generate_moves(const Position& pos, Move* moveList, Bitboard target) {
     while (bb)
     {
         Square   from = pop_lsb(bb);
-        Bitboard b    = attacks_bb<Pt>(from, pos.pieces()) & target;
+        Bitboard b    = Attacks::attacks_bb<Pt>(from, pos.pieces()) & target;
 
         moveList = splat_moves(moveList, from, b);
     }
@@ -236,7 +237,7 @@ Move* generate_all(const Position& pos, Move* moveList) {
     // Skip generating non-king moves when in double check
     if (Type != EVASIONS || !more_than_one(pos.checkers()))
     {
-        target = Type == EVASIONS     ? between_bb(ksq, lsb(pos.checkers()))
+        target = Type == EVASIONS     ? Attacks::between_bb(ksq, lsb(pos.checkers()))
                : Type == NON_EVASIONS ? ~pos.pieces(Us)
                : Type == CAPTURES     ? pos.pieces(~Us)
                                       : ~pos.pieces();  // QUIETS
@@ -248,7 +249,7 @@ Move* generate_all(const Position& pos, Move* moveList) {
         moveList = generate_moves<Us, QUEEN>(pos, moveList, target);
     }
 
-    Bitboard b = attacks_bb<KING>(ksq) & (Type == EVASIONS ? ~pos.pieces(Us) : target);
+    Bitboard b = Attacks::attacks_bb<KING>(ksq) & (Type == EVASIONS ? ~pos.pieces(Us) : target);
 
     moveList = splat_moves(moveList, ksq, b);
 

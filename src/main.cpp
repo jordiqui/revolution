@@ -19,6 +19,7 @@
 #include <iostream>
 #include <memory>
 
+#include "attacks.h"
 #include "bitboard.h"
 #include "misc.h"
 #include "position.h"
@@ -31,6 +32,7 @@ int main(int argc, char* argv[]) {
     std::cout << engine_info() << std::endl;
 
     Bitboards::init();
+    Attacks::init();
     Position::init();
 
     auto uci = std::make_unique<UCIEngine>(argc, argv);
