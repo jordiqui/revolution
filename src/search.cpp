@@ -1806,19 +1806,19 @@ TimePoint Search::Worker::elapsed() const {
 TimePoint Search::Worker::elapsed_time() const { return main_manager()->tm.elapsed_time(); }
 
 [[maybe_unused]] Value Search::evaluate_with_big_network_bridge(
-  const Eval::NNUE::NetworkBig&                                                         network,
+  const Eval::NNUE::ActiveNetwork&                                                         network,
   const Position&                                                                        pos,
   Eval::NNUE::AccumulatorStack&                                                          accumulators,
-  Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>& cache,
+  Eval::NNUE::ActiveAccumulatorCache& cache,
   Value                                                                                  optimism) {
     return Eval::evaluate(network, pos, accumulators, cache, optimism);
 }
 
-const Eval::NNUE::NetworkBig& Search::Worker::big_network() const {
+const Eval::NNUE::ActiveNetwork& Search::Worker::big_network() const {
     return networks[numaAccessToken];
 }
 
-Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
+Eval::NNUE::ActiveAccumulatorCache&
 Search::Worker::big_cache() {
     return refreshTable.big;
 }

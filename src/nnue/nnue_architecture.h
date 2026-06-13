@@ -41,8 +41,11 @@ using PSQFeatureSet    = Features::HalfKAv2_hm;
 
 // Number of input feature dimensions after conversion
 constexpr IndexType TransformedFeatureDimensionsBig = 1024;
+constexpr IndexType ActiveTransformedFeatureDimensions = TransformedFeatureDimensionsBig;
 constexpr int       L2Big                           = 31;
 constexpr int       L3Big                           = 32;
+
+static_assert(ActiveTransformedFeatureDimensions == TransformedFeatureDimensionsBig);
 
 constexpr IndexType PSQTBuckets = 8;
 constexpr IndexType LayerStacks = 8;

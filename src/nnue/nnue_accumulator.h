@@ -43,6 +43,8 @@ struct alignas(CacheLineSize) Accumulator;
 template<IndexType TransformedFeatureDimensions>
 class FeatureTransformer;
 
+using ActiveFeatureTransformer = FeatureTransformer<ActiveTransformedFeatureDimensions>;
+
 // Class that holds the result of affine transformation of input features
 template<IndexType Size>
 struct alignas(CacheLineSize) Accumulator {
@@ -105,6 +107,10 @@ struct AccumulatorCaches {
     Cache<TransformedFeatureDimensionsBig> big;
 };
 
+using ActiveAccumulatorCache  =
+  AccumulatorCaches::Cache<ActiveTransformedFeatureDimensions>;
+using ActiveAccumulatorCaches = AccumulatorCaches;
+
 
 template<typename FeatureSet>
 struct AccumulatorState {
@@ -137,6 +143,10 @@ struct AccumulatorState {
         return diff;
     }
 };
+
+using ActiveAccumulator            = Accumulator<ActiveTransformedFeatureDimensions>;
+using ActivePSQAccumulatorState    = AccumulatorState<PSQFeatureSet>;
+using ActiveThreatAccumulatorState = AccumulatorState<ThreatFeatureSet>;
 
 class AccumulatorStack {
    public:
