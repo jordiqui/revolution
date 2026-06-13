@@ -28,6 +28,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 
 #include "../misc.h"
 #include "../types.h"
@@ -120,6 +121,12 @@ using BigFeatureTransformer  = FeatureTransformer<TransformedFeatureDimensionsBi
 using BigNetworkArchitecture = NetworkArchitecture<TransformedFeatureDimensionsBig, L2Big, L3Big>;
 
 using NetworkBig = Network<BigNetworkArchitecture, BigFeatureTransformer>;
+using ActiveNetwork = NetworkBig;
+
+static_assert(std::is_same_v<ActiveFeatureTransformer, BigFeatureTransformer>);
+static_assert(std::is_same_v<ActiveNetwork, NetworkBig>);
+static_assert(std::is_same_v<ActiveAccumulatorCache,
+                             AccumulatorCaches::Cache<TransformedFeatureDimensionsBig>>);
 
 
 }  // namespace Stockfish

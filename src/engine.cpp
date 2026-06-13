@@ -61,9 +61,9 @@ constexpr NumaAutoPolicy DefaultNumaPolicy = BundledL3Policy{32};
 
 namespace {
 
-std::unique_ptr<NN::NetworkBig> make_default_big_network(const std::string& binaryDirectory) {
+std::unique_ptr<NN::ActiveNetwork> make_default_big_network(const std::string& binaryDirectory) {
     auto network =
-      std::make_unique<NN::NetworkBig>(NN::EvalFile{EvalFileDefaultName, "None", ""},
+      std::make_unique<NN::ActiveNetwork>(NN::EvalFile{EvalFileDefaultName, "None", ""},
                                        NN::EmbeddedNNUEType::BIG);
 
     network->load(binaryDirectory, "");
@@ -392,7 +392,7 @@ void Engine::verify_network() const {
     }
 }
 
-std::unique_ptr<Eval::NNUE::NetworkBig> Engine::get_default_network() const {
+std::unique_ptr<Eval::NNUE::ActiveNetwork> Engine::get_default_network() const {
     return make_default_big_network(binaryDirectory);
 }
 
@@ -400,14 +400,14 @@ void Engine::load_network(const std::string& file) { load_big_network(file); }
 
 void Engine::load_big_network(const std::string& file) {
     networks.modify_and_replicate(
-      [this, &file](NN::NetworkBig& network_) { network_.load(binaryDirectory, file); });
+      [this, &file](NN::ActiveNetwork& network_) { network_.load(binaryDirectory, file); });
     threads.clear();
     threads.ensure_network_replicated();
 }
 
 void Engine::save_network(const std::pair<std::optional<std::string>, std::string>& file) {
     networks.modify_and_replicate(
-      [&file](NN::NetworkBig& network_) { network_.save(file.first); });
+      [&file](NN::ActiveNetwork& network_) { network_.save(file.first); });
 }
 
 // utility functions

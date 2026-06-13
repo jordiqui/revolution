@@ -51,10 +51,10 @@ bool Eval::use_smallnet(const Position& pos) { return std::abs(simple_eval(pos))
 // Evaluate is the evaluator for the outer world. It returns a static evaluation
 // of the position from the point of view of the side to move.
 
-Value Eval::evaluate(const Eval::NNUE::NetworkBig& network,
+Value Eval::evaluate(const Eval::NNUE::ActiveNetwork& network,
                      const Position&               pos,
                      Eval::NNUE::AccumulatorStack& accumulators,
-                     Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
+                     Eval::NNUE::ActiveAccumulatorCache&
                        cache,
                      int optimism) {
 
@@ -82,13 +82,13 @@ Value Eval::evaluate(const Eval::NNUE::NetworkBig& network,
 // a string (suitable for outputting to stdout) that contains the detailed
 // descriptions and values of each evaluation term. Useful for debugging.
 // Trace scores are from white's point of view
-std::string Eval::trace(Position& pos, const Eval::NNUE::NetworkBig& network) {
+std::string Eval::trace(Position& pos, const Eval::NNUE::ActiveNetwork& network) {
 
     if (pos.checkers())
         return "Final evaluation: none (in check)";
 
     auto accumulators = std::make_unique<Eval::NNUE::AccumulatorStack>();
-    auto caches       = std::make_unique<Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>>();
+    auto caches       = std::make_unique<Eval::NNUE::ActiveAccumulatorCache>();
 
     std::stringstream ss;
     ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);

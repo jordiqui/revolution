@@ -42,14 +42,14 @@ struct AccumulatorCaches;
 class AccumulatorStack;
 }
 
-std::string trace(Position& pos, const Eval::NNUE::NetworkBig& network);
+std::string trace(Position& pos, const Eval::NNUE::ActiveNetwork& network);
 
 int   simple_eval(const Position& pos);
 bool  use_smallnet(const Position& pos);
-Value evaluate(const NNUE::NetworkBig& network,
+Value evaluate(const NNUE::ActiveNetwork& network,
                const Position&         pos,
                Eval::NNUE::AccumulatorStack& accumulators,
-               Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>& cache,
+               Eval::NNUE::ActiveAccumulatorCache& cache,
                int optimism);
 }  // namespace Eval
 

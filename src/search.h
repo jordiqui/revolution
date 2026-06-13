@@ -144,7 +144,7 @@ struct SharedState {
                 ThreadPool&                                               threadPool,
                 TranspositionTable&                                       transpositionTable,
                 std::map<NumaIndex, SharedHistories>&                     sharedHists,
-                const LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig>& nets) :
+                const LazyNumaReplicatedSystemWide<Eval::NNUE::ActiveNetwork>& nets) :
         options(optionsMap),
         threads(threadPool),
         tt(transpositionTable),
@@ -155,16 +155,16 @@ struct SharedState {
     ThreadPool&                                               threads;
     TranspositionTable&                                       tt;
     std::map<NumaIndex, SharedHistories>&                     sharedHistories;
-    const LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig>& networks;
+    const LazyNumaReplicatedSystemWide<Eval::NNUE::ActiveNetwork>& networks;
 };
 
 class Worker;
 
 [[maybe_unused]] Value evaluate_with_big_network_bridge(
-  const Eval::NNUE::NetworkBig&                                                         network,
+  const Eval::NNUE::ActiveNetwork&                                                         network,
   const Position&                                                                        pos,
   Eval::NNUE::AccumulatorStack&                                                          accumulators,
-  Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>& cache,
+  Eval::NNUE::ActiveAccumulatorCache& cache,
   Value                                                                                  optimism);
 
 // Null Object Pattern, implement a common interface for the SearchManagers.
@@ -339,8 +339,8 @@ class Worker {
     TimePoint elapsed() const;
     TimePoint elapsed_time() const;
 
-    const Eval::NNUE::NetworkBig& big_network() const;
-    Eval::NNUE::AccumulatorCaches::Cache<Eval::NNUE::TransformedFeatureDimensionsBig>&
+    const Eval::NNUE::ActiveNetwork& big_network() const;
+    Eval::NNUE::ActiveAccumulatorCache&
     big_cache();
 
     Value evaluate(const Position&);
@@ -373,7 +373,7 @@ class Worker {
     const OptionsMap&                                         options;
     ThreadPool&                                               threads;
     TranspositionTable&                                       tt;
-    const LazyNumaReplicatedSystemWide<Eval::NNUE::NetworkBig>& networks;
+    const LazyNumaReplicatedSystemWide<Eval::NNUE::ActiveNetwork>& networks;
 
     // Used by NNUE
     Eval::NNUE::AccumulatorStack  accumulatorStack;
