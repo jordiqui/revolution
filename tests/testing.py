@@ -6,12 +6,12 @@ import time
 import sys
 import traceback
 import fnmatch
-from functools import wraps
 from contextlib import redirect_stdout
 import io
 import tarfile
 import pathlib
-import concurrent.futures
+import queue
+import threading
 import tempfile
 import shutil
 import urllib.request
@@ -122,29 +122,10 @@ class OrderedClassMembers(type):
 
 
 class TimeoutException(Exception):
-    def __init__(self, message: str, timeout: int):
+    def __init__(self, message: str, timeout: float):
+        super().__init__(message)
         self.message = message
         self.timeout = timeout
-
-
-def timeout_decorator(timeout: float):
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(func, *args, **kwargs)
-                try:
-                    result = future.result(timeout=timeout)
-                except concurrent.futures.TimeoutError:
-                    raise TimeoutException(
-                        f"Function {func.__name__} timed out after {timeout} seconds",
-                        timeout,
-                    )
-            return result
-
-        return wrapper
-
-    return decorator
 
 
 class MiniTestFramework:
@@ -294,6 +275,8 @@ class Stockfish:
         self.cli = cli
         self.prefix = prefix
         self.output = []
+        self.output_queue = queue.Queue()
+        self.reader_thread = None
 
         self.start()
 
@@ -325,6 +308,21 @@ class Stockfish:
             universal_newlines=True,
             bufsize=1,
         )
+        self.reader_thread = threading.Thread(
+            target=self._read_process_output, daemon=True
+        )
+        self.reader_thread.start()
+
+    def _read_process_output(self):
+        try:
+            for line in self.process.stdout:
+                line = line.strip()
+                self.output.append(line)
+                self.output_queue.put(line)
+        except (OSError, ValueError):
+            pass
+        finally:
+            self.output_queue.put(None)
 
     def setoption(self, name: str, value: str):
         self.send_command(f"setoption name {name} value {value}")
@@ -338,31 +336,26 @@ class Stockfish:
         self.process.stdin.write(command + "\n")
         self.process.stdin.flush()
 
-    @timeout_decorator(MAX_TIMEOUT)
     def equals(self, expected_output: str):
         for line in self.readline():
             if line == expected_output:
                 return
 
-    @timeout_decorator(MAX_TIMEOUT)
     def expect(self, expected_output: str):
         for line in self.readline():
             if fnmatch.fnmatch(line, expected_output):
                 return
 
-    @timeout_decorator(MAX_TIMEOUT)
     def contains(self, expected_output: str):
         for line in self.readline():
             if expected_output in line:
                 return
 
-    @timeout_decorator(MAX_TIMEOUT)
     def starts_with(self, expected_output: str):
         for line in self.readline():
             if line.startswith(expected_output):
                 return
 
-    @timeout_decorator(MAX_TIMEOUT)
     def check_output(self, callback):
         if not callback:
             raise ValueError("Callback function is required")
@@ -371,14 +364,33 @@ class Stockfish:
             if callback(line) == True:
                 return
 
-    def readline(self):
+    def readline(self, timeout: float = MAX_TIMEOUT):
         if not self.process:
             raise RuntimeError("Stockfish process is not started")
 
+        deadline = time.monotonic() + timeout
+
         while True:
             self._check_process_alive()
-            line = self.process.stdout.readline().strip()
-            self.output.append(line)
+
+            remaining_time = deadline - time.monotonic()
+            if remaining_time <= 0:
+                raise TimeoutException(
+                    f"No matching output received after {timeout} seconds",
+                    timeout,
+                )
+
+            try:
+                line = self.output_queue.get(timeout=remaining_time)
+            except queue.Empty:
+                raise TimeoutException(
+                    f"No matching output received after {timeout} seconds",
+                    timeout,
+                )
+
+            if line is None:
+                self._check_process_alive()
+                raise RuntimeError("Stockfish process has terminated")
 
             yield line
 

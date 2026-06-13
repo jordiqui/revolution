@@ -64,12 +64,12 @@ struct TTEntry {
     friend class TranspositionTable;
     friend struct TTWriter;
 
-    u16 key16;
-    u8  depth8;
-    u8  genBound8;
-    Move     move16;
-    i16  value16;
-    i16  eval16;
+    RelaxedAtomic<u16>  key16;
+    RelaxedAtomic<u8>   depth8;
+    RelaxedAtomic<u8>   genBound8;
+    RelaxedAtomic<Move> move16;
+    RelaxedAtomic<i16>  value16;
+    RelaxedAtomic<i16>  eval16;
 };
 
 // `genBound8` is where most of the details are. We use the following constants to manipulate 5 leading generation bits
@@ -188,7 +188,7 @@ void TranspositionTable::clear(ThreadPool& threads) {
             const usize start  = stride * i;
             const usize len    = i + 1 != threadCount ? stride : clusterCount - start;
 
-            std::memset(&table[start], 0, len * sizeof(Cluster));
+            std::memset(static_cast<void*>(&table[start]), 0, len * sizeof(Cluster));
         });
     }
 
