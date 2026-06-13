@@ -69,7 +69,7 @@ struct TTData {
 // This is used to make racy writes to the global TT.
 struct TTWriter {
    public:
-    void write(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8);
+    void write(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8);
     void penalize(int penalty);
 
    private:
@@ -84,14 +84,14 @@ class TranspositionTable {
    public:
     ~TranspositionTable() { aligned_large_pages_free(table); }
 
-    void resize(size_t mbSize, ThreadPool& threads);  // Set TT size
+    void resize(usize mbSize, ThreadPool& threads);  // Set TT size
     void clear(ThreadPool& threads);                  // Re-initialize memory, multithreaded
     int  hashfull(int maxAge = 0)
       const;  // Approximate what fraction of entries (permille) have been written to during this root search
 
     void
     new_search();  // This must be called at the beginning of each root search to track entry aging
-    uint8_t generation() const;  // The current age, used when writing new data to the TT
+    u8 generation() const;  // The current age, used when writing new data to the TT
     std::tuple<bool, TTData, TTWriter>
     probe(const Key key) const;  // The main method, whose retvals separate local vs global objects
     TTEntry* first_entry(const Key key)
@@ -100,10 +100,10 @@ class TranspositionTable {
    private:
     friend struct TTEntry;
 
-    size_t   clusterCount;
+    usize   clusterCount;
     Cluster* table = nullptr;
 
-    uint8_t generation8 = 0;  // Size must be not bigger than TTEntry::genBound8
+    u8 generation8 = 0;  // Size must be not bigger than TTEntry::genBound8
 };
 
 }  // namespace Stockfish

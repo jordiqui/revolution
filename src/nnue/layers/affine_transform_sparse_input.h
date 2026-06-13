@@ -43,21 +43,21 @@ static constexpr int lsb_index64[64] = {
   21, 44, 38, 32, 29, 23, 17, 11, 4,  62, 46, 55, 26, 59, 40, 36, 15, 53, 34, 51, 20, 43,
   31, 22, 10, 45, 25, 39, 14, 33, 19, 30, 9,  24, 13, 18, 8,  12, 7,  6,  5,  63};
 
-constexpr int constexpr_lsb(uint64_t bb) {
+constexpr int constexpr_lsb(u64 bb) {
     assert(bb != 0);
-    constexpr uint64_t debruijn64 = 0x03F79D71B4CB0A89ULL;
+    constexpr u64 debruijn64 = 0x03F79D71B4CB0A89ULL;
     return lsb_index64[((bb ^ (bb - 1)) * debruijn64) >> 58];
 }
 
 alignas(CacheLineSize) static constexpr struct OffsetIndices {
 
-    std::uint16_t offset_indices[256][8];
+    u16 offset_indices[256][8];
 
     constexpr OffsetIndices() :
         offset_indices() {
         for (int i = 0; i < 256; ++i)
         {
-            std::uint64_t j = i, k = 0;
+            u64 j = i, k = 0;
             while (j)
             {
                 offset_indices[i][k++] = constexpr_lsb(j);
@@ -80,10 +80,10 @@ alignas(CacheLineSize) static constexpr struct OffsetIndices {
 
 // Find indices of nonzero 32-bit values in a packed byte buffer.
 // The input pointer addresses a sequence of 32-bit blocks stored in a
-// std::uint8_t array.
+// u8 array.
 template<const IndexType InputDimensions>
-void find_nnz(const std::uint8_t* RESTRICT input,
-              std::uint16_t* RESTRICT      out,
+void find_nnz(const u8* RESTRICT input,
+              u16* RESTRICT      out,
               IndexType&                   count_out) {
 
     #if defined(USE_AVX512ICL)
@@ -125,7 +125,7 @@ void find_nnz(const std::uint8_t* RESTRICT input,
     IndexType count = 0;
     for (IndexType i = 0; i < NumChunks; ++i)
     {
-        const __m512i inputV = _mm512_load_si512(input + i * SimdWidth * sizeof(std::uint32_t));
+        const __m512i inputV = _mm512_load_si512(input + i * SimdWidth * sizeof(u32));
 
         // Get a bitmask and gather non zero indices
         const __mmask16 nnzMask = _mm512_test_epi32_mask(inputV, inputV);
@@ -140,7 +140,7 @@ void find_nnz(const std::uint8_t* RESTRICT input,
 
     using namespace SIMD;
 
-    constexpr IndexType InputSimdWidth = sizeof(vec_uint_t) / sizeof(std::int32_t);
+    constexpr IndexType InputSimdWidth = sizeof(vec_uint_t) / sizeof(i32);
     // Outputs are processed 8 elements at a time, even if the SIMD width is narrower
     constexpr IndexType ChunkSize      = 8;
     constexpr IndexType NumChunks      = InputDimensions / ChunkSize;
@@ -178,8 +178,8 @@ template<IndexType InDims, IndexType OutDims>
 class AffineTransformSparseInput {
    public:
     // Input/output type
-    using InputType  = std::uint8_t;
-    using OutputType = std::int32_t;
+    using InputType  = u8;
+    using OutputType = i32;
 
     // Number of input/output dimensions
     static constexpr IndexType InputDimensions  = InDims;
@@ -202,8 +202,8 @@ class AffineTransformSparseInput {
     using OutputBuffer = OutputType[PaddedOutputDimensions];
 
     // Hash value embedded in the evaluation file
-    static constexpr std::uint32_t get_hash_value(std::uint32_t prevHash) {
-        std::uint32_t hashValue = 0xCC03DAE4u;
+    static constexpr u32 get_hash_value(u32 prevHash) {
+        u32 hashValue = 0xCC03DAE4u;
         hashValue += OutputDimensions;
         hashValue ^= prevHash >> 1;
         hashValue ^= prevHash << 31;
@@ -242,8 +242,8 @@ class AffineTransformSparseInput {
         return !stream.fail();
     }
 
-    std::size_t get_content_hash() const {
-        std::size_t h = 0;
+    usize get_content_hash() const {
+        usize h = 0;
         hash_combine(h, get_raw_data_hash(biases));
         hash_combine(h, get_raw_data_hash(weights));
         hash_combine(h, get_hash_value(0));
@@ -293,7 +293,7 @@ class AffineTransformSparseInput {
     #else
           NumAccums;
     #endif
-        std::uint16_t nnz[NumChunks];
+        u16 nnz[NumChunks];
         IndexType     count;
 
         // Find indices of nonzero 32-bit blocks
@@ -308,22 +308,22 @@ class AffineTransformSparseInput {
         const auto* end   = nnz + count;
 
         // convince GCC to not do weird pointer arithmetic in the following loop
-        const std::int8_t* weights_cp = weights;
+        const i8* weights_cp = weights;
     #if defined(USE_VNNI)
         for (IndexType k = NumAccums; k < NumRegs; ++k)
             acc[k] = vec_zero();
 
         while (start < end - 2)
         {
-            const std::ptrdiff_t i0 = *start++;
-            const std::ptrdiff_t i1 = *start++;
-            const std::ptrdiff_t i2 = *start++;
+            const isize i0 = *start++;
+            const isize i1 = *start++;
+            const isize i2 = *start++;
             const invec_t        in0 =
-              vec_set_32(load_as<std::int32_t>(input + i0 * sizeof(std::int32_t)));
+              vec_set_32(load_as<i32>(input + i0 * sizeof(i32)));
             const invec_t in1 =
-              vec_set_32(load_as<std::int32_t>(input + i1 * sizeof(std::int32_t)));
+              vec_set_32(load_as<i32>(input + i1 * sizeof(i32)));
             const invec_t in2 =
-              vec_set_32(load_as<std::int32_t>(input + i2 * sizeof(std::int32_t)));
+              vec_set_32(load_as<i32>(input + i2 * sizeof(i32)));
             const auto col0 =
               reinterpret_cast<const invec_t*>(&weights_cp[i0 * OutputDimensions * ChunkSize]);
             const auto col1 =
@@ -342,8 +342,8 @@ class AffineTransformSparseInput {
     #endif
         while (start < end)
         {
-            const std::ptrdiff_t i = *start++;
-            const invec_t in = vec_set_32(load_as<std::int32_t>(input + i * sizeof(std::int32_t)));
+            const isize i = *start++;
+            const invec_t in = vec_set_32(load_as<i32>(input + i * sizeof(i32)));
             const auto    col =
               reinterpret_cast<const invec_t*>(&weights_cp[i * OutputDimensions * ChunkSize]);
             for (IndexType k = 0; k < NumAccums; ++k)
@@ -368,7 +368,7 @@ class AffineTransformSparseInput {
 
    private:
     using BiasType   = OutputType;
-    using WeightType = std::int8_t;
+    using WeightType = i8;
 
     alignas(CacheLineSize) BiasType biases[OutputDimensions];
     alignas(CacheLineSize) WeightType weights[OutputDimensions * PaddedInputDimensions];

@@ -124,7 +124,7 @@ void update_correction_history(const Position& pos,
 }
 
 // Add a small random component to draw evaluations to avoid 3-fold blindness
-Value value_draw(size_t nodes) { return VALUE_DRAW - 1 + Value(nodes & 0x2); }
+Value value_draw(usize nodes) { return VALUE_DRAW - 1 + Value(nodes & 0x2); }
 Value value_to_tt(Value v, int ply);
 Value value_from_tt(Value v, int ply, int r50c);
 void  update_pv(Move* pv, Move move, const Move* childPv);
@@ -155,9 +155,9 @@ bool is_shuffling(Move move, Stack* const ss, const Position& pos) {
 
 Search::Worker::Worker(SharedState&                    sharedState,
                        std::unique_ptr<ISearchManager> sm,
-                       size_t                          threadId,
-                       size_t                          numaThreadId,
-                       size_t                          numaTotalThreads,
+                       usize                          threadId,
+                       usize                          numaThreadId,
+                       usize                          numaTotalThreads,
                        NumaReplicatedAccessToken       token) :
     // Unpack the SharedState struct into member variables
     sharedHistory(sharedState.sharedHistories.at(token.get_numa_index())),
@@ -308,13 +308,13 @@ void Search::Worker::iterative_deepening() {
             mainThread->iterValue.fill(mainThread->bestPreviousScore);
     }
 
-    size_t multiPV = size_t(options["MultiPV"]);
+    usize multiPV = usize(options["MultiPV"]);
     Skill skill(options["Skill Level"], options["UCI_LimitStrength"] ? int(options["UCI_Elo"]) : 0);
 
     // When playing with strength handicap enable MultiPV search that we will
     // use behind-the-scenes to retrieve a set of possible moves.
     if (skill.enabled())
-        multiPV = std::max(multiPV, size_t(4));
+        multiPV = std::max(multiPV, usize(4));
 
     multiPV = std::min(multiPV, rootMoves.size());
 
@@ -339,7 +339,7 @@ void Search::Worker::iterative_deepening() {
         for (RootMove& rm : rootMoves)
             rm.previousScore = rm.score;
 
-        size_t pvFirst = 0;
+        usize pvFirst = 0;
         pvLast         = 0;
 
         if (!threads.increaseDepth)
@@ -523,8 +523,8 @@ void Search::Worker::iterative_deepening() {
         // Do we have time for the next iteration? Can we stop searching now?
         if (limits.use_time_management() && !threads.stop && !mainThread->stopOnPonderhit)
         {
-            uint64_t nodesEffort =
-              rootMoves[0].effort * 100000 / std::max(size_t(1), size_t(nodes));
+            u64 nodesEffort =
+              rootMoves[0].effort * 100000 / std::max(usize(1), usize(nodes));
 
             double fallingEval = (11.85 + 2.24 * (mainThread->bestPreviousAverageScore - bestValue)
                                   + 0.93 * (mainThread->iterValue[iterIdx] - bestValue))
@@ -642,7 +642,7 @@ void Search::Worker::clear() {
                 for (auto& h : to)
                     h.fill(-529);
 
-    for (size_t i = 1; i < reductions.size(); ++i)
+    for (usize i = 1; i < reductions.size(); ++i)
         reductions[i] = int(2747 / 128.0 * std::log(i));
 
     refreshTable.clear_big(big_network());
@@ -1232,7 +1232,7 @@ moves_loop:  // When in check, search starts here
 
         // Add extension to new depth
         newDepth += extension;
-        uint64_t nodeCount = rootNode ? uint64_t(nodes) : 0;
+        u64 nodeCount = rootNode ? u64(nodes) : 0;
 
         // Decrease reduction for PvNodes (*Scaler)
         if (ss->ttPv)
@@ -1896,7 +1896,7 @@ void update_all_stats(const Position& pos,
 
     if (!PvNode)
         // Keep the multiplication 64-bit so 32-bit builds retain the same behavior.
-        bonus += bonus * uint64_t(quietsSearched.size() + capturesSearched.size()) / 256;
+        bonus += bonus * u64(quietsSearched.size() + capturesSearched.size()) / 256;
 
     if (!pos.capture_stage(bestMove))
     {
@@ -1973,7 +1973,7 @@ void update_quiet_histories(
 
 // When playing with strength handicap, choose the best move among a set of
 // RootMoves using a statistical rule dependent on 'level'. Idea by Heinz van Saanen.
-Move Skill::pick_best(const RootMoves& rootMoves, size_t multiPV) {
+Move Skill::pick_best(const RootMoves& rootMoves, usize multiPV) {
     static PRNG rng(now());  // PRNG sequence should be non-deterministic
 
     // RootMoves are already sorted by score in descending order
@@ -1985,7 +1985,7 @@ Move Skill::pick_best(const RootMoves& rootMoves, size_t multiPV) {
     // Choose best move. For each move score we add two terms, both dependent on
     // weakness. One is deterministic and bigger for weaker levels, and one is
     // random. Then we choose the move with the resulting highest score.
-    for (size_t i = 0; i < multiPV; ++i)
+    for (usize i = 0; i < multiPV; ++i)
     {
         // This is our magic formula
         int push = int(weakness * int(topScore - rootMoves[i].score)
@@ -2066,7 +2066,7 @@ void syzygy_extend_pv(const OptionsMap&         options,
     int ply = 1;
 
     // Step 1, walk the PV to the last position in TB with correct decisive score
-    while (size_t(ply) < rootMove.pv.size())
+    while (usize(ply) < rootMove.pv.size())
     {
         Move& pvMove = rootMove.pv[ply];
 
@@ -2182,11 +2182,11 @@ void SearchManager::pv(Search::Worker&           worker,
     const auto nodes     = threads.nodes_searched();
     auto&      rootMoves = worker.rootMoves;
     auto&      pos       = worker.rootPos;
-    size_t     pvIdx     = worker.pvIdx;
-    size_t     multiPV   = std::min(size_t(worker.options["MultiPV"]), rootMoves.size());
-    uint64_t   tbHits    = threads.tb_hits() + (worker.tbConfig.rootInTB ? rootMoves.size() : 0);
+    usize     pvIdx     = worker.pvIdx;
+    usize     multiPV   = std::min(usize(worker.options["MultiPV"]), rootMoves.size());
+    u64   tbHits    = threads.tb_hits() + (worker.tbConfig.rootInTB ? rootMoves.size() : 0);
 
-    for (size_t i = 0; i < multiPV; ++i)
+    for (usize i = 0; i < multiPV; ++i)
     {
         bool updated = rootMoves[i].score != -VALUE_INFINITE;
 

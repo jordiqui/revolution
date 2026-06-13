@@ -84,8 +84,8 @@ namespace Detail {
 template<typename T>
 bool read_parameters(std::istream& stream, T& reference) {
 
-    std::uint32_t header;
-    header = read_little_endian<std::uint32_t>(stream);
+    u32 header;
+    header = read_little_endian<u32>(stream);
     if (!stream || header != T::get_hash_value())
         return false;
     return reference.read_parameters(stream);
@@ -95,7 +95,7 @@ bool read_parameters(std::istream& stream, T& reference) {
 template<typename T>
 bool write_parameters(std::ostream& stream, const T& reference) {
 
-    write_little_endian<std::uint32_t>(stream, T::get_hash_value());
+    write_little_endian<u32>(stream, T::get_hash_value());
     return reference.write_parameters(stream);
 }
 
@@ -168,7 +168,7 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
                                      AccumulatorStack&                       accumulatorStack,
                                      AccumulatorCaches::Cache<FTDimensions>& cache) const {
 
-    constexpr uint64_t alignment = CacheLineSize;
+    constexpr u64 alignment = CacheLineSize;
 
     alignas(alignment)
       TransformedFeatureType transformedFeatures[FeatureTransformer<FTDimensions>::BufferSize];
@@ -214,7 +214,7 @@ void Network<Arch, Transformer>::verify(std::string                             
 
     if (f)
     {
-        size_t size = sizeof(featureTransformer) + sizeof(Arch) * LayerStacks;
+        usize size = sizeof(featureTransformer) + sizeof(Arch) * LayerStacks;
         f("NNUE evaluation using " + evalfilePath + " (" + std::to_string(size / (1024 * 1024))
           + "MiB, (" + std::to_string(featureTransformer.TotalInputDimensions) + ", "
           + std::to_string(network[0].TransformedFeatureDimensions) + ", "
@@ -230,7 +230,7 @@ Network<Arch, Transformer>::trace_evaluate(const Position&                      
                                            AccumulatorStack&                       accumulatorStack,
                                            AccumulatorCaches::Cache<FTDimensions>& cache) const {
 
-    constexpr uint64_t alignment = CacheLineSize;
+    constexpr u64 alignment = CacheLineSize;
 
     alignas(alignment)
       TransformedFeatureType transformedFeatures[FeatureTransformer<FTDimensions>::BufferSize];
@@ -272,7 +272,7 @@ void Network<Arch, Transformer>::load_internal() {
     // C++ way to prepare a buffer for a memory stream
     class MemoryBuffer: public std::basic_streambuf<char> {
        public:
-        MemoryBuffer(char* p, size_t n) {
+        MemoryBuffer(char* p, usize n) {
             setg(p, p, p + n);
             setp(p, p + n);
         }
@@ -281,7 +281,7 @@ void Network<Arch, Transformer>::load_internal() {
     const auto embedded = get_embedded(embeddedType);
 
     MemoryBuffer buffer(const_cast<char*>(reinterpret_cast<const char*>(embedded.data)),
-                        size_t(embedded.size));
+                        usize(embedded.size));
 
     std::istream stream(&buffer);
     auto         description = load(stream);
@@ -321,11 +321,11 @@ std::optional<std::string> Network<Arch, Transformer>::load(std::istream& stream
 
 
 template<typename Arch, typename Transformer>
-std::size_t Network<Arch, Transformer>::get_content_hash() const {
+usize Network<Arch, Transformer>::get_content_hash() const {
     if (!initialized)
         return 0;
 
-    std::size_t h = 0;
+    usize h = 0;
     hash_combine(h, featureTransformer);
     for (auto&& layerstack : network)
         hash_combine(h, layerstack);
@@ -337,13 +337,13 @@ std::size_t Network<Arch, Transformer>::get_content_hash() const {
 // Read network header
 template<typename Arch, typename Transformer>
 bool Network<Arch, Transformer>::read_header(std::istream&  stream,
-                                             std::uint32_t* hashValue,
+                                             u32* hashValue,
                                              std::string*   desc) const {
-    std::uint32_t version, size;
+    u32 version, size;
 
-    version    = read_little_endian<std::uint32_t>(stream);
-    *hashValue = read_little_endian<std::uint32_t>(stream);
-    size       = read_little_endian<std::uint32_t>(stream);
+    version    = read_little_endian<u32>(stream);
+    *hashValue = read_little_endian<u32>(stream);
+    size       = read_little_endian<u32>(stream);
     if (!stream || version != Version)
         return false;
     desc->resize(size);
@@ -355,11 +355,11 @@ bool Network<Arch, Transformer>::read_header(std::istream&  stream,
 // Write network header
 template<typename Arch, typename Transformer>
 bool Network<Arch, Transformer>::write_header(std::ostream&      stream,
-                                              std::uint32_t      hashValue,
+                                              u32      hashValue,
                                               const std::string& desc) const {
-    write_little_endian<std::uint32_t>(stream, Version);
-    write_little_endian<std::uint32_t>(stream, hashValue);
-    write_little_endian<std::uint32_t>(stream, std::uint32_t(desc.size()));
+    write_little_endian<u32>(stream, Version);
+    write_little_endian<u32>(stream, hashValue);
+    write_little_endian<u32>(stream, u32(desc.size()));
     stream.write(&desc[0], desc.size());
     return !stream.fail();
 }
@@ -368,14 +368,14 @@ bool Network<Arch, Transformer>::write_header(std::ostream&      stream,
 template<typename Arch, typename Transformer>
 bool Network<Arch, Transformer>::read_parameters(std::istream& stream,
                                                  std::string&  netDescription) {
-    std::uint32_t hashValue;
+    u32 hashValue;
     if (!read_header(stream, &hashValue, &netDescription))
         return false;
     if (hashValue != Network::hash)
         return false;
     if (!Detail::read_parameters(stream, featureTransformer))
         return false;
-    for (std::size_t i = 0; i < LayerStacks; ++i)
+    for (usize i = 0; i < LayerStacks; ++i)
     {
         if (!Detail::read_parameters(stream, network[i]))
             return false;
@@ -391,7 +391,7 @@ bool Network<Arch, Transformer>::write_parameters(std::ostream&      stream,
         return false;
     if (!Detail::write_parameters(stream, featureTransformer))
         return false;
-    for (std::size_t i = 0; i < LayerStacks; ++i)
+    for (usize i = 0; i < LayerStacks; ++i)
     {
         if (!Detail::write_parameters(stream, network[i]))
             return false;

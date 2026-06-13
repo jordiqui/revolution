@@ -46,8 +46,8 @@ class FeatureTransformer;
 // Class that holds the result of affine transformation of input features
 template<IndexType Size>
 struct alignas(CacheLineSize) Accumulator {
-    std::array<std::array<std::int16_t, Size>, COLOR_NB>        accumulation;
-    std::array<std::array<std::int32_t, PSQTBuckets>, COLOR_NB> psqtAccumulation;
+    std::array<std::array<i16, Size>, COLOR_NB>        accumulation;
+    std::array<std::array<i32, PSQTBuckets>, COLOR_NB> psqtAccumulation;
     std::array<bool, COLOR_NB>                                  computed = {};
 };
 
@@ -140,7 +140,7 @@ struct AccumulatorState {
 
 class AccumulatorStack {
    public:
-    static constexpr std::size_t MaxSize = MAX_PLY + 1;
+    static constexpr usize MaxSize = MAX_PLY + 1;
 
     template<typename T>
     [[nodiscard]] const AccumulatorState<T>& latest() const noexcept;
@@ -171,23 +171,23 @@ class AccumulatorStack {
                        AccumulatorCaches::Cache<Dimensions>& cache) noexcept;
 
     template<typename FeatureSet, IndexType Dimensions>
-    [[nodiscard]] std::size_t find_last_usable_accumulator(Color perspective) const noexcept;
+    [[nodiscard]] usize find_last_usable_accumulator(Color perspective) const noexcept;
 
     template<typename FeatureSet, IndexType Dimensions>
     void forward_update_incremental(Color                                 perspective,
                                     const Position&                       pos,
                                     const FeatureTransformer<Dimensions>& featureTransformer,
-                                    const std::size_t                     begin) noexcept;
+                                    const usize                     begin) noexcept;
 
     template<typename FeatureSet, IndexType Dimensions>
     void backward_update_incremental(Color                                 perspective,
                                      const Position&                       pos,
                                      const FeatureTransformer<Dimensions>& featureTransformer,
-                                     const std::size_t                     end) noexcept;
+                                     const usize                     end) noexcept;
 
     std::array<AccumulatorState<PSQFeatureSet>, MaxSize>    psq_accumulators;
     std::array<AccumulatorState<ThreatFeatureSet>, MaxSize> threat_accumulators;
-    std::size_t                                             size = 1;
+    usize                                             size = 1;
 };
 
 }  // namespace Stockfish::Eval::NNUE

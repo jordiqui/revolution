@@ -37,35 +37,35 @@
 namespace Stockfish::Eval::NNUE {
 
 // Returns the inverse of a permutation
-template<std::size_t Len>
-constexpr std::array<std::size_t, Len>
-invert_permutation(const std::array<std::size_t, Len>& order) {
-    std::array<std::size_t, Len> inverse{};
-    for (std::size_t i = 0; i < order.size(); i++)
+template<usize Len>
+constexpr std::array<usize, Len>
+invert_permutation(const std::array<usize, Len>& order) {
+    std::array<usize, Len> inverse{};
+    for (usize i = 0; i < order.size(); i++)
         inverse[order[i]] = i;
     return inverse;
 }
 
 // Divide a byte region of size TotalSize to chunks of size
 // BlockSize, and permute the blocks by a given order
-template<std::size_t BlockSize, typename T, std::size_t N, std::size_t OrderSize>
-void permute(std::array<T, N>& data, const std::array<std::size_t, OrderSize>& order) {
-    constexpr std::size_t TotalSize = N * sizeof(T);
+template<usize BlockSize, typename T, usize N, usize OrderSize>
+void permute(std::array<T, N>& data, const std::array<usize, OrderSize>& order) {
+    constexpr usize TotalSize = N * sizeof(T);
 
     static_assert(TotalSize % (BlockSize * OrderSize) == 0,
                   "ChunkSize * OrderSize must perfectly divide TotalSize");
 
-    constexpr std::size_t ProcessChunkSize = BlockSize * OrderSize;
+    constexpr usize ProcessChunkSize = BlockSize * OrderSize;
 
     std::array<std::byte, ProcessChunkSize> buffer{};
 
     std::byte* const bytes = reinterpret_cast<std::byte*>(data.data());
 
-    for (std::size_t i = 0; i < TotalSize; i += ProcessChunkSize)
+    for (usize i = 0; i < TotalSize; i += ProcessChunkSize)
     {
         std::byte* const values = &bytes[i];
 
-        for (std::size_t j = 0; j < OrderSize; j++)
+        for (usize j = 0; j < OrderSize; j++)
         {
             auto* const buffer_chunk = &buffer[j * BlockSize];
             auto* const value_chunk  = &values[order[j] * BlockSize];
@@ -97,12 +97,12 @@ class FeatureTransformer {
     static constexpr IndexType OutputDimensions = HalfDimensions;
 
     // Size of forward propagation buffer
-    static constexpr std::size_t BufferSize = OutputDimensions * sizeof(OutputType);
+    static constexpr usize BufferSize = OutputDimensions * sizeof(OutputType);
 
     // Store the order by which 128-bit blocks of a 1024-bit data must
     // be permuted so that calling packus on adjacent vectors of 16-bit
     // integers loaded from the data results in the pre-permutation order
-    static constexpr auto PackusEpi16Order = []() -> std::array<std::size_t, 8> {
+    static constexpr auto PackusEpi16Order = []() -> std::array<usize, 8> {
 #if defined(USE_AVX512)
         // _mm512_packus_epi16 after permutation:
         // |   0   |   2   |   4   |   6   | // Vector 0
@@ -122,8 +122,8 @@ class FeatureTransformer {
 
     static constexpr auto InversePackusEpi16Order = invert_permutation(PackusEpi16Order);
 
-    static constexpr std::uint32_t combine_hash(std::initializer_list<std::uint32_t> hashes) {
-        std::uint32_t hash = 0;
+    static constexpr u32 combine_hash(std::initializer_list<u32> hashes) {
+        u32 hash = 0;
         for (const auto component_hash : hashes)
         {
             hash = (hash << 1) | (hash >> 31);
@@ -133,7 +133,7 @@ class FeatureTransformer {
     }
 
     // Hash value embedded in the evaluation file
-    static constexpr std::uint32_t get_hash_value() {
+    static constexpr u32 get_hash_value() {
         return (UseThreats ? combine_hash({ThreatFeatureSet::HashValue, PSQFeatureSet::HashValue})
                            : PSQFeatureSet::HashValue)
              ^ (OutputDimensions * 2);
@@ -205,8 +205,8 @@ class FeatureTransformer {
         return !stream.fail();
     }
 
-    std::size_t get_content_hash() const {
-        std::size_t h = 0;
+    usize get_content_hash() const {
+        usize h = 0;
 
         hash_combine(h, get_raw_data_hash(biases));
         hash_combine(h, get_raw_data_hash(weights));
@@ -224,7 +224,7 @@ class FeatureTransformer {
     }
 
     // Convert input features
-    std::int32_t transform(const Position&                           pos,
+    i32 transform(const Position&                           pos,
                            AccumulatorStack&                         accumulatorStack,
                            AccumulatorCaches::Cache<HalfDimensions>& cache,
                            OutputType*                               output,
@@ -438,7 +438,7 @@ class FeatureTransformer {
 
 template<Stockfish::Eval::NNUE::IndexType TransformedFeatureDimensions>
 struct std::hash<Stockfish::Eval::NNUE::FeatureTransformer<TransformedFeatureDimensions>> {
-    std::size_t
+    Stockfish::usize
     operator()(const Stockfish::Eval::NNUE::FeatureTransformer<TransformedFeatureDimensions>& ft)
       const noexcept {
         return ft.get_content_hash();

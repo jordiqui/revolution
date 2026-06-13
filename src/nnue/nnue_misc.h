@@ -19,7 +19,6 @@
 #ifndef NNUE_MISC_H_INCLUDED
 #define NNUE_MISC_H_INCLUDED
 
-#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -48,9 +47,9 @@ struct EvalFile {
 struct NnueEvalTrace {
     static_assert(LayerStacks == PSQTBuckets);
 
-    Value       psqt[LayerStacks];
-    Value       positional[LayerStacks];
-    std::size_t correctBucket;
+    Value psqt[LayerStacks];
+    Value positional[LayerStacks];
+    usize correctBucket;
 };
 
 template<typename Arch, typename Transformer>
@@ -67,8 +66,8 @@ std::string trace(Position& pos, const NetworkBig& network, AccumulatorCaches& c
 
 template<>
 struct std::hash<Stockfish::Eval::NNUE::EvalFile> {
-    std::size_t operator()(const Stockfish::Eval::NNUE::EvalFile& evalFile) const noexcept {
-        std::size_t h = 0;
+    Stockfish::usize operator()(const Stockfish::Eval::NNUE::EvalFile& evalFile) const noexcept {
+        Stockfish::usize h = 0;
         Stockfish::hash_combine(h, evalFile.defaultName);
         Stockfish::hash_combine(h, evalFile.current);
         Stockfish::hash_combine(h, evalFile.netDescription);
