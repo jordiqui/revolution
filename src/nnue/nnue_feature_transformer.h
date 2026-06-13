@@ -232,28 +232,15 @@ class FeatureTransformer {
 
         using namespace SIMD;
         accumulatorStack.evaluate(pos, *this, cache);
-        const auto& accumulatorState       = accumulatorStack.latest<PSQFeatureSet>();
-        const auto& threatAccumulatorState = accumulatorStack.latest<ThreatFeatureSet>();
+        const auto& accumulatorState = accumulatorStack.latest();
 
         const Color perspectives[2]  = {pos.side_to_move(), ~pos.side_to_move()};
-        const auto& psqtAccumulation = (accumulatorState.acc<HalfDimensions>()).psqtAccumulation;
-        auto        psqt =
-          (psqtAccumulation[perspectives[0]][bucket] - psqtAccumulation[perspectives[1]][bucket]);
+        const auto& psqtAccumulation = accumulatorState.psqtAccumulation;
+        const auto  psqt =
+          (psqtAccumulation[perspectives[0]][bucket] - psqtAccumulation[perspectives[1]][bucket])
+          / 2;
 
-        if constexpr (UseThreats)
-        {
-            const auto& threatPsqtAccumulation =
-              (threatAccumulatorState.acc<HalfDimensions>()).psqtAccumulation;
-            psqt = (psqt + threatPsqtAccumulation[perspectives[0]][bucket]
-                    - threatPsqtAccumulation[perspectives[1]][bucket])
-                 / 2;
-        }
-        else
-            psqt /= 2;
-
-        const auto& accumulation = (accumulatorState.acc<HalfDimensions>()).accumulation;
-        const auto& threatAccumulation =
-          (threatAccumulatorState.acc<HalfDimensions>()).accumulation;
+        const auto& accumulation = accumulatorState.accumulation;
 
         for (IndexType p = 0; p < 2; ++p)
         {
@@ -323,47 +310,6 @@ class FeatureTransformer {
             // 8 bits. Shifting it by 7 bits left will no longer occupy the
             // signed bit, so we are safe.
 
-            if constexpr (UseThreats)
-            {
-                const vec_t* tin0 =
-                  reinterpret_cast<const vec_t*>(&(threatAccumulation[perspectives[p]][0]));
-                const vec_t* tin1 = reinterpret_cast<const vec_t*>(
-                  &(threatAccumulation[perspectives[p]][HalfDimensions / 2]));
-                for (IndexType j = 0; j < NumOutputChunks; ++j)
-                {
-                    const vec_t acc0a = vec_add_16(in0[j * 2 + 0], tin0[j * 2 + 0]);
-                    const vec_t acc0b = vec_add_16(in0[j * 2 + 1], tin0[j * 2 + 1]);
-                    const vec_t acc1a = vec_add_16(in1[j * 2 + 0], tin1[j * 2 + 0]);
-                    const vec_t acc1b = vec_add_16(in1[j * 2 + 1], tin1[j * 2 + 1]);
-
-#if defined(USE_NEON)
-                    // The NEON path relies on unsigned saturation for crelu.
-                    static_assert(FtMaxVal == 255);
-
-                    const uint16x8_t mul0 = vmull_u8(vqmovun_s16(acc0a), vqmovun_s16(acc1a));
-                    const uint16x8_t mul1 = vmull_u8(vqmovun_s16(acc0b), vqmovun_s16(acc1b));
-
-                    const uint8x16x2_t uzp =
-                      vuzpq_u8(vreinterpretq_u8_u16(mul0), vreinterpretq_u8_u16(mul1));
-                    const uint8x16_t pab = vshrq_n_u8(uzp.val[1], 1);
-                    out[j] = reinterpret_cast<vec_t>(pab);
-#else
-                    const vec_t sum0a =
-                      vec_slli_16(vec_max_16(vec_min_16(acc0a, FtMax), Zero), shift);
-                    const vec_t sum0b =
-                      vec_slli_16(vec_max_16(vec_min_16(acc0b, FtMax), Zero), shift);
-                    const vec_t sum1a = vec_min_16(acc1a, FtMax);
-                    const vec_t sum1b = vec_min_16(acc1b, FtMax);
-
-                    const vec_t pa = vec_mulhi_16(sum0a, sum1a);
-                    const vec_t pb = vec_mulhi_16(sum0b, sum1b);
-
-                    out[j] = vec_packus_16(pa, pb);
-#endif
-                }
-            }
-            else
-            {
                 for (IndexType j = 0; j < NumOutputChunks; ++j)
                 {
 #if defined(USE_NEON)
@@ -393,7 +339,6 @@ class FeatureTransformer {
                     out[j] = vec_packus_16(pa, pb);
 #endif
                 }
-            }
 
 #else
 
@@ -403,12 +348,6 @@ class FeatureTransformer {
                 BiasType sum1 =
                   accumulation[static_cast<int>(perspectives[p])][j + HalfDimensions / 2];
 
-                if constexpr (UseThreats)
-                {
-                    sum0 += threatAccumulation[static_cast<int>(perspectives[p])][j + 0];
-                    sum1 +=
-                      threatAccumulation[static_cast<int>(perspectives[p])][j + HalfDimensions / 2];
-                }
 
                 sum0 = std::clamp<BiasType>(sum0, 0, FtMaxVal);
                 sum1 = std::clamp<BiasType>(sum1, 0, FtMaxVal);
