@@ -70,7 +70,7 @@ class Network {
     void load(const std::string& rootDirectory, std::string evalfilePath);
     bool save(const std::optional<std::string>& filename) const;
 
-    std::size_t get_content_hash() const;
+    usize get_content_hash() const;
 
     NetworkOutput evaluate(const Position&                         pos,
                            AccumulatorStack&                       accumulatorStack,
@@ -91,8 +91,8 @@ class Network {
     bool                       save(std::ostream&, const std::string&, const std::string&) const;
     std::optional<std::string> load(std::istream&);
 
-    bool read_header(std::istream&, std::uint32_t*, std::string*) const;
-    bool write_header(std::ostream&, std::uint32_t, const std::string&) const;
+    bool read_header(std::istream&, u32*, std::string*) const;
+    bool write_header(std::ostream&, u32, const std::string&) const;
 
     bool read_parameters(std::istream&, std::string&);
     bool write_parameters(std::ostream&, const std::string&) const;
@@ -109,7 +109,7 @@ class Network {
     bool initialized = false;
 
     // Hash value of evaluation function structure
-    static constexpr std::uint32_t hash = Transformer::get_hash_value() ^ Arch::get_hash_value();
+    static constexpr u32 hash = Transformer::get_hash_value() ^ Arch::get_hash_value();
 
     template<IndexType Size>
     friend struct AccumulatorCaches::Cache;
@@ -126,7 +126,7 @@ using NetworkBig = Network<BigNetworkArchitecture, BigFeatureTransformer>;
 
 template<typename ArchT, typename FeatureTransformerT>
 struct std::hash<Stockfish::Eval::NNUE::Network<ArchT, FeatureTransformerT>> {
-    std::size_t operator()(
+    Stockfish::usize operator()(
       const Stockfish::Eval::NNUE::Network<ArchT, FeatureTransformerT>& network) const noexcept {
         return network.get_content_hash();
     }

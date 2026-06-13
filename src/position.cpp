@@ -201,7 +201,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
 */
 
     unsigned char      col, row, token;
-    size_t             idx;
+    usize             idx;
     Square             sq = SQ_A8;
     std::istringstream ss(fenStr);
 

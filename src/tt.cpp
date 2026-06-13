@@ -56,20 +56,20 @@ struct TTEntry {
     }
 
     bool is_occupied() const;
-    void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8);
+    void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8);
     // The returned age is a multiple of TranspositionTable::GENERATION_DELTA
-    uint8_t relative_age(const uint8_t generation8) const;
+    u8 relative_age(const u8 generation8) const;
 
    private:
     friend class TranspositionTable;
     friend struct TTWriter;
 
-    uint16_t key16;
-    uint8_t  depth8;
-    uint8_t  genBound8;
+    u16 key16;
+    u8  depth8;
+    u8  genBound8;
     Move     move16;
-    int16_t  value16;
-    int16_t  eval16;
+    i16  value16;
+    i16  eval16;
 };
 
 // `genBound8` is where most of the details are. We use the following constants to manipulate 5 leading generation bits
@@ -92,31 +92,31 @@ bool TTEntry::is_occupied() const { return bool(depth8); }
 // Populates the TTEntry with a new node's data, possibly
 // overwriting an old position. The update is not atomic and can be racy.
 void TTEntry::save(
-  Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8) {
+  Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8) {
 
     // Preserve the old ttmove if we don't have a new one
-    if (m || uint16_t(k) != key16)
+    if (m || u16(k) != key16)
         move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || uint16_t(k) != key16 || d - DEPTH_ENTRY_OFFSET + 2 * pv > depth8 - 4
+    if (b == BOUND_EXACT || u16(k) != key16 || d - DEPTH_ENTRY_OFFSET + 2 * pv > depth8 - 4
         || relative_age(generation8))
     {
         assert(d > DEPTH_ENTRY_OFFSET);
         assert(d < 256 + DEPTH_ENTRY_OFFSET);
 
-        key16     = uint16_t(k);
-        depth8    = uint8_t(d - DEPTH_ENTRY_OFFSET);
-        genBound8 = uint8_t(generation8 | uint8_t(pv) << 2 | b);
-        value16   = int16_t(v);
-        eval16    = int16_t(ev);
+        key16     = u16(k);
+        depth8    = u8(d - DEPTH_ENTRY_OFFSET);
+        genBound8 = u8(generation8 | u8(pv) << 2 | b);
+        value16   = i16(v);
+        eval16    = i16(ev);
     }
     else if (depth8 + DEPTH_ENTRY_OFFSET >= 5 && Bound(genBound8 & 0x3) != BOUND_EXACT)
         depth8 = std::max(int(depth8) - 1, 0);
 }
 
 
-uint8_t TTEntry::relative_age(const uint8_t generation8) const {
+u8 TTEntry::relative_age(const u8 generation8) const {
     // Due to our packed storage format for generation and its cyclic
     // nature we add GENERATION_CYCLE (256 is the modulus, plus what
     // is needed to keep the unrelated lowest n bits from affecting
@@ -131,7 +131,7 @@ TTWriter::TTWriter(TTEntry* tte) :
     entry(tte) {}
 
 void TTWriter::write(
-  Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, uint8_t generation8) {
+  Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8) {
     entry->save(k, v, pv, b, d, m, ev, generation8);
 }
 
@@ -157,7 +157,7 @@ static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
 // Sets the size of the transposition table,
 // measured in megabytes. Transposition table consists
 // of clusters and each cluster consists of ClusterSize number of TTEntry.
-void TranspositionTable::resize(size_t mbSize, ThreadPool& threads) {
+void TranspositionTable::resize(usize mbSize, ThreadPool& threads) {
     aligned_large_pages_free(table);
 
     clusterCount = mbSize * 1024 * 1024 / sizeof(Cluster);
@@ -178,21 +178,21 @@ void TranspositionTable::resize(size_t mbSize, ThreadPool& threads) {
 // in a multi-threaded way.
 void TranspositionTable::clear(ThreadPool& threads) {
     generation8              = 0;
-    const size_t threadCount = threads.num_threads();
+    const usize threadCount = threads.num_threads();
 
-    for (size_t i = 0; i < threadCount; ++i)
+    for (usize i = 0; i < threadCount; ++i)
     {
         threads.run_on_thread(i, [this, i, threadCount]() {
             // Each thread will zero its part of the hash table
-            const size_t stride = clusterCount / threadCount;
-            const size_t start  = stride * i;
-            const size_t len    = i + 1 != threadCount ? stride : clusterCount - start;
+            const usize stride = clusterCount / threadCount;
+            const usize start  = stride * i;
+            const usize len    = i + 1 != threadCount ? stride : clusterCount - start;
 
             std::memset(&table[start], 0, len * sizeof(Cluster));
         });
     }
 
-    for (size_t i = 0; i < threadCount; ++i)
+    for (usize i = 0; i < threadCount; ++i)
         threads.wait_on_thread(i);
 }
 
@@ -218,7 +218,7 @@ void TranspositionTable::new_search() {
 }
 
 
-uint8_t TranspositionTable::generation() const { return generation8; }
+u8 TranspositionTable::generation() const { return generation8; }
 
 
 // Looks up the current position in the transposition
@@ -230,7 +230,7 @@ uint8_t TranspositionTable::generation() const { return generation8; }
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
     TTEntry* const tte   = first_entry(key);
-    const uint16_t key16 = uint16_t(key);  // Use the low 16 bits as key inside the cluster
+    const u16 key16 = u16(key);  // Use the low 16 bits as key inside the cluster
 
     for (int i = 0; i < ClusterSize; ++i)
         if (tte[i].key16 == key16)

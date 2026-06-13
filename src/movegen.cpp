@@ -37,7 +37,7 @@ namespace {
 
 #if defined(USE_AVX512ICL)
 
-inline Move* write_moves(Move* moveList, uint32_t mask, __m512i vector) {
+inline Move* write_moves(Move* moveList, u32 mask, __m512i vector) {
     // Avoid _mm512_mask_compressstoreu_epi16() as it's 256 uOps on Zen4
     _mm512_storeu_si512(reinterpret_cast<__m512i*>(moveList),
                         _mm512_maskz_compress_epi16(mask, vector));
@@ -48,9 +48,9 @@ template<Direction offset>
 inline Move* splat_pawn_moves(Move* moveList, Bitboard to_bb) {
     alignas(64) static constexpr auto SPLAT_TABLE = [] {
         std::array<Move, 64> table{};
-        for (int8_t i = 0; i < 64; i++)
+        for (i8 i = 0; i < 64; i++)
         {
-            Square from{std::clamp<int8_t>(i - offset, 0, 63)};
+            Square from{std::clamp<i8>(i - offset, 0, 63)};
             table[i] = {Move(from, Square{i})};
         }
         return table;
@@ -59,9 +59,9 @@ inline Move* splat_pawn_moves(Move* moveList, Bitboard to_bb) {
     auto table = reinterpret_cast<const __m512i*>(SPLAT_TABLE.data());
 
     moveList =
-      write_moves(moveList, static_cast<uint32_t>(to_bb >> 0), _mm512_load_si512(table + 0));
+      write_moves(moveList, static_cast<u32>(to_bb >> 0), _mm512_load_si512(table + 0));
     moveList =
-      write_moves(moveList, static_cast<uint32_t>(to_bb >> 32), _mm512_load_si512(table + 1));
+      write_moves(moveList, static_cast<u32>(to_bb >> 32), _mm512_load_si512(table + 1));
 
     return moveList;
 }
@@ -69,7 +69,7 @@ inline Move* splat_pawn_moves(Move* moveList, Bitboard to_bb) {
 inline Move* splat_moves(Move* moveList, Square from, Bitboard to_bb) {
     alignas(64) static constexpr auto SPLAT_TABLE = [] {
         std::array<Move, 64> table{};
-        for (int8_t i = 0; i < 64; i++)
+        for (i8 i = 0; i < 64; i++)
             table[i] = {Move(SQUARE_ZERO, Square{i})};
         return table;
     }();
@@ -78,9 +78,9 @@ inline Move* splat_moves(Move* moveList, Square from, Bitboard to_bb) {
 
     auto table = reinterpret_cast<const __m512i*>(SPLAT_TABLE.data());
 
-    moveList = write_moves(moveList, static_cast<uint32_t>(to_bb >> 0),
+    moveList = write_moves(moveList, static_cast<u32>(to_bb >> 0),
                            _mm512_or_si512(_mm512_load_si512(table + 0), fromVec));
-    moveList = write_moves(moveList, static_cast<uint32_t>(to_bb >> 32),
+    moveList = write_moves(moveList, static_cast<u32>(to_bb >> 32),
                            _mm512_or_si512(_mm512_load_si512(table + 1), fromVec));
 
     return moveList;
