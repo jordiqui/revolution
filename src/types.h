@@ -72,6 +72,16 @@
 
     #define ASSERT_ALIGNED(ptr, alignment) assert(reinterpret_cast<uintptr_t>(ptr) % alignment == 0)
 
+    #ifndef RESTRICT
+        #if defined(__GNUC__) || defined(__clang__)
+            #define RESTRICT __restrict__
+        #elif defined(_MSC_VER)
+            #define RESTRICT __restrict
+        #else
+            #define RESTRICT
+        #endif
+    #endif
+
     #if defined(_WIN64) && defined(_MSC_VER)  // No Makefile used
         #include <intrin.h>                   // Microsoft header for _BitScanForward64()
         #define IS_64BIT
@@ -86,10 +96,7 @@
     #endif
 
     #if defined(USE_PEXT)
-        #include <immintrin.h>  // Header for _pext_u64() intrinsic
-        #define pext(b, m) _pext_u64(b, m)
-    #else
-        #define pext(b, m) 0
+        #include <immintrin.h>  // Header for _pext_u64() and _pdep_u64() intrinsics
     #endif
 
 namespace Stockfish {
@@ -125,6 +132,38 @@ constexpr bool Is64Bit = false;
 
 using Key      = u64;
 using Bitboard = u64;
+
+inline Bitboard pext(Bitboard value, Bitboard mask) {
+    #ifdef USE_PEXT
+    return _pext_u64(value, mask);
+    #else
+    Bitboard result = 0;
+    for (Bitboard bit = 1; mask; bit <<= 1)
+    {
+        Bitboard lsb = mask & -mask;
+        if (value & lsb)
+            result |= bit;
+        mask &= mask - 1;
+    }
+    return result;
+    #endif
+}
+
+inline Bitboard pdep(Bitboard value, Bitboard mask) {
+    #ifdef USE_PEXT
+    return _pdep_u64(value, mask);
+    #else
+    Bitboard result = 0;
+    for (Bitboard bit = 1; mask; bit <<= 1)
+    {
+        Bitboard lsb = mask & -mask;
+        if (value & bit)
+            result |= lsb;
+        mask &= mask - 1;
+    }
+    return result;
+    #endif
+}
 
 constexpr int MAX_MOVES = 256;
 constexpr int MAX_PLY   = 246;
