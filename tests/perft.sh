@@ -52,7 +52,7 @@ run_test() {
     echo "FAILED (exit code: $exit_code)"
     echo "===== Output for failed test ====="
     cat "$tmp_file"
-    echo "=================================="
+    echo "----------------------------======"
     rm -f "$tmp_file"
     TESTS_FAILED=1
   fi
