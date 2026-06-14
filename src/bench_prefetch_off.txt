@@ -353,7 +353,7 @@ info string Network replica 1: Shared memory.
 info depth 1 seldepth 2 multipv 1 score cp -15 nodes 20 nps 20000 hashfull 0 tbhits 0 time 1 pv a2a3
 bestmove a2a3
 
-===========================
+---------------------======
 Total time (ms) : 554
 Nodes searched  : 274883
 Nodes/second    : 496178

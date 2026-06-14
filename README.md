@@ -1,12 +1,12 @@
-# Revolution-590-140626
+# Revolution-5.90-140626
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-590-140626** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.90-140626** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
-## Revolution-590-140626 technical release
+## Revolution-5.90-140626 technical release
 
 This release applies the accepted Stockfish development topology dated 2026-06-06 through 2026-06-10:
 
@@ -174,7 +174,7 @@ This distribution of Revolution consists of the following files:
 
 Revolution supports 32-bit and 64-bit CPUs and the same hardware instruction sets as Stockfish. On Unix-like systems you can compile the engine from the `src` directory with:
 
-The UCI `id name` header is the architecture-independent base identity `Revolution-590-140626`. Startup, analysis, and informational output uses `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same normalized architecture suffix.
+The UCI `id name` header is the architecture-independent base identity `Revolution-5.90-140626`. Startup, analysis, and informational output uses `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same normalized architecture suffix.
 
 ```
 cd src
@@ -195,12 +195,12 @@ Targets normalizados para los binarios oficiales:
 
 | Target (`ARCH`) | Identidad visible de análisis | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64-sse41-popcnt` | `Revolution-590-140626-sse41popcnt` | `Revolution-590-140626-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-590-140626-avx2` | `Revolution-590-140626-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-590-140626-bmi2` | `Revolution-590-140626-bmi2[.exe]` |
-| `x86-64-fma3` | `Revolution-590-140626-fma3` | `Revolution-590-140626-fma3[.exe]` |
-| `x86-64-avx512` | `Revolution-590-140626-avx512` | `Revolution-590-140626-avx512[.exe]` |
-| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-590-140626-avx512cl` | `Revolution-590-140626-avx512cl[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-5.90-140626-sse41popcnt` | `Revolution-5.90-140626-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-5.90-140626-avx2` | `Revolution-5.90-140626-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-5.90-140626-bmi2` | `Revolution-5.90-140626-bmi2[.exe]` |
+| `x86-64-fma3` | `Revolution-5.90-140626-fma3` | `Revolution-5.90-140626-fma3[.exe]` |
+| `x86-64-avx512` | `Revolution-5.90-140626-avx512` | `Revolution-5.90-140626-avx512[.exe]` |
+| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.90-140626-avx512cl` | `Revolution-5.90-140626-avx512cl[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
