@@ -1,22 +1,21 @@
-# Revolution-5.60-100526
+# Revolution-590-140626
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.60-100526** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-590-140626** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
-## Technical note
+## Revolution-590-140626 technical release
 
-This release is **Revolution-5.60-100526**. It includes the already-ported official Stockfish SFNNv14 NNUE architecture update while preserving Revolution identity and custom code.
+This release applies the accepted Stockfish development topology dated 2026-06-06 through 2026-06-10:
 
-Technical highlights:
+- **June 6:** attack-topology updates, search-formula simplification, transposition-table underflow guards, and AMD slow-BMI2 handling.
+- **June 8:** consistent integer aliases and types.
+- **June 9:** WebAssembly targets, `RelaxedAtomic`, `previousPV` and MultiPV mate-PV correction, plus the timeout harness where applicable.
+- **June 10:** NNUE active-bridge preparation; the HalfKA/Threats accumulator merge; `do_move` reordering with the `materialKey` correction; the stop-search condition when no better move is possible; and Revolution-compatible FEN pawn-rank validation for ranks 1 and 8.
 
-- Ports the official Stockfish SFNNv14 NNUE architecture update.
-- Updates default nets to `nn-7bf13f9655c8.nnue` (big) and `nn-47fc8b7fff06.nnue` (small).
-- Expands FullThreats dimensions from `60144` to `60720`.
-- Adds blocked-pawn threat features via `PawnPushOrAttacks` / `pawn_single_push_bb`.
-- Preserves Revolution branding, UCI identity, and custom experience/release logic while aligning NNUE semantics with the upstream patch.
+The active NNUE authority remains `nn-71d6d32cb962.nnue`, and the strict single-net state is preserved. `EvalFileSmall`, `NetworkSmall`, and `nn-83a0d6daf7e5.nnue` are absent. Book, Experience, Zobrist, and Syzygy behavior is preserved. MCTS and MonteCarlo remain absent.
 
 ## Overview
 
@@ -175,7 +174,7 @@ This distribution of Revolution consists of the following files:
 
 Revolution supports 32-bit and 64-bit CPUs and the same hardware instruction sets as Stockfish. On Unix-like systems you can compile the engine from the `src` directory with:
 
-The final UCI engine name reported to Fritz/Cute Chess is derived directly from `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` in `src/Makefile`, so each binary announces the architecture-specific suffix shown below.
+The UCI `id name` header is the architecture-independent base identity `Revolution-590-140626`. Startup, analysis, and informational output uses `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same normalized architecture suffix.
 
 ```
 cd src
@@ -194,14 +193,14 @@ make -j profile-build ARCH=<target> COMP=clang EXTRALDFLAGS="-fuse-ld=lld"
 
 Targets normalizados para los binarios oficiales:
 
-| Target (`ARCH`) | Nombre UCI esperado | Ejecutable esperado |
+| Target (`ARCH`) | Identidad visible de análisis | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64-sse41-popcnt` | `Revolution-5.60-100526-sse41popcnt` | `Revolution-5.60-100526-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-5.60-100526-avx2` | `Revolution-5.60-100526-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-5.60-100526-bmi2` | `Revolution-5.60-100526-bmi2[.exe]` |
-| `x86-64-fma3` | `Revolution-5.60-100526-fma3` | `Revolution-5.60-100526-fma3[.exe]` |
-| `x86-64-avx512` | `Revolution-5.60-100526-avx512` | `Revolution-5.60-100526-avx512[.exe]` |
-| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.60-100526-avx512cl` | `Revolution-5.60-100526-avx512cl[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-590-140626-sse41popcnt` | `Revolution-590-140626-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-590-140626-avx2` | `Revolution-590-140626-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-590-140626-bmi2` | `Revolution-590-140626-bmi2[.exe]` |
+| `x86-64-fma3` | `Revolution-590-140626-fma3` | `Revolution-590-140626-fma3[.exe]` |
+| `x86-64-avx512` | `Revolution-590-140626-avx512` | `Revolution-590-140626-avx512[.exe]` |
+| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-590-140626-avx512cl` | `Revolution-590-140626-avx512cl[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
