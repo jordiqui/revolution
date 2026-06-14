@@ -1538,7 +1538,9 @@ bool Position::pos_is_ok() const {
         || attackers_to_exist(square<KING>(~sideToMove), pieces(), sideToMove))
         assert(0 && "pos_is_ok: Kings");
 
-    if ((pieces(PAWN) & (Rank1BB | Rank8BB)) || pieceCount[W_PAWN] > 8 || pieceCount[B_PAWN] > 8)
+    const bool pawnsOnInvalidRanks = pieces(PAWN) & (Rank1BB | Rank8BB);
+
+    if (pawnsOnInvalidRanks || pieceCount[W_PAWN] > 8 || pieceCount[B_PAWN] > 8)
         assert(0 && "pos_is_ok: Pawns");
 
     if ((pieces(WHITE) & pieces(BLACK)) || (pieces(WHITE) | pieces(BLACK)) != pieces()
