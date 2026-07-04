@@ -1,12 +1,12 @@
-# Revolution-5.90-140626
+# Revolution-6.0-040526
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-5.90-140626** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-6.0-040526** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
-## Revolution-5.90-140626 technical release
+## Revolution-6.0-040526 technical release
 
 This release applies the accepted Stockfish development topology dated 2026-06-06 through 2026-06-10:
 
@@ -15,7 +15,7 @@ This release applies the accepted Stockfish development topology dated 2026-06-0
 - **June 9:** WebAssembly targets, `RelaxedAtomic`, `previousPV` and MultiPV mate-PV correction, plus the timeout harness where applicable.
 - **June 10:** NNUE active-bridge preparation; the HalfKA/Threats accumulator merge; `do_move` reordering with the `materialKey` correction; the stop-search condition when no better move is possible; and Revolution-compatible FEN pawn-rank validation for ranks 1 and 8.
 
-The active NNUE authority remains `nn-af1339a6dea3.nnue`, and the strict single-net state is preserved. `EvalFileSmall`, `NetworkSmall`, and `nn-83a0d6daf7e5.nnue` are absent. Book, Experience, Zobrist, and Syzygy behavior is preserved. MCTS and MonteCarlo remain absent.
+The active NNUE authority remains `nn-0ee0657fb25e.nnue`, and the strict single-net state is preserved. `EvalFileSmall`, `NetworkSmall`, and `nn-83a0d6daf7e5.nnue` are absent. Book, Experience, Zobrist, and Syzygy behavior is preserved. MCTS and MonteCarlo remain absent.
 
 ## Overview
 
@@ -174,7 +174,7 @@ This distribution of Revolution consists of the following files:
 
 Revolution supports 32-bit and 64-bit CPUs and the same hardware instruction sets as Stockfish. On Unix-like systems you can compile the engine from the `src` directory with:
 
-The UCI `id name` header is the architecture-independent base identity `Revolution-5.90-140626`. Startup, analysis, and informational output uses `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same normalized architecture suffix.
+The UCI `id name` header is the architecture-independent base identity `Revolution-6.0-040526`. Startup, analysis, and informational output uses `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same normalized architecture suffix.
 
 ```
 cd src
@@ -195,12 +195,12 @@ Targets normalizados para los binarios oficiales:
 
 | Target (`ARCH`) | Identidad visible de análisis | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64-sse41-popcnt` | `Revolution-5.90-140626-sse41popcnt` | `Revolution-5.90-140626-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-5.90-140626-avx2` | `Revolution-5.90-140626-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-5.90-140626-bmi2` | `Revolution-5.90-140626-bmi2[.exe]` |
-| `x86-64-fma3` | `Revolution-5.90-140626-fma3` | `Revolution-5.90-140626-fma3[.exe]` |
-| `x86-64-avx512` | `Revolution-5.90-140626-avx512` | `Revolution-5.90-140626-avx512[.exe]` |
-| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-5.90-140626-avx512cl` | `Revolution-5.90-140626-avx512cl[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-6.0-040526-sse41popcnt` | `Revolution-6.0-040526-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-6.0-040526-avx2` | `Revolution-6.0-040526-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-6.0-040526-bmi2` | `Revolution-6.0-040526-bmi2[.exe]` |
+| `x86-64-fma3` | `Revolution-6.0-040526-fma3` | `Revolution-6.0-040526-fma3[.exe]` |
+| `x86-64-avx512` | `Revolution-6.0-040526-avx512` | `Revolution-6.0-040526-avx512[.exe]` |
+| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-6.0-040526-avx512cl` | `Revolution-6.0-040526-avx512cl[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
