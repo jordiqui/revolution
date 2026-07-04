@@ -508,6 +508,17 @@ void UCIEngine::position(std::istringstream& is) {
     else
         return;
 
+    const std::string_view board = std::string_view(fen).substr(0, fen.find(' '));
+    const auto             split = board.find('/');
+    const auto             last  = board.rfind('/');
+    if (split != std::string_view::npos && last != std::string_view::npos
+        && (board.substr(0, split).find_first_of("Pp") != std::string_view::npos
+            || board.substr(last + 1).find_first_of("Pp") != std::string_view::npos))
+    {
+        print_info_string("Unsupported position. Pawns on the first or eighth rank.");
+        return;
+    }
+
     std::vector<std::string> moves;
 
     while (is >> token)
