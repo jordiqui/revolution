@@ -62,7 +62,7 @@ Value Eval::evaluate(const Eval::NNUE::ActiveNetwork& network,
 
     auto [psqt, positional] = network.evaluate(pos, accumulators, cache);
 
-    Value nnue = (125 * psqt + 131 * positional) / 128;
+    Value nnue = psqt + positional;
 
     int nnueComplexity = std::abs(psqt - positional);
     optimism += optimism * nnueComplexity / 476;
