@@ -619,26 +619,8 @@ bool Position::pseudo_legal(const Move m) const {
     else if (!(attacks_bb(type_of(pc), from, pieces()) & to))
         return false;
 
-    // Evasions generator already takes care to avoid some kind of illegal moves
-    // and legal() relies on this. We therefore have to take care that the same
-    // kind of moves are filtered out here.
     if (checkers())
-    {
-        if (type_of(pc) != KING)
-        {
-            // Double check? In this case, a king move is required
-            if (more_than_one(checkers()))
-                return false;
-
-            // Our move must be a blocking interposition or a capture of the checking piece
-            if (!(between_bb(square<KING>(us), lsb(checkers())) & to))
-                return false;
-        }
-        // In case of king moves under check we have to remove the king so as to catch
-        // invalid moves like b1a1 when opposite queen is on c1.
-        else if (attackers_to_exist(to, pieces() ^ from, ~us))
-            return false;
-    }
+        return MoveList<EVASIONS>(*this).contains(m);
 
     return true;
 }
@@ -1220,6 +1202,21 @@ void Position::update_piece_threats(Piece                     pc,
 #endif
 }
 
+Key Position::prefetch_key(Move m) const {
+    Square from     = m.from_sq();
+    Square to       = m.to_sq();
+    Piece  pc       = piece_on(from);
+    Piece  captured = piece_on(to);
+    Key    k        = st->key ^ Zobrist::side;
+
+    k ^= Zobrist::psq[captured][to] ^ Zobrist::psq[pc][to] ^ Zobrist::psq[pc][from];
+
+    if (captured || type_of(pc) == PAWN)
+        return k;
+
+    return adjust_key50<true>(k);
+}
+
 // Helper used to do/undo a castling move. This is a bit
 // tricky in Chess960 where from/to squares can overlap.
 template<bool Do>
@@ -1276,6 +1273,8 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
     prefetch(tt.first_entry(key()));
 
     st->pliesFromNull = 0;
+
+    st->capturedPiece = NO_PIECE;
 
     sideToMove = ~sideToMove;
 
