@@ -15,7 +15,7 @@ This release applies the accepted Stockfish development topology dated 2026-06-0
 - **June 9:** WebAssembly targets, `RelaxedAtomic`, `previousPV` and MultiPV mate-PV correction, plus the timeout harness where applicable.
 - **June 10:** NNUE active-bridge preparation; the HalfKA/Threats accumulator merge; `do_move` reordering with the `materialKey` correction; the stop-search condition when no better move is possible; and Revolution-compatible FEN pawn-rank validation for ranks 1 and 8.
 
-The active NNUE authority remains `nn-f8a759c05f9f.nnue`, and the strict single-net state is preserved. `EvalFileSmall`, `NetworkSmall`, and `nn-83a0d6daf7e5.nnue` are absent. Book, Experience, Zobrist, and Syzygy behavior is preserved. MCTS and MonteCarlo remain absent.
+The active NNUE authority remains `nn-1b6a82263149.nnue`, and the strict single-net state is preserved. `EvalFileSmall`, `NetworkSmall`, and `nn-83a0d6daf7e5.nnue` are absent. Book, Experience, Zobrist, and Syzygy behavior is preserved. MCTS and MonteCarlo remain absent.
 
 ## Overview
 
