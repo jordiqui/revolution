@@ -731,12 +731,10 @@ void Position::do_move(Move                      m,
 
     bool checkEP = false;
 
-    dp.pc             = pc;
-    dp.from           = from;
-    dp.to             = to;
-    dp.add_sq         = SQ_NONE;
-    dts.us            = us;
-    dts.prevKsq       = square<KING>(us);
+    dp.pc     = pc;
+    dp.from   = from;
+    dp.to     = to;
+    dp.add_sq = SQ_NONE;
 
     assert(color_of(pc) == us);
     assert(captured == NO_PIECE || color_of(captured) == (m.type_of() != CASTLING ? them : us));
@@ -987,8 +985,6 @@ void Position::do_move(Move                      m,
         }
     }
 
-    dts.ksq = square<KING>(us);
-
     assert(pos_is_ok());
 
     assert(dp.pc != NO_PIECE);
@@ -1118,16 +1114,46 @@ void Position::update_piece_threats(Piece                     pc,
     const Bitboard occupied     = pieces();
     const Bitboard rookQueens   = pieces(ROOK, QUEEN);
     const Bitboard bishopQueens = pieces(BISHOP, QUEEN);
-    const Bitboard knights      = pieces(KNIGHT);
+    const Bitboard rAttacks     = attacks_bb<ROOK>(s, occupied);
+    const Bitboard bAttacks     = attacks_bb<BISHOP>(s, occupied);
     const Bitboard kings        = pieces(KING);
-    const Bitboard whitePawns   = pieces(WHITE, PAWN);
-    const Bitboard blackPawns   = pieces(BLACK, PAWN);
+    Bitboard       occupiedNoK  = occupied ^ kings;
 
-    const Bitboard rAttacks = attacks_bb<ROOK>(s, occupied);
-    const Bitboard bAttacks = attacks_bb<BISHOP>(s, occupied);
+    Bitboard sliders         = (rookQueens & rAttacks) | (bishopQueens & bAttacks);
+    auto     process_sliders = [&](bool addDirectAttacks) {
+        while (sliders)
+        {
+            Square sliderSq = pop_lsb(sliders);
+            Piece  slider   = piece_on(sliderSq);
 
-    Bitboard threatened = attacks_bb(pc, s, occupied) & occupied;
-    Bitboard sliders    = (rookQueens & rAttacks) | (bishopQueens & bAttacks);
+            const Bitboard ray        = RayPassBB[sliderSq][s] & ~BetweenBB[sliderSq][s];
+            const Bitboard discovered = ray & (rAttacks | bAttacks) & occupiedNoK;
+
+            assert(!more_than_one(discovered));
+            if (discovered && (ray & noRaysContaining) != noRaysContaining)
+            {
+                const Square threatenedSq = lsb(discovered);
+                const Piece  threatenedPc = piece_on(threatenedSq);
+                add_dirty_threat(dts, !putPiece, slider, threatenedPc, sliderSq, threatenedSq);
+            }
+
+            if (addDirectAttacks)
+                add_dirty_threat(dts, putPiece, slider, pc, sliderSq, s);
+        }
+    };
+
+    if (type_of(pc) == KING)
+    {
+        if constexpr (ComputeRay)
+            process_sliders(false);
+        return;
+    }
+
+    const Bitboard knights    = pieces(KNIGHT);
+    const Bitboard whitePawns = pieces(WHITE, PAWN);
+    const Bitboard blackPawns = pieces(BLACK, PAWN);
+
+    Bitboard threatened = attacks_bb(pc, s, occupied) & occupiedNoK;
     Bitboard incoming_threats =
       (PseudoAttacks[KNIGHT][s] & knights) | (PseudoAttacks[KING][s] & kings);
 
@@ -1176,32 +1202,9 @@ void Position::update_piece_threats(Piece                     pc,
 #endif
 
     if constexpr (ComputeRay)
-    {
-        while (sliders)
-        {
-            Square sliderSq = pop_lsb(sliders);
-            Piece  slider   = piece_on(sliderSq);
-
-            const Bitboard ray        = RayPassBB[sliderSq][s] & ~BetweenBB[sliderSq][s];
-            const Bitboard discovered = ray & (rAttacks | bAttacks) & occupied;
-
-            assert(!more_than_one(discovered));
-            if (discovered && (RayPassBB[sliderSq][s] & noRaysContaining) != noRaysContaining)
-            {
-                const Square threatenedSq = lsb(discovered);
-                const Piece  threatenedPc = piece_on(threatenedSq);
-                add_dirty_threat(dts, !putPiece, slider, threatenedPc, sliderSq, threatenedSq);
-            }
-
-#ifndef USE_AVX512ICL  // for ICL, direct threats were processed earlier (all_attackers)
-            add_dirty_threat(dts, putPiece, slider, pc, sliderSq, s);
-#endif
-        }
-    }
+        process_sliders(true);
     else
-    {
         incoming_threats |= sliders;
-    }
 
 #ifndef USE_AVX512ICL
     while (incoming_threats)
