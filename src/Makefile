@@ -25,6 +25,13 @@ ifeq ($(KERNEL),Linux)
 	OS := $(shell uname -o)
 endif
 
+### Target operating system (may differ from KERNEL when cross-compiling)
+TARGET_KERNEL := $(KERNEL)
+ifeq ($(COMP),ndk)
+	TARGET_KERNEL := Linux
+	OS := Android
+endif
+
 ### Target Windows OS
 ifeq ($(OS),Windows_NT)
 	ifneq ($(COMP),ndk)
@@ -55,7 +62,7 @@ endif
 ENGINE_BASENAME = Revolution
 RELEASE_TAG ?= 5.90-140626
 
-NNUE_NET = nn-af1339a6dea3.nnue
+NNUE_NET = nn-0ee0657fb25e.nnue
 
 ### Installation dir definitions
 PREFIX = /usr/local
@@ -565,7 +572,7 @@ ifeq ($(COMP),gcc)
 		LDFLAGS += -latomic
 	endif
 
-	ifneq ($(KERNEL),Darwin)
+	ifneq ($(TARGET_KERNEL),Darwin)
 	ifneq ($(arch),wasm32)
 	   LDFLAGS += -Wl,--no-as-needed
 	endif
@@ -612,7 +619,7 @@ ifeq ($(COMP),clang)
 	CXXFLAGS += -pedantic -Wextra -Wshadow -Wmissing-prototypes \
 	            -Wconditional-uninitialized
 
-	ifeq ($(filter $(KERNEL),Darwin OpenBSD FreeBSD),)
+	ifeq ($(filter $(TARGET_KERNEL),Darwin OpenBSD FreeBSD),)
 	ifeq ($(target_windows),)
 	ifneq ($(RTLIB),compiler-rt)
 		LDFLAGS += -latomic
@@ -636,7 +643,7 @@ ifeq ($(COMP),clang)
 	endif
 endif
 
-ifeq ($(KERNEL),Darwin)
+ifeq ($(TARGET_KERNEL),Darwin)
 	CXXFLAGS += -mmacosx-version-min=10.15
 	LDFLAGS += -mmacosx-version-min=10.15
 	ifneq ($(arch),any)
@@ -696,7 +703,7 @@ else ifeq ($(comp),clang)
 else
 	profile_make = gcc-profile-make
 	profile_use = gcc-profile-use
-	ifeq ($(KERNEL),Darwin)
+	ifeq ($(TARGET_KERNEL),Darwin)
 		EXTRAPROFILEFLAGS = -fvisibility=hidden
 	endif
 endif
@@ -727,7 +734,7 @@ ifneq ($(comp),mingw)
 					add_lrt = no
 				endif
 
-				ifeq ($(KERNEL),Darwin)
+				ifeq ($(TARGET_KERNEL),Darwin)
 					add_lrt = no
 				endif
 
@@ -765,7 +772,7 @@ ifeq ($(optimize),yes)
 		endif
 	endif
 
-	ifeq ($(KERNEL),Darwin)
+	ifeq ($(TARGET_KERNEL),Darwin)
 		ifeq ($(comp),$(filter $(comp),clang icx))
 			CXXFLAGS += -mdynamic-no-pic
 		endif
@@ -895,7 +902,7 @@ endif
 
 ifeq ($(neon),yes)
 	CXXFLAGS += -DUSE_NEON=$(arm_version)
-	ifeq ($(KERNEL),Linux)
+	ifeq ($(TARGET_KERNEL),Linux)
 	ifneq ($(COMP),ndk)
 	ifneq ($(arch),armv8)
 		CXXFLAGS += -mfpu=neon
