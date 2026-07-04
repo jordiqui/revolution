@@ -18,6 +18,7 @@
 
 #include "benchmark.h"
 #include "numa.h"
+#include "misc.h"
 
 #include <cstdlib>
 #include <fstream>
@@ -485,8 +486,8 @@ BenchmarkSetup setup_benchmark(std::istream& is) {
     for (const auto& game : BenchmarkPositions)
     {
         setup.commands.emplace_back("ucinewgame");
-        int ply = 1;
-        for (int i = 0; i < static_cast<int>(game.size()); ++i)
+        usize ply = 1;
+        for (usize i = 0; i < game.size(); ++i)
         {
             const float correctedTime = getCorrectedTime(ply);
             totalTime += correctedTime;
