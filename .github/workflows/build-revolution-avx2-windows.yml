@@ -1,0 +1,77 @@
+name: Build Revolution AVX2 Windows
+
+on:
+  push:
+    branches:
+      - codex/build-revolution-avx2-windows-310726
+
+permissions:
+  contents: read
+
+jobs:
+  build-avx2-windows:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2 Clang64
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          install: >-
+            git
+            make
+            mingw-w64-clang-x86_64-clang
+            mingw-w64-clang-x86_64-lld
+            mingw-w64-clang-x86_64-llvm
+            mingw-w64-clang-x86_64-gcc-libs
+            mingw-w64-clang-x86_64-zstd
+
+      - name: Build AVX2 profile binary
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+          cd src
+          make clean
+          set -o pipefail
+          make -j2 profile-build ARCH=x86-64-avx2 COMP=clang EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee ../build-avx2-windows.log
+          status=${PIPESTATUS[0]}
+          set +o pipefail
+          test "$status" -eq 0
+          if rg -n "warning:|error:|undefined reference|undefined symbol|ld: error|clang: error|make: \*\*\*" ../build-avx2-windows.log; then
+            exit 1
+          fi
+          test -f Revolution-6.10-310726-avx2.exe
+          file Revolution-6.10-310726-avx2.exe | tee ../file-avx2-windows.log
+          sha256sum Revolution-6.10-310726-avx2.exe | tee ../sha256-avx2-windows.txt
+          printf "uci\nisready\nquit\n" | ./Revolution-6.10-310726-avx2.exe | tee ../uci-avx2-windows.log
+          grep -F "id name Revolution-6.10-310726" ../uci-avx2-windows.log
+          grep -F "Revolution-6.10-310726-avx2" ../uci-avx2-windows.log
+          grep -F "option name EvalFile type string default nn-ab28990d4ea3.nnue" ../uci-avx2-windows.log
+          grep -F "uciok" ../uci-avx2-windows.log
+          grep -F "readyok" ../uci-avx2-windows.log
+          printf "uci\nsetoption name EvalFile value nn-ab28990d4ea3.nnue\nisready\nposition startpos\ngo depth 1\nquit\n" | ./Revolution-6.10-310726-avx2.exe | tee ../runtime-avx2-windows.log
+          grep -F "bestmove" ../runtime-avx2-windows.log
+
+      - name: Package AVX2 binary
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path package | Out-Null
+          Copy-Item src/Revolution-6.10-310726-avx2.exe package/
+          Copy-Item build-avx2-windows.log package/
+          Copy-Item file-avx2-windows.log package/
+          Copy-Item sha256-avx2-windows.txt package/
+          Copy-Item uci-avx2-windows.log package/
+          Copy-Item runtime-avx2-windows.log package/
+          Compress-Archive -Path package/* -DestinationPath Revolution-6.10-310726-avx2-windows.zip -Force
+
+      - name: Upload AVX2 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Revolution-6.10-310726-avx2-windows
+          path: Revolution-6.10-310726-avx2-windows.zip
+          if-no-files-found: error
+          retention-days: 7
