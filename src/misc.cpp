@@ -503,7 +503,11 @@ void start_logger(const std::string& fname) { Logger::start(fname); }
 
 
 #ifdef _WIN32
+    #ifndef NOMINMAX
+        #define NOMINMAX
+    #endif
     #include <direct.h>
+    #include <windows.h>
     #define GETCWD _getcwd
 #else
     #include <unistd.h>
@@ -541,13 +545,22 @@ std::string CommandLine::get_binary_directory(std::string argv0) {
 
 #ifdef _WIN32
     pathSeparator = "\\";
-    #ifdef _MSC_VER
-    // Under windows argv[0] may not have the extension. Also _get_pgmptr() had
-    // issues in some Windows 10 versions, so check returned values carefully.
-    char* pgmptr = nullptr;
-    if (!_get_pgmptr(&pgmptr) && pgmptr != nullptr && *pgmptr)
-        argv0 = pgmptr;
-    #endif
+    // Prefer the executable path reported by Windows. Unlike _get_wpgmptr,
+    // this does not depend on whether the CRT used a narrow or wide entry
+    // point. Windows paths cannot exceed 32767 characters, so a fixed
+    // buffer is always sufficient. Falls back to argv0 if the API fails.
+    constexpr DWORD MaxPath = 32768;
+    wchar_t         path[MaxPath];
+
+    if (const DWORD length = GetModuleFileNameW(nullptr, path, MaxPath))
+    {
+        const int size = WideCharToMultiByte(CP_UTF8, 0, path, length, nullptr, 0, nullptr, nullptr);
+        if (size > 0)
+        {
+            argv0.resize(size);
+            WideCharToMultiByte(CP_UTF8, 0, path, length, argv0.data(), size, nullptr, nullptr);
+        }
+    }
 #else
     pathSeparator = "/";
 #endif

@@ -716,6 +716,8 @@ ifeq ($(COMP),gcc)
 		profile_make = clang-profile-make
 		profile_use = clang-profile-use
 	endif
+else ifeq ($(COMP),mingw)
+	CXXFLAGS += -fno-ipa-cp-clone
 endif
 
 ### On mingw use Windows threads, otherwise POSIX

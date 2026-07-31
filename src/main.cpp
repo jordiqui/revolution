@@ -20,7 +20,6 @@
 #include <memory>
 
 #include "attacks.h"
-#include "bitboard.h"
 #include "misc.h"
 #include "position.h"
 #include "tune.h"
@@ -31,7 +30,6 @@ using namespace Stockfish;
 int main(int argc, char* argv[]) {
     std::cout << engine_info() << std::endl;
 
-    Bitboards::init();
     Attacks::init();
     Position::init();
 
