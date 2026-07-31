@@ -59,7 +59,7 @@
 // _WIN32                  Building on Windows (any)
 // _WIN64                  Building on Windows 64 bit
 
-// Enforce minimum GCC version
+    // Enforce minimum GCC version
     #if defined(__GNUC__) && !defined(__clang__) \
       && (__GNUC__ < 9 || (__GNUC__ == 9 && __GNUC_MINOR__ < 3))
         #error "Stockfish requires GCC 9.3 or later for correct compilation"
@@ -241,6 +241,10 @@ constexpr bool is_mated(Value value) {
 }
 
 constexpr bool is_mate_or_mated(Value value) { return is_mate(value) || is_mated(value); }
+
+constexpr Value mate_in(int ply) { return VALUE_MATE - ply; }
+
+constexpr Value mated_in(int ply) { return -VALUE_MATE + ply; }
 
 // In the code, we make the assumption that these values
 // are such that non_pawn_material() can be used to uniquely
@@ -428,10 +432,6 @@ constexpr Piece operator~(Piece pc) { return Piece(pc ^ 8); }
 constexpr CastlingRights operator&(Color c, CastlingRights cr) {
     return CastlingRights((c == WHITE ? WHITE_CASTLING : BLACK_CASTLING) & cr);
 }
-
-constexpr Value mate_in(int ply) { return VALUE_MATE - ply; }
-
-constexpr Value mated_in(int ply) { return -VALUE_MATE + ply; }
 
 constexpr Square make_square(File f, Rank r) { return Square((r << 3) + f); }
 

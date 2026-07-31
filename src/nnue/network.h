@@ -129,7 +129,7 @@ static_assert(std::is_same_v<ActiveAccumulatorCache,
                              AccumulatorCaches::Cache<TransformedFeatureDimensionsBig>>);
 
 
-}  // namespace Stockfish
+}  // namespace Stockfish::Eval::NNUE
 
 template<typename ArchT, typename FeatureTransformerT>
 struct std::hash<Stockfish::Eval::NNUE::Network<ArchT, FeatureTransformerT>> {
