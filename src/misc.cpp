@@ -520,7 +520,8 @@ std::optional<usize> str_to_size_t(const std::string& s) {
     errno                           = 0;
     char*                    endptr = nullptr;
     const unsigned long long value  = std::strtoull(s.c_str(), &endptr, 10);
-    if (errno == ERANGE || *endptr != '\0' || value > std::numeric_limits<usize>::max())
+    if (errno == ERANGE || (*endptr != '\0' && !std::isspace(*endptr))
+        || value > std::numeric_limits<usize>::max())
         return std::nullopt;
     return static_cast<usize>(value);
 }
@@ -554,7 +555,8 @@ std::string CommandLine::get_binary_directory(std::string argv0) {
 
     if (const DWORD length = GetModuleFileNameW(nullptr, path, MaxPath))
     {
-        const int size = WideCharToMultiByte(CP_UTF8, 0, path, length, nullptr, 0, nullptr, nullptr);
+        const int size =
+          WideCharToMultiByte(CP_UTF8, 0, path, length, nullptr, 0, nullptr, nullptr);
         if (size > 0)
         {
             argv0.resize(size);

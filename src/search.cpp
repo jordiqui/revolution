@@ -251,12 +251,9 @@ void Search::Worker::start_searching() {
     if (bestThread != this)
         main_manager()->output_pv(*bestThread, threads, tt, bestThread->completedDepth);
 
-    Experience::on_search_complete(bestThread->rootPos,
-                                   bestThread->rootMoves,
-                                   bestThread->rootMoves[0].score,
-                                   bestThread->rootMoves[0].averageScore,
-                                   bestThread->completedDepth,
-                                   limits);
+    Experience::on_search_complete(
+      bestThread->rootPos, bestThread->rootMoves, bestThread->rootMoves[0].score,
+      bestThread->rootMoves[0].averageScore, bestThread->completedDepth, limits);
 
     std::string ponder;
 
@@ -533,7 +530,6 @@ void Search::Worker::iterative_deepening() {
                 rootMoves[0].score = rootMoves[0].uciScore = lastBestMoveScore;
                 rootMoves[0].pv                            = lastBestMovePV;
                 rootMoves[0].unset_bound_flags();
-
             }
             else if (abortedLossSearch)
                 rootMoves[0].scoreLowerbound = true;
@@ -561,8 +557,7 @@ void Search::Worker::iterative_deepening() {
         // Do we have time for the next iteration? Can we stop searching now?
         if (limits.use_time_management() && !threads.stop && !mainThread->stopOnPonderhit)
         {
-            u64 nodesEffort =
-              rootMoves[0].effort * 100000 / std::max(usize(1), usize(nodes));
+            u64 nodesEffort = rootMoves[0].effort * 100000 / std::max(usize(1), usize(nodes));
 
             double fallingEval = (11.48 + 2.30 * (mainThread->bestPreviousAverageScore - bestValue)
                                   + 1.1 * (mainThread->iterValue[iterIdx] - bestValue))
@@ -638,12 +633,13 @@ void Search::Worker::do_move(
     bool capture = pos.capture_stage(move);
     ++nodes;
 
-    auto [dirtyPiece, dirtyThreats] = accumulatorStack.push();
-    pos.do_move(move, st, givesCheck, dirtyPiece, dirtyThreats, &tt, &sharedHistory);
+    Dirties& dirties = accumulatorStack.push();
+    pos.do_move(move, st, givesCheck, dirties, &tt, &sharedHistory);
 
     if (ss != nullptr)
     {
-        ss->currentMove = move;
+        auto& dirtyPiece = dirties.dirtyPiece;
+        ss->currentMove  = move;
         ss->continuationHistory =
           &continuationHistory[ss->inCheck][capture][dirtyPiece.pc][move.to_sq()];
         ss->continuationCorrectionHistory =
@@ -883,8 +879,7 @@ Value Search::Worker::search(
     }
     else if (!PvNode && !excludedMove && ttData.depth > depth - (ttData.value <= beta)
              && is_valid(ttData.value) && ttData.bound != BOUND_EXACT
-             && ttData.bound & (ttData.value >= beta ? BOUND_UPPER : BOUND_LOWER)
-             && depth > 5)
+             && ttData.bound & (ttData.value >= beta ? BOUND_UPPER : BOUND_LOWER) && depth > 5)
     {
         // If a window-bound mismatch is the only reason cutoff failed,
         // penalize the now-useless tte
@@ -1867,10 +1862,7 @@ const Eval::NNUE::ActiveNetwork& Search::Worker::big_network() const {
     return networks[numaAccessToken];
 }
 
-Eval::NNUE::ActiveAccumulatorCache&
-Search::Worker::big_cache() {
-    return refreshTable.big;
-}
+Eval::NNUE::ActiveAccumulatorCache& Search::Worker::big_cache() { return refreshTable.big; }
 
 Value Search::Worker::evaluate(const Position& pos) {
     return evaluate_with_big_network_bridge(big_network(), pos, accumulatorStack, big_cache(),
@@ -2211,8 +2203,7 @@ void syzygy_extend_pv(const OptionsMap&         options,
           [](const Search::RootMove& a, const Search::RootMove& b) { return a.tbRank > b.tbRank; });
 
         // The winning side tries to minimize DTZ, the losing side maximizes it
-        Tablebases::Config config =
-          Tablebases::rank_root_moves(options, pos, legalMoves, true);
+        Tablebases::Config config = Tablebases::rank_root_moves(options, pos, legalMoves, true);
 
         // If DTZ is not available we might not find a mate, so we bail out
         if (!config.rootInTB || config.cardinality > 0)
@@ -2282,8 +2273,7 @@ void SearchManager::output_pv(Search::Worker&           worker,
         bool isExact = i != pvIdx || tb || usePreviousScore;
 
         // Potentially correct and extend the PV, and in exceptional cases v
-        if (is_decisive(v) && std::abs(v) < VALUE_MATE_IN_MAX_PLY
-            && !usePreviousScore
+        if (is_decisive(v) && std::abs(v) < VALUE_MATE_IN_MAX_PLY && !usePreviousScore
             && ((!rootMoves[i].scoreLowerbound && !rootMoves[i].scoreUpperbound) || isExact))
             syzygy_extend_pv(worker.options, worker.limits, pos, rootMoves[i], v);
 
