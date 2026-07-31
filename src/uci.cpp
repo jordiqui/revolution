@@ -106,6 +106,7 @@ void UCIEngine::loop() {
             && !getline(std::cin, cmd))  // Wait for an input or an end-of-file (EOF) indication
             cmd = "quit";
 
+        currentCmd = cmd;
         std::istringstream is(cmd);
 
         token.clear();  // Avoid a stale if getline() returns nothing or a blank line
@@ -212,9 +213,13 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
     limits.startTime = now();  // The search starts as early as possible
 
     while (is >> token)
+    {
         if (token == "searchmoves")  // Needs to be the last command on the line
+        {
             while (is >> token)
                 limits.searchmoves.push_back(to_lower(token));
+            break;
+        }
 
         else if (token == "wtime")
             is >> limits.time[WHITE];
@@ -240,6 +245,10 @@ Search::LimitsType UCIEngine::parse_limits(std::istream& is) {
             limits.infinite = 1;
         else if (token == "ponder")
             limits.ponderMode = true;
+
+        if (is.fail())
+            terminate_on_critical_error("Invalid argument for '" + token + "'");
+    }
 
     return limits;
 }
@@ -274,6 +283,7 @@ void UCIEngine::bench(std::istream& args) {
 
     for (const auto& cmd : list)
     {
+        currentCmd = cmd;
         std::istringstream is(cmd);
         is >> std::skipws >> token;
 
@@ -356,6 +366,7 @@ void UCIEngine::benchmark(std::istream& args) {
     // Warmup
     for (const auto& cmd : setup.commands)
     {
+        currentCmd = cmd;
         std::istringstream is(cmd);
         is >> std::skipws >> token;
 
@@ -407,6 +418,7 @@ void UCIEngine::benchmark(std::istream& args) {
 
     for (const auto& cmd : setup.commands)
     {
+        currentCmd = cmd;
         std::istringstream is(cmd);
         is >> std::skipws >> token;
 
@@ -634,7 +646,7 @@ std::string UCIEngine::move(Move m, bool chess960) {
 
 
 std::string UCIEngine::to_lower(std::string str) {
-    std::transform(str.begin(), str.end(), str.begin(), [](auto c) { return std::tolower(c); });
+    std::transform(str.begin(), str.end(), str.begin(), [](unsigned char c) { return std::tolower(c); });
 
     return str;
 }
@@ -694,6 +706,11 @@ void UCIEngine::on_bestmove(std::string_view bestmove, std::string_view ponder) 
     if (!ponder.empty())
         std::cout << " ponder " << ponder;
     std::cout << sync_endl;
+}
+
+void UCIEngine::terminate_on_critical_error(const std::string& message) {
+    sync_cout << "info string CRITICAL ERROR: Command `" << currentCmd
+              << "` failed. Reason: " << message << sync_endl;
 }
 
 }  // namespace Stockfish

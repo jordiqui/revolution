@@ -227,7 +227,7 @@ void Engine::search_clear() {
     tt.clear(threads);
     threads.clear();
 
-    // @TODO wont work with multiple instances
+    // TODO: does not work with multiple instances
     Tablebases::init(options["SyzygyPath"]);  // Free mapped files
 }
 
@@ -276,7 +276,7 @@ void Engine::set_position(const std::string& fen, const std::vector<std::string>
 
 // modifiers
 
-void Engine::set_numa_config_from_option(const std::string& o) {
+bool Engine::set_numa_config_from_option(const std::string& o) {
     if (o == "auto" || o == "system")
     {
         numaContext.set_numa_config(NumaConfig::from_system(DefaultNumaPolicy));
@@ -292,12 +292,16 @@ void Engine::set_numa_config_from_option(const std::string& o) {
     }
     else
     {
-        numaContext.set_numa_config(NumaConfig::from_string(o));
+        auto config = NumaConfig::from_string(o);
+        if (!config)
+            return false;
+        numaContext.set_numa_config(std::move(*config));
     }
 
     // Force reallocation of threads in case affinities need to change.
     resize_threads();
     threads.ensure_network_replicated();
+    return true;
 }
 
 void Engine::resize_threads() {
