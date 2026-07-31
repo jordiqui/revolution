@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - codex/build-revolution-avx2-windows-310726
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
