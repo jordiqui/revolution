@@ -87,7 +87,7 @@
         #define IS_64BIT
     #endif
 
-    #if defined(USE_POPCNT) && defined(_MSC_VER)
+    #if defined(_MSC_VER)
         #include <nmmintrin.h>  // Microsoft header for _mm_popcnt_u64()
     #endif
 
@@ -529,14 +529,6 @@ class Move {
    protected:
     u16 data;
 };
-
-template<typename T, typename... Ts>
-struct is_all_same {
-    static constexpr bool value = (std::is_same_v<T, Ts> && ...);
-};
-
-template<typename... Ts>
-constexpr auto is_all_same_v = is_all_same<Ts...>::value;
 
 }  // namespace Stockfish
 
