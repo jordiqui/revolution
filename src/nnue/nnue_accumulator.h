@@ -24,7 +24,6 @@
 #include <array>
 #include <cstddef>
 #include <cstring>
-#include <utility>
 
 #include "../types.h"
 #include "../misc.h"
@@ -91,10 +90,14 @@ struct AccumulatorCaches {
     };
 
     template<typename Network>
-    void init_big(const Network& network) { big.clear(network); }
+    void init_big(const Network& network) {
+        big.clear(network);
+    }
 
     template<typename Network>
-    void clear_big(const Network& network) { big.clear(network); }
+    void clear_big(const Network& network) {
+        big.clear(network);
+    }
 
     Cache<TransformedFeatureDimensionsBig> big;
 };
@@ -103,10 +106,7 @@ using ActiveAccumulatorCache = AccumulatorCaches::Cache<ActiveTransformedFeature
 using ActiveAccumulatorCaches = AccumulatorCaches;
 
 
-struct AccumulatorState: public Accumulator<ActiveTransformedFeatureDimensions> {
-    DirtyPiece   dirtyPiece;
-    DirtyThreats dirtyThreats;
-};
+struct AccumulatorState: public Accumulator<ActiveTransformedFeatureDimensions>, Dirties {};
 
 using ActiveAccumulator = Accumulator<ActiveTransformedFeatureDimensions>;
 using ActivePSQAccumulatorState = AccumulatorState;
@@ -119,7 +119,7 @@ class AccumulatorStack {
     [[nodiscard]] const AccumulatorState& latest() const noexcept;
 
     void                                  reset() noexcept;
-    std::pair<DirtyPiece&, DirtyThreats&> push() noexcept;
+    Dirties& push() noexcept;
     void                                  pop() noexcept;
 
     void evaluate(const Position&           pos,

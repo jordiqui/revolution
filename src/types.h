@@ -105,8 +105,7 @@ namespace Stockfish {
 // Used by NNUE layer code paths.
 template<typename T>
 static inline T load_as(const void* p) {
-    static_assert(std::is_trivially_copyable_v<T>,
-                  "load_as requires trivially copyable type");
+    static_assert(std::is_trivially_copyable_v<T>, "load_as requires trivially copyable type");
     T v;
     std::memcpy(&v, p, sizeof(T));
     return v;
@@ -395,6 +394,17 @@ using DirtyThreatList = ValueList<DirtyThreat, 96>;
 
 struct DirtyThreats {
     DirtyThreatList list;
+};
+
+struct DirtyPawnPairs {
+    Bitboard before[COLOR_NB];
+    Bitboard after[COLOR_NB];
+};
+
+struct Dirties {
+    DirtyPiece     dirtyPiece;
+    DirtyThreats   dirtyThreats;
+    DirtyPawnPairs dirtyPawnPairs;
 };
 
     #define ENABLE_INCR_OPERATORS_ON(T) \

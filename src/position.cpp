@@ -326,10 +326,11 @@ void Position::set_check_info() const {
 
     Square ksq = square<KING>(~sideToMove);
 
+    const auto [bishopAttacks, rookAttacks] = Attacks::both_attacks_bb(ksq, pieces());
     st->checkSquares[PAWN]   = attacks_bb<PAWN>(ksq, ~sideToMove);
     st->checkSquares[KNIGHT] = attacks_bb<KNIGHT>(ksq);
-    st->checkSquares[BISHOP] = attacks_bb<BISHOP>(ksq, pieces());
-    st->checkSquares[ROOK]   = attacks_bb<ROOK>(ksq, pieces());
+    st->checkSquares[BISHOP] = bishopAttacks;
+    st->checkSquares[ROOK]   = rookAttacks;
     st->checkSquares[QUEEN]  = st->checkSquares[BISHOP] | st->checkSquares[ROOK];
     st->checkSquares[KING]   = 0;
 }
@@ -496,8 +497,9 @@ void Position::update_slider_blockers(Color c) const {
 // Slider attacks use the occupied bitboard to indicate occupancy.
 Bitboard Position::attackers_to(Square s, Bitboard occupied) const {
 
-    return (attacks_bb<ROOK>(s, occupied) & pieces(ROOK, QUEEN))
-         | (attacks_bb<BISHOP>(s, occupied) & pieces(BISHOP, QUEEN))
+    const auto [bishopAttacks, rookAttacks] = Attacks::both_attacks_bb(s, occupied);
+
+    return (rookAttacks & pieces(ROOK, QUEEN)) | (bishopAttacks & pieces(BISHOP, QUEEN))
          | (attacks_bb<PAWN>(s, BLACK) & pieces(WHITE, PAWN))
          | (attacks_bb<PAWN>(s, WHITE) & pieces(BLACK, PAWN))
          | (attacks_bb<KNIGHT>(s) & pieces(KNIGHT)) | (attacks_bb<KING>(s) & pieces(KING));
@@ -508,8 +510,7 @@ bool Position::attackers_to_exist(Square s, Bitboard occupied, Color c) const {
     return (attacks_bb<ROOK>(s, occupied) & pieces(c, ROOK, QUEEN))
         || (attacks_bb<BISHOP>(s, occupied) & pieces(c, BISHOP, QUEEN))
         || (attacks_bb<PAWN>(s, ~c) & pieces(c, PAWN))
-        || (attacks_bb<KNIGHT>(s) & pieces(c, KNIGHT))
-        || (attacks_bb<KING>(s) & pieces(c, KING));
+        || (attacks_bb<KNIGHT>(s) & pieces(c, KNIGHT)) || (attacks_bb<KING>(s) & pieces(c, KING));
 }
 
 // Tests whether a pseudo-legal move is legal
@@ -665,10 +666,11 @@ bool Position::gives_check(Move m) const {
     case EN_PASSANT : {
         Square   capsq = make_square(file_of(to), rank_of(from));
         Bitboard b     = (pieces() ^ from ^ capsq) | to;
+        const auto [bishopAttacks, rookAttacks] =
+          Attacks::both_attacks_bb(square<KING>(~sideToMove), b);
 
-        return (attacks_bb<ROOK>(square<KING>(~sideToMove), b) & pieces(sideToMove, QUEEN, ROOK))
-             | (attacks_bb<BISHOP>(square<KING>(~sideToMove), b)
-                & pieces(sideToMove, QUEEN, BISHOP));
+        return (rookAttacks & pieces(sideToMove, QUEEN, ROOK))
+             | (bishopAttacks & pieces(sideToMove, QUEEN, BISHOP));
     }
     default :  //CASTLING
     {
@@ -689,8 +691,7 @@ bool Position::gives_check(Move m) const {
 void Position::do_move(Move                      m,
                        StateInfo&                newSt,
                        bool                      givesCheck,
-                       DirtyPiece&               dp,
-                       DirtyThreats&             dts,
+                       Dirties&                  dirties,
                        const TranspositionTable* tt      = nullptr,
                        const SharedHistories*    history = nullptr) {
 
@@ -711,6 +712,13 @@ void Position::do_move(Move                      m,
     ++gamePly;
     ++st->rule50;
     ++st->pliesFromNull;
+
+    auto& dpps = dirties.dirtyPawnPairs;
+    auto& dts  = dirties.dirtyThreats;
+    auto& dp   = dirties.dirtyPiece;
+
+    dpps.before[WHITE] = pieces(WHITE, PAWN);
+    dpps.before[BLACK] = pieces(BLACK, PAWN);
 
     Color  us       = sideToMove;
     Color  them     = ~us;
@@ -977,6 +985,9 @@ void Position::do_move(Move                      m,
 
     assert(pos_is_ok());
 
+    dpps.after[WHITE] = pieces(WHITE, PAWN);
+    dpps.after[BLACK] = pieces(BLACK, PAWN);
+
     assert(dp.pc != NO_PIECE);
     assert(!(bool(captured) || m.type_of() == CASTLING) ^ (dp.remove_sq != SQ_NONE));
     assert(dp.from != SQ_NONE);
@@ -1066,7 +1077,7 @@ void write_multiple_dirties(const Position& p,
     static_assert(sizeof(DirtyThreat) == 4);
 
     const __m512i board      = _mm512_loadu_si512(p.piece_array().data());
-    const __m512i AllSquares = _mm512_set_epi8(
+    const __m512i squareIndices = _mm512_set_epi8(
       63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41,
       40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18,
       17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0);
@@ -1079,7 +1090,7 @@ void write_multiple_dirties(const Position& p,
 
     // Extract the list of squares and upconvert to 32 bits. There are never more than 16
     // incoming threats so this is sufficient.
-    __m512i threat_squares = _mm512_maskz_compress_epi8(mask, AllSquares);
+    __m512i threat_squares = _mm512_maskz_compress_epi8(mask, squareIndices);
     threat_squares         = _mm512_cvtepi8_epi32(_mm512_castsi512_si128(threat_squares));
 
     __m512i threat_pieces =
@@ -1108,8 +1119,9 @@ void Position::update_piece_threats(Piece                     pc,
     const Bitboard occupied     = pieces();
     const Bitboard rookQueens   = pieces(ROOK, QUEEN);
     const Bitboard bishopQueens = pieces(BISHOP, QUEEN);
-    const Bitboard rAttacks     = attacks_bb<ROOK>(s, occupied);
-    const Bitboard bAttacks     = attacks_bb<BISHOP>(s, occupied);
+    const auto     attacks      = Attacks::both_attacks_bb(s, occupied);
+    const Bitboard bAttacks     = attacks.first;
+    const Bitboard rAttacks     = attacks.second;
     const Bitboard occupiedNoK  = occupied ^ pieces(KING);
 
     Bitboard sliders       = (rookQueens & rAttacks) | (bishopQueens & bAttacks);
@@ -1152,32 +1164,14 @@ void Position::update_piece_threats(Piece                     pc,
     Bitboard threatened       = attacks_bb(pc, s, occupied) & occupiedNoK;
     Bitboard incoming_threats = PseudoAttacks[KNIGHT][s] & knights;
 
-    // Compute both incoming and outgoing pawn threats. Incoming pawn pushers are only
-    // added if 'pc' is a pawn.
-    Bitboard pawnThreats = 0;
-    if (type_of(pc) == PAWN)
-    {
-        Bitboard whiteAttacks = PawnPushOrAttacks[WHITE][s];
-        Bitboard blackAttacks = PawnPushOrAttacks[BLACK][s];
-
-        threatened |= (color_of(pc) == WHITE ? whiteAttacks : blackAttacks) & pieces(PAWN);
-
-        pawnThreats = whiteAttacks & blackPawns;
-        pawnThreats |= blackAttacks & whitePawns;
-    }
-    else
-    {
-        pawnThreats =
+    if (type_of(pc) == KNIGHT || type_of(pc) == ROOK)
+        incoming_threats |=
           (attacks_bb<PAWN>(s, WHITE) & blackPawns) | (attacks_bb<PAWN>(s, BLACK) & whitePawns);
-    }
-
-    if (type_of(pc) == PAWN || type_of(pc) == KNIGHT || type_of(pc) == ROOK)
-        incoming_threats |= pawnThreats;
 
     switch (type_of(pc))
     {
     case PAWN :
-        threatened &= pieces(PAWN, KNIGHT, ROOK);
+        threatened &= pieces(KNIGHT, ROOK);
         break;
     case BISHOP :
     case ROOK :
@@ -1421,8 +1415,9 @@ bool Position::see_ge(Move m, int threshold) const {
             assert(swap >= res);
             occupied ^= least_significant_square_bb(bb);
 
-            attackers |= (attacks_bb<BISHOP>(to, occupied) & pieces(BISHOP, QUEEN))
-                       | (attacks_bb<ROOK>(to, occupied) & pieces(ROOK, QUEEN));
+            const auto [bishopAttacks, rookAttacks] = Attacks::both_attacks_bb(to, occupied);
+            attackers |=
+              (bishopAttacks & pieces(BISHOP, QUEEN)) | (rookAttacks & pieces(ROOK, QUEEN));
         }
 
         else  // KING
