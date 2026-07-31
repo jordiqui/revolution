@@ -32,6 +32,7 @@
 #include "nnue_accumulator.h"
 #include "nnue_architecture.h"
 #include "nnue_common.h"
+#include "nnz_helper.h"
 #include "simd.h"
 
 namespace Stockfish::Eval::NNUE {
@@ -248,11 +249,12 @@ class FeatureTransformer {
     }
 
     // Convert input features
-    i32 transform(const Position&                           pos,
-                           AccumulatorStack&                         accumulatorStack,
-                           AccumulatorCaches::Cache<HalfDimensions>& cache,
-                           OutputType*                               output,
-                           int                                       bucket) const {
+    i32 transform(const Position&                             pos,
+                  AccumulatorStack&                           accumulatorStack,
+                  AccumulatorCaches::Cache<HalfDimensions>&  cache,
+                  OutputType*                                 output,
+                  int                                         bucket,
+                  [[maybe_unused]] NNZInfo<OutputDimensions>& nnzInfo) const {
 
         using namespace SIMD;
         accumulatorStack.evaluate(pos, *this, cache);
@@ -272,15 +274,15 @@ class FeatureTransformer {
 
 #if defined(VECTOR)
 
+            [[maybe_unused]] auto cursor = nnzInfo.make_cursor(p);
+
             constexpr IndexType OutputChunkSize = MaxChunkSize;
             static_assert((HalfDimensions / 2) % OutputChunkSize == 0);
             constexpr IndexType NumOutputChunks = HalfDimensions / 2 / OutputChunkSize;
 
-#if !defined(USE_NEON)
-            const vec_t   Zero  = vec_zero();
-            const vec_t   FtMax = vec_set_16(FtMaxVal);
-            constexpr int shift = 7;
-#endif
+            [[maybe_unused]] const vec_t   Zero  = vec_zero();
+            [[maybe_unused]] const vec_t   FtMax = vec_set_16(FtMaxVal);
+            [[maybe_unused]] constexpr int shift = 7;
 
             const vec_t* in0 = reinterpret_cast<const vec_t*>(&(accumulation[perspectives[p]][0]));
             const vec_t* in1 =
@@ -334,35 +336,106 @@ class FeatureTransformer {
             // 8 bits. Shifting it by 7 bits left will no longer occupy the
             // signed bit, so we are safe.
 
-                for (IndexType j = 0; j < NumOutputChunks; ++j)
+            for (IndexType j = 0; j < NumOutputChunks; j += 2)
+            {
+                vec_t packed[2];
+                for (IndexType k = 0; k < 2; ++k)
                 {
-#if defined(USE_NEON)
-                    // The NEON path relies on unsigned saturation for crelu.
+                    const IndexType i = (j + k) * 2;
+
+                    vec_t acc0a = in0[i + 0];
+                    vec_t acc0b = in0[i + 1];
+                    vec_t acc1a = in1[i + 0];
+                    vec_t acc1b = in1[i + 1];
+
                     static_assert(FtMaxVal == 255);
 
-                    const uint16x8_t mul0 =
-                      vmull_u8(vqmovun_s16(in0[j * 2 + 0]), vqmovun_s16(in1[j * 2 + 0]));
-                    const uint16x8_t mul1 =
-                      vmull_u8(vqmovun_s16(in0[j * 2 + 1]), vqmovun_s16(in1[j * 2 + 1]));
+    #if defined(USE_NEON)
+                    uint16x8_t mul0 = vmull_u8(vqmovun_s16(acc0a), vqmovun_s16(acc1a));
+                    uint16x8_t mul1 = vmull_u8(vqmovun_s16(acc0b), vqmovun_s16(acc1b));
 
-                    const uint8x16x2_t uzp =
+                    uint8x16x2_t uzp =
                       vuzpq_u8(vreinterpretq_u8_u16(mul0), vreinterpretq_u8_u16(mul1));
-                    const uint8x16_t pab = vshrq_n_u8(uzp.val[1], 1);
-                    out[j] = reinterpret_cast<vec_t>(pab);
-#else
-                    const vec_t sum0a =
-                      vec_slli_16(vec_max_16(vec_min_16(in0[j * 2 + 0], FtMax), Zero), shift);
-                    const vec_t sum0b =
-                      vec_slli_16(vec_max_16(vec_min_16(in0[j * 2 + 1], FtMax), Zero), shift);
-                    const vec_t sum1a = vec_min_16(in1[j * 2 + 0], FtMax);
-                    const vec_t sum1b = vec_min_16(in1[j * 2 + 1], FtMax);
+                    uint8x16_t pab    = vshrq_n_u8(uzp.val[1], 1);
+                    vec_t      result = reinterpret_cast<vec_t>(pab);
+    #elif defined(USE_LSX) || defined(USE_LASX)
+                    vec_t pa = vec_packus_16(acc0a, acc0b);
+                    vec_t pb = vec_packus_16(acc1a, acc1b);
 
-                    const vec_t pa = vec_mulhi_16(sum0a, sum1a);
-                    const vec_t pb = vec_mulhi_16(sum0b, sum1b);
+                    vec_t hi     = vec_mulhi_8(pa, pb);
+                    vec_t result = vec_srli_8(hi, 1);
+    #elif defined(__wasm__)
+                    // _mm_mulhi_epi16 is lowered to 32-bit multiplies, so we take
+                    // a similar approach as the NEON path.
+                    vec_t mul0 = vec_packus_16(acc0a, acc0b);
+                    vec_t mul1 = vec_packus_16(acc1a, acc1b);
 
-                    out[j] = vec_packus_16(pa, pb);
-#endif
+                    vec_t low = wasm_u16x8_extmul_low_u8x16(mul0, mul1);
+                    vec_t hi  = wasm_u16x8_extmul_high_u8x16(mul0, mul1);
+
+                    // equivalent to vuzp2_u8
+                    vec_t merged = wasm_i8x16_shuffle(low, hi, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19,
+                                                      21, 23, 25, 27, 29, 31);
+                    vec_t result = wasm_u8x16_shr(merged, 1);
+    #else
+                    vec_t sum0a = vec_slli_16(vec_max_16(vec_min_16(acc0a, FtMax), Zero), shift);
+                    vec_t sum0b = vec_slli_16(vec_max_16(vec_min_16(acc0b, FtMax), Zero), shift);
+                    vec_t sum1a = vec_min_16(acc1a, FtMax);
+                    vec_t sum1b = vec_min_16(acc1b, FtMax);
+
+                    vec_t pa = vec_mulhi_16(sum0a, sum1a);
+                    vec_t pb = vec_mulhi_16(sum0b, sum1b);
+
+                    vec_t result = vec_packus_16(pa, pb);
+    #endif
+
+                    packed[k] = out[j + k] = result;
                 }
+
+                cursor.record2(packed[0], packed[1]);
+            }
+
+#elif defined(USE_RVV)
+
+            usize       j  = 0;
+            usize       VL = __riscv_vsetvlmax_e8m1();
+            vuint8m1_t  vid8;
+            vuint16m2_t vid16;
+            if (VL <= 256)
+                vid8 = __riscv_vid_v_u8m1(VL);
+            else
+                vid16 = __riscv_vid_v_u16m2(VL);
+            const auto& accp = accumulation[perspectives[p]];
+
+            for (usize vl; j < HalfDimensions / 2; j += vl)
+            {
+                vl = __riscv_vsetvl_e16m2(HalfDimensions / 2 - j);
+
+                vint16m2_t acc0 = __riscv_vle16_v_i16m2(&accp[j], vl);
+                vint16m2_t acc1 = __riscv_vle16_v_i16m2(&accp[j + HalfDimensions / 2], vl);
+
+                acc0 = __riscv_vmax(acc0, 0, vl);
+                acc1 = __riscv_vmax(acc1, 0, vl);
+
+                vuint8m1_t pa = __riscv_vnclipu(__riscv_vreinterpret_u16m2(acc0), 0, 0, vl);
+                vuint8m1_t pb = __riscv_vnclipu(__riscv_vreinterpret_u16m2(acc1), 0, 0, vl);
+
+                vuint8m1_t hi     = __riscv_vmulhu(pa, pb, vl);
+                vuint8m1_t result = __riscv_vsrl(hi, 1, vl);
+
+                __riscv_vse8(&output[offset + j], result, vl);
+
+                vbool8_t    m   = __riscv_vmsne(result, 0, vl);
+                usize       cnt = __riscv_vcpop(m, vl);
+                vuint16m2_t vidx;
+                if (VL <= 256)
+                    vidx = __riscv_vzext_vf2(__riscv_vcompress(vid8, m, vl), cnt);
+                else
+                    vidx = __riscv_vcompress(vid16, m, vl);
+                __riscv_vse16(&nnzInfo.nnz[nnzInfo.count], __riscv_vadd(vidx, offset + j, cnt),
+                              cnt);
+                nnzInfo.count += cnt;
+            }
 
 #else
 
@@ -371,7 +444,6 @@ class FeatureTransformer {
                 BiasType sum0 = accumulation[static_cast<int>(perspectives[p])][j + 0];
                 BiasType sum1 =
                   accumulation[static_cast<int>(perspectives[p])][j + HalfDimensions / 2];
-
 
                 sum0 = std::clamp<BiasType>(sum0, 0, FtMaxVal);
                 sum1 = std::clamp<BiasType>(sum1, 0, FtMaxVal);

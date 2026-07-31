@@ -30,6 +30,7 @@
 #include "../../memory.h"
 #include "../simd.h"
 #include "../nnue_common.h"
+#include "../nnz_helper.h"
 
 /*
   This file contains the definition for a fully connected layer (aka affine transform) with block sparse input.
@@ -251,9 +252,11 @@ class AffineTransformSparseInput {
     }
 
     // Forward propagation
-    void propagate(const InputType* input, OutputType* output) const {
+    void propagate(const InputType*                        input,
+                   OutputType*                             output,
+                   [[maybe_unused]] const NNZInfo<InDims>& nnzInfo) const {
 
-#if (USE_SSSE3 | (USE_NEON >= 8))
+#if (defined(USE_SSSE3) || defined(USE_LSX) || defined(USE_LASX) || (USE_NEON >= 8))
     #if defined(USE_AVX512)
         using invec_t  = __m512i;
         using outvec_t = __m512i;
@@ -281,74 +284,64 @@ class AffineTransformSparseInput {
         using outvec_t = int32x4_t;
         #define vec_set_32(a) vreinterpretq_s8_u32(vdupq_n_u32(a))
         #define vec_add_dpbusd_32 SIMD::neon_m128_add_dpbusd_epi32
+    #elif defined(USE_LASX)
+        using invec_t  = __m256i;
+        using outvec_t = __m256i;
+        #define vec_add_32 __lasx_xvadd_w
+        #define vec_set_32 __lasx_xvreplgr2vr_w
+        #define vec_add_dpbusd_32 SIMD::lasx_m256_add_dpbusd_epi32
+    #elif defined(USE_LSX)
+        using invec_t  = __m128i;
+        using outvec_t = __m128i;
+        #define vec_add_32 __lsx_vadd_w
+        #define vec_set_32 __lsx_vreplgr2vr_w
+        #define vec_add_dpbusd_32 SIMD::lsx_m128_add_dpbusd_epi32
     #endif
         constexpr IndexType OutputSimdWidth = sizeof(outvec_t) / sizeof(OutputType);
-        constexpr IndexType NumChunks = ceil_to_multiple<IndexType>(InputDimensions, 8) / ChunkSize;
-        constexpr IndexType NumAccums = OutputDimensions / OutputSimdWidth;
+        constexpr IndexType NumAccums       = OutputDimensions / OutputSimdWidth;
         // If we're using high-latency dot product instructions, split the accumulators
         // into separate dependency chains and merge at the end
         constexpr IndexType NumRegs =
-    #if defined(USE_AVXVNNI)
-          2 * NumAccums;
-    #elif defined(USE_VNNI)
+    #if (defined(USE_VNNI) && defined(USE_AVX512)) || defined(USE_NEON_DOTPROD)
           3 * NumAccums;
+    #elif defined(USE_AVXVNNI)
+          2 * NumAccums;
     #else
           NumAccums;
     #endif
-        u16 nnz[NumChunks];
-        IndexType     count;
-
-        // Find indices of nonzero 32-bit blocks
-        find_nnz<NumChunks>(input, nnz, count);
 
         const outvec_t* biasvec = reinterpret_cast<const outvec_t*>(biases);
         outvec_t        acc[NumRegs];
         for (IndexType k = 0; k < NumAccums; ++k)
             acc[k] = biasvec[k];
 
-        const auto* start = nnz;
-        const auto* end   = nnz + count;
-
-        // convince GCC to not do weird pointer arithmetic in the following loop
-        const i8* weights_cp = weights;
     #if defined(USE_AVXVNNI)
         for (IndexType k = NumAccums; k < NumRegs; ++k)
-            acc[k] = vec_zero();
+            acc[k] = vec_set_32(0);
+    #elif defined(USE_NEON_DOTPROD)
+        for (IndexType k = NumAccums; k < NumRegs; ++k)
+            acc[k] = vdupq_n_s32(0);
+    #endif
 
-        while (start < end - 1)
-        {
-            const isize i0 = *start++;
-            const isize i1 = *start++;
-            const invec_t in0 = vec_set_32(load_as<i32>(input + i0 * sizeof(i32)));
-            const invec_t in1 = vec_set_32(load_as<i32>(input + i1 * sizeof(i32)));
-            const auto col0 =
-              reinterpret_cast<const invec_t*>(&weights_cp[i0 * OutputDimensions * ChunkSize]);
-            const auto col1 =
-              reinterpret_cast<const invec_t*>(&weights_cp[i1 * OutputDimensions * ChunkSize]);
-            for (IndexType k = 0; k < NumAccums; ++k)
-            {
-                vec_add_dpbusd_32(acc[k], in0, col0[k]);
-                vec_add_dpbusd_32(acc[k + NumAccums], in1, col1[k]);
-            }
-        }
-        for (IndexType k = 0; k < NumAccums; ++k)
-            acc[k] = vec_add_32(acc[k], acc[k + NumAccums]);
-    #elif defined(USE_VNNI)
+        // convince GCC to not do weird pointer arithmetic in the following loops
+        const i8* weights_cp = weights;
+
+    #if defined(USE_AVX512)
+        const auto* start = nnzInfo.nnz;
+        const auto* end   = nnzInfo.nnz + nnzInfo.count;
+
         for (IndexType k = NumAccums; k < NumRegs; ++k)
             acc[k] = vec_zero();
-
+        #if defined(USE_VNNI)
         while (start < end - 2)
         {
-            const isize i0 = *start++;
-            const isize i1 = *start++;
-            const isize i2 = *start++;
-            const invec_t        in0 =
-              vec_set_32(load_as<i32>(input + i0 * sizeof(i32)));
-            const invec_t in1 =
-              vec_set_32(load_as<i32>(input + i1 * sizeof(i32)));
-            const invec_t in2 =
-              vec_set_32(load_as<i32>(input + i2 * sizeof(i32)));
-            const auto col0 =
+            const isize   i0  = *start++;
+            const isize   i1  = *start++;
+            const isize   i2  = *start++;
+            const invec_t in0 = vec_set_32(load_as<i32>(input + i0 * sizeof(i32)));
+            const invec_t in1 = vec_set_32(load_as<i32>(input + i1 * sizeof(i32)));
+            const invec_t in2 = vec_set_32(load_as<i32>(input + i2 * sizeof(i32)));
+            const auto    col0 =
               reinterpret_cast<const invec_t*>(&weights_cp[i0 * OutputDimensions * ChunkSize]);
             const auto col1 =
               reinterpret_cast<const invec_t*>(&weights_cp[i1 * OutputDimensions * ChunkSize]);
@@ -361,19 +354,147 @@ class AffineTransformSparseInput {
                 vec_add_dpbusd_32(acc[k + 2 * NumAccums], in2, col2[k]);
             }
         }
+
         for (IndexType k = 0; k < NumAccums; ++k)
             acc[k] = vec_add_32(vec_add_32(acc[k], acc[k + NumAccums]), acc[k + 2 * NumAccums]);
-    #endif
+        #endif
+
         while (start < end)
         {
-            const isize i = *start++;
+            const isize   i  = *start++;
             const invec_t in = vec_set_32(load_as<i32>(input + i * sizeof(i32)));
             const auto    col =
               reinterpret_cast<const invec_t*>(&weights_cp[i * OutputDimensions * ChunkSize]);
             for (IndexType k = 0; k < NumAccums; ++k)
                 vec_add_dpbusd_32(acc[k], in, col[k]);
         }
+    #else
+        static_assert(InputDimensions % 256 == 0);
 
+        for (IndexType k = 0; k < InputDimensions / 256; ++k)
+        {
+            u64   bits = load_as<u64>(nnzInfo.bitset + k * 8);
+            isize base = k * 64;
+
+            auto* base_addr    = input + base * sizeof(i32);
+            auto* weights_base = &weights_cp[base * OutputDimensions * ChunkSize];
+
+        #if defined(USE_NEON_DOTPROD) && defined(__GNUC__) && !defined(__clang__)
+            // GCC 15 pessimizes the following code on ARM64 by eliding the intermediate
+            // computation of key pointers (base_addr, weights_base, col, input_addr), leading
+            // to a lot of redundant indexing arithmetic in the while (bits) loop. The
+            // optimization barriers force these pointers to be calculated and used.
+            #if __GNUC__ >= 15
+                #define FIX_GCC15_MISOPTIMIZATION
+            #endif
+        #endif
+
+        #ifdef FIX_GCC15_MISOPTIMIZATION
+            asm("" : "+r"(base_addr), "+r"(weights_base));  // opt barrier
+        #endif
+
+        #if defined(USE_AVXVNNI)
+            while (bits)
+            {
+                const isize   i0   = pop_lsb(bits);
+                const invec_t in0  = vec_set_32(load_as<i32>(base_addr + i0 * sizeof(i32)));
+                const auto    col0 = reinterpret_cast<const invec_t*>(
+                  &weights_base[i0 * OutputDimensions * ChunkSize]);
+
+                if (!bits)
+                {
+                    for (IndexType l = 0; l < NumAccums; ++l)
+                        vec_add_dpbusd_32(acc[l], in0, col0[l]);
+                    break;
+                }
+
+                const isize   i1   = pop_lsb(bits);
+                const invec_t in1  = vec_set_32(load_as<i32>(base_addr + i1 * sizeof(i32)));
+                const auto    col1 = reinterpret_cast<const invec_t*>(
+                  &weights_base[i1 * OutputDimensions * ChunkSize]);
+
+                for (IndexType l = 0; l < NumAccums; ++l)
+                {
+                    vec_add_dpbusd_32(acc[l], in0, col0[l]);
+                    vec_add_dpbusd_32(acc[l + NumAccums], in1, col1[l]);
+                }
+            }
+        #elif defined(USE_NEON_DOTPROD)
+            while (bits)
+            {
+                const isize i0 = pop_lsb(bits);
+                if (!bits)
+                {
+                    const invec_t in0  = vec_set_32(load_as<i32>(base_addr + i0 * sizeof(i32)));
+                    const auto    col0 = reinterpret_cast<const invec_t*>(
+                      &weights_base[i0 * OutputDimensions * ChunkSize]);
+                    for (IndexType l = 0; l < NumAccums; ++l)
+                        vec_add_dpbusd_32(acc[l], in0, col0[l]);
+                    break;
+                }
+
+                const isize i1 = pop_lsb(bits);
+                if (!bits)
+                {
+                    const invec_t in0  = vec_set_32(load_as<i32>(base_addr + i0 * sizeof(i32)));
+                    const invec_t in1  = vec_set_32(load_as<i32>(base_addr + i1 * sizeof(i32)));
+                    const auto    col0 = reinterpret_cast<const invec_t*>(
+                      &weights_base[i0 * OutputDimensions * ChunkSize]);
+                    const auto col1 = reinterpret_cast<const invec_t*>(
+                      &weights_base[i1 * OutputDimensions * ChunkSize]);
+                    for (IndexType l = 0; l < NumAccums; ++l)
+                    {
+                        vec_add_dpbusd_32(acc[l], in0, col0[l]);
+                        vec_add_dpbusd_32(acc[l + NumAccums], in1, col1[l]);
+                    }
+                    break;
+                }
+
+                const isize   i2   = pop_lsb(bits);
+                const invec_t in0  = vec_set_32(load_as<i32>(base_addr + i0 * sizeof(i32)));
+                const invec_t in1  = vec_set_32(load_as<i32>(base_addr + i1 * sizeof(i32)));
+                const invec_t in2  = vec_set_32(load_as<i32>(base_addr + i2 * sizeof(i32)));
+                const auto    col0 = reinterpret_cast<const invec_t*>(
+                  &weights_base[i0 * OutputDimensions * ChunkSize]);
+                const auto col1 = reinterpret_cast<const invec_t*>(
+                  &weights_base[i1 * OutputDimensions * ChunkSize]);
+                const auto col2 = reinterpret_cast<const invec_t*>(
+                  &weights_base[i2 * OutputDimensions * ChunkSize]);
+                for (IndexType l = 0; l < NumAccums; ++l)
+                {
+                    vec_add_dpbusd_32(acc[l], in0, col0[l]);
+                    vec_add_dpbusd_32(acc[l + NumAccums], in1, col1[l]);
+                    vec_add_dpbusd_32(acc[l + 2 * NumAccums], in2, col2[l]);
+                }
+            }
+        #else
+            while (bits)
+            {
+                isize       i          = pop_lsb(bits);
+                const auto* input_addr = base_addr + i * sizeof(i32);
+                auto        col =
+                  reinterpret_cast<const invec_t*>(&weights_base[i * OutputDimensions * ChunkSize]);
+
+            #ifdef FIX_GCC15_MISOPTIMIZATION
+                asm("" : "+r"(col), "+r"(input_addr));
+                #undef FIX_GCC15_MISOPTIMIZATION
+            #endif
+
+                const invec_t in = vec_set_32(load_as<i32>(input_addr));
+                for (IndexType l = 0; l < NumAccums; ++l)
+                    vec_add_dpbusd_32(acc[l], in, col[l]);
+            }
+        #endif
+        }
+
+        #if defined(USE_AVXVNNI)
+        for (IndexType l = 0; l < NumAccums; ++l)
+            acc[l] = vec_add_32(acc[l], acc[l + NumAccums]);
+        #elif defined(USE_NEON_DOTPROD)
+        for (IndexType l = 0; l < NumAccums; ++l)
+            acc[l] = vaddq_s32(vaddq_s32(acc[l], acc[l + NumAccums]), acc[l + 2 * NumAccums]);
+        #endif
+    #endif
         outvec_t* outptr = reinterpret_cast<outvec_t*>(output);
         for (IndexType k = 0; k < NumAccums; ++k)
             outptr[k] = acc[k];
@@ -383,6 +504,53 @@ class AffineTransformSparseInput {
     #ifdef vec_add_32
         #undef vec_add_32
     #endif
+#elif defined(USE_RVV)
+        // we don't support larger for now
+        static_assert(OutputDimensions <= 128 * 8 / 32);
+
+    #define RVV_SPARSE_PROPAGATE(m1, m2, m4) \
+        do \
+        { \
+            usize          vl  = OutputDimensions; \
+            vint32##m4##_t acc = __riscv_vle32_v_i32##m4(biases, vl); \
+            IndexType      i   = 0; \
+            for (; i + 2 <= nnzInfo.count; i += 2) \
+            { \
+                usize         idx0 = nnzInfo.nnz[i + 0]; \
+                usize         idx1 = nnzInfo.nnz[i + 1]; \
+                uint8_t       in0  = input[idx0]; \
+                uint8_t       in1  = input[idx1]; \
+                vint8##m1##_t w0   = __riscv_vle8_v_i8##m1(&weights[idx0 * OutputDimensions], vl); \
+                vint8##m1##_t w1   = __riscv_vle8_v_i8##m1(&weights[idx1 * OutputDimensions], vl); \
+                /* input is in [0:127], weights is in [-128:127], \
+                 * so it's safe to accumulate into 16-bit twice */ \
+                vint16##m2##_t prod = __riscv_vwmulsu(w0, in0, vl); \
+                prod                = __riscv_vwmaccus(prod, in1, w1, vl); \
+                acc                 = __riscv_vwadd_wv(acc, prod, vl); \
+            } \
+            if (i < nnzInfo.count) \
+            { \
+                usize          idx  = nnzInfo.nnz[i]; \
+                uint8_t        in   = input[idx]; \
+                vint8##m1##_t  w    = __riscv_vle8_v_i8##m1(&weights[idx * OutputDimensions], vl); \
+                vint16##m2##_t prod = __riscv_vwmulsu(w, in, vl); \
+                acc                 = __riscv_vwadd_wv(acc, prod, vl); \
+            } \
+            __riscv_vse32(output, acc, vl); \
+        } while (0)
+
+        // Select LMUL
+        const usize VL1 = __riscv_vsetvlmax_e32m1();
+        if (VL1 >= OutputDimensions)
+            RVV_SPARSE_PROPAGATE(mf4, mf2, m1);
+        else if (VL1 * 2 >= OutputDimensions)
+            RVV_SPARSE_PROPAGATE(mf2, m1, m2);
+        else if (VL1 * 4 >= OutputDimensions)
+            RVV_SPARSE_PROPAGATE(m1, m2, m4);
+        else
+            RVV_SPARSE_PROPAGATE(m2, m4, m8);
+
+    #undef RVV_SPARSE_PROPAGATE
 #else
         // Use dense implementation for the other architectures.
         affine_transform_non_ssse3<InputDimensions, PaddedInputDimensions, OutputDimensions>(

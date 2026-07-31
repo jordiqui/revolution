@@ -46,6 +46,10 @@ using Stockfish::load_as;
     #define USE_AVX2_PAIR_ACTIVATIONS
 #endif
 
+#if defined(USE_AVX512) || defined(USE_AVX2_PAIR_ACTIVATIONS)
+    #define USE_PAIR_ACTIVATIONS
+#endif
+
 // If vector instructions are enabled, we update and refresh the
 // accumulator tile by tile such that each tile fits in the CPU's
 // vector registers.
