@@ -59,13 +59,17 @@ else ifeq ($(COMP),mingw)
 	endif
 endif
 
-### Executable name
+### Release and executable identity
+ENGINE_BASENAME = Revolution
+RELEASE_TAG ?= 6.20-160826
+BASE_ID = $(ENGINE_BASENAME)-$(RELEASE_TAG)
+
 ifeq ($(target_windows),yes)
-	EXE = Revolution-6.10-310726-$(ARCH).exe
+	EXE = $(BASE_ID)-$(ARCH_TAG).exe
 else ifneq (,$(findstring wasm,$(ARCH)))
-	EXE = Revolution-6.10-310726-$(ARCH).js
+	EXE = $(BASE_ID)-$(ARCH_TAG).js
 else
-	EXE = Revolution-6.10-310726-$(ARCH)
+	EXE = $(BASE_ID)-$(ARCH_TAG)
 endif
 
 ### Installation dir definitions
@@ -153,6 +157,20 @@ endif
 
 ifeq ($(ARCH), native)
    override ARCH := $(shell $(SHELL) ../scripts/get_native_properties.sh | cut -d " " -f 1)
+endif
+
+# Preserve established release aliases and otherwise expose the exact build target.
+ARCH_TAG = $(ARCH)
+ifeq ($(ARCH),x86-64-sse41-popcnt)
+   ARCH_TAG = sse41popcnt
+else ifeq ($(ARCH),x86-64-avx2)
+   ARCH_TAG = avx2
+else ifeq ($(ARCH),x86-64-bmi2)
+   ARCH_TAG = bmi2
+else ifeq ($(ARCH),x86-64-avx512)
+   ARCH_TAG = avx512
+else ifeq ($(ARCH),x86-64-avx512icl)
+   ARCH_TAG = avx512icl
 endif
 
 # explicitly check for the list of supported architectures (as listed with make help),
@@ -501,6 +519,8 @@ ifeq ($(MAKELEVEL),0)
 endif
 
 CXXFLAGS = $(ENV_CXXFLAGS) -Wall -Wcast-qual -fno-exceptions -std=c++17 $(EXTRACXXFLAGS)
+CXXFLAGS += -DENGINE_NAME=\"$(ENGINE_BASENAME)\" -DENGINE_VERSION=\"$(RELEASE_TAG)\" \
+            -DENGINE_ARCH_TAG=\"$(ARCH_TAG)\"
 DEPENDFLAGS = $(ENV_DEPENDFLAGS) -std=c++17
 LDFLAGS = $(ENV_LDFLAGS) $(EXTRALDFLAGS)
 
