@@ -66,6 +66,7 @@ class ClippedReLU {
         return h;
     }
 
+#if !defined(USE_PAIR_ACTIVATIONS)
     // Forward propagation
     void propagate(const InputType* input, OutputType* output) const {
 
@@ -190,6 +191,7 @@ class ClippedReLU {
             output[i] = static_cast<OutputType>(std::clamp(input[i] >> WeightScaleBitsLocal, 0, 127));
         }
     }
+#endif
 };
 
 }  // namespace Stockfish::Eval::NNUE::Layers
