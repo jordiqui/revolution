@@ -1511,7 +1511,7 @@ $(NET_SENTINEL): | $(TEMP_DIR)
 	@touch $@
 
 $(NNUE_EMBED_OBJ): $(UNIVERSAL_SRC_DIR)/nnue_embed.cpp $(NET_SENTINEL) | $(TEMP_DIR)
-	$(CXX) -O2 -std=c++20 -Wno-c++26-extensions $(SLICE_DEF) $(mac_target_flags) $(EXTRACXXFLAGS) $(EMBED_DIR) -c $< -o $@
+	$(CXX) -O2 -std=c++20 -Wno-c++26-extensions -Wno-c23-extensions $(SLICE_DEF) $(mac_target_flags) $(EXTRACXXFLAGS) $(EMBED_DIR) -c $< -o $@
 
 $(UNIVERSAL_ENTRY_OBJ): $(UNIVERSAL_ENTRY_SRC) | $(TEMP_DIR)
 	$(CXX) -O2 -std=c++20 $(mac_target_flags) $(EXTRACXXFLAGS) -c $< -o $@
