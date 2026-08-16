@@ -18,6 +18,7 @@
 
 #include <iostream>
 #include <memory>
+#include <utility>
 
 #include "attacks.h"
 #include "misc.h"
@@ -26,6 +27,14 @@
 #include "uci.h"
 
 using namespace Stockfish;
+
+#ifdef UNIVERSAL_BINARY
+namespace Stockfish {
+
+int main(int argc, char* argv[]);  // silence 'no previous declaration'
+
+__attribute__((used)) // keep main alive
+#endif
 
 int main(int argc, char* argv[]) {
     std::cout << engine_info() << std::endl;
@@ -41,3 +50,11 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+
+#ifdef UNIVERSAL_BINARY
+}  // namespace Stockfish
+
+    #ifdef UNIVERSAL_NEEDS_MAIN_SHIM
+int main(int argc, char* argv[]) { return Stockfish::main(argc, argv); }
+    #endif
+#endif
