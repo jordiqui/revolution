@@ -1,14 +1,14 @@
-# Revolution-6.10-310726
+# Revolution-6.20-160826
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-6.10-310726** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-6.20-160826** developed by Jorge Ruiz and the Stockfish developers (see AUTHORS file).
 
-## Revolution-6.10-310726 technical release
+## Revolution-6.20-160826 technical release
 
-This release incorporates the accepted Stockfish development topology through July 26, 2026.
+Released by Revolution on 16 August 2026, this release incorporates the accepted official Stockfish development topology through the August 10, 2026 upstream target, `stockfish-dev-20260810-5062aee5` (`5062aee519a1ba262d472d8ab139851ced56573e`).
 
 The baseline uses SFNNv16 with the `PP_3Wide` feature set, a hybrid accumulator path for applicable king moves, and the `nn-ab28990d4ea3.nnue` network. Book, Experience, Zobrist, and Syzygy behavior is preserved.
 
@@ -169,7 +169,7 @@ This distribution of Revolution consists of the following files:
 
 Revolution supports 32-bit and 64-bit CPUs and the same hardware instruction sets as Stockfish. On Unix-like systems you can compile the engine from the `src` directory with:
 
-The UCI `id name` header is the architecture-independent base identity `Revolution-6.10-310726`. Startup, analysis, and informational output uses `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same normalized architecture suffix.
+The UCI `id name` header is the architecture-independent base identity `Revolution-6.20-160826`. Startup, analysis, and informational output use `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture. Executable names use the same architecture suffix. Universal executables identify the Universal target physically while runtime information is supplied by the slice selected by the dispatcher.
 
 ```
 cd src
@@ -190,12 +190,15 @@ Targets normalizados para los binarios oficiales:
 
 | Target (`ARCH`) | Identidad visible de análisis | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64-sse41-popcnt` | `Revolution-6.10-310726-sse41popcnt` | `Revolution-6.10-310726-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-6.10-310726-avx2` | `Revolution-6.10-310726-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-6.10-310726-bmi2` | `Revolution-6.10-310726-bmi2[.exe]` |
-| `x86-64-fma3` | `Revolution-6.10-310726-fma3` | `Revolution-6.10-310726-fma3[.exe]` |
-| `x86-64-avx512` | `Revolution-6.10-310726-avx512` | `Revolution-6.10-310726-avx512[.exe]` |
-| `x86-64-avx512cl` (`x86-64-avx512icl` alias) | `Revolution-6.10-310726-avx512cl` | `Revolution-6.10-310726-avx512cl[.exe]` |
+| `x86-64` | `Revolution-6.20-160826-x86-64` | `Revolution-6.20-160826-x86-64[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-6.20-160826-sse41popcnt` | `Revolution-6.20-160826-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-6.20-160826-avx2` | `Revolution-6.20-160826-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-6.20-160826-bmi2` | `Revolution-6.20-160826-bmi2[.exe]` |
+| `x86-64-avxvnni` | `Revolution-6.20-160826-x86-64-avxvnni` | `Revolution-6.20-160826-x86-64-avxvnni[.exe]` |
+| `x86-64-avx512` | `Revolution-6.20-160826-avx512` | `Revolution-6.20-160826-avx512[.exe]` |
+| `x86-64-vnni512` | `Revolution-6.20-160826-x86-64-vnni512` | `Revolution-6.20-160826-x86-64-vnni512[.exe]` |
+| `x86-64-avx512icl` | `Revolution-6.20-160826-avx512icl` | `Revolution-6.20-160826-avx512icl[.exe]` |
+| `x86-64-universal` | selected slice identity | `Revolution-6.20-160826-x86-64-universal[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
@@ -215,19 +218,7 @@ El fichero de referencia `src/bench_prefetch_on.txt` documenta los incrementos d
 
 Tras compilar, valida la mejora con el benchmark integrado ejecutando `./revolution bench` desde `src/`. Compara los nodos/segundo frente a una compilación base `ARCH=x86-64-modern` (sin `SSE41_POPCNT_PREFETCH` ni `LTO`) para medir la ganancia en tu hardware.
 
-### Building for AMD Hawk Point CPUs with FMA3
-
 El comando `make ci-local` (desde `src`) compila los perfiles x86-64 principales con gcc y clang para detectar rápidamente roturas específicas de arquitectura antes de subir cambios.
-
-### Building for AMD Hawk Point CPUs with FMA3
-
-Las CPU AMD con nombre en clave **Hawk Point** admiten la instrucción FMA3, lo que permite compilar binarios optimizados para este motor. Para generar un binario compatible con estas CPU usando `clang++` y el enlazador `lld`, ejecuta desde el directorio `src`:
-
-```
-make -j profile-build ARCH=x86-64-fma3 COMP=clang EXTRALDFLAGS="-fuse-ld=lld"
-```
-
-El objetivo `ARCH=x86-64-fma3` habilita las instrucciones FMA3 necesarias para aprovechar el hardware de Hawk Point.
 
 ## Contributing
 
