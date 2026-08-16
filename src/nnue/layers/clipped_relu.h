@@ -142,6 +142,31 @@ class ClippedReLU {
         }
         constexpr IndexType Start = NumChunks * SimdWidth;
 
+#elif defined(USE_LASX)
+        constexpr IndexType NumChunks = InputDimensions / 32;
+        const auto          in        = reinterpret_cast<const __m256i*>(input);
+        const auto          out       = reinterpret_cast<__m256i*>(output);
+        for (IndexType i = 0; i < NumChunks; ++i)
+        {
+            const __m256i packed0 = SIMD::lasx_packus_32(in[i * 4 + 0], in[i * 4 + 1]);
+            const __m256i packed1 = SIMD::lasx_packus_32(in[i * 4 + 2], in[i * 4 + 3]);
+            const __m256i packed  = __lasx_xvssrlni_b_h(packed1, packed0, WeightScaleBitsLocal);
+            __lasx_xvst(packed, out + i, 0);
+        }
+        constexpr IndexType Start = NumChunks * 32;
+
+#elif defined(USE_LSX)
+        constexpr IndexType NumChunks = InputDimensions / 16;
+        const auto          in        = reinterpret_cast<const __m128i*>(input);
+        const auto          out       = reinterpret_cast<__m128i*>(output);
+        for (IndexType i = 0; i < NumChunks; ++i)
+        {
+            const __m128i packed0 = SIMD::lsx_packus_32(in[i * 4 + 0], in[i * 4 + 1]);
+            const __m128i packed1 = SIMD::lsx_packus_32(in[i * 4 + 2], in[i * 4 + 3]);
+            out[i]                = __lsx_vssrlni_b_h(packed1, packed0, WeightScaleBitsLocal);
+        }
+        constexpr IndexType Start = NumChunks * 16;
+
 #elif defined(USE_NEON)
         constexpr IndexType    NumChunks = InputDimensions / (SimdWidth / 2);
         const SIMD::vec_i8x8_t Zero      = {0};
