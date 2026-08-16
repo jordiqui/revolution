@@ -309,4 +309,42 @@ void FullThreats::append_changed_indices(Color                   perspective,
     }
 }
 
+
+void FullThreats::append_changed_indices_both(Square                  white_ksq,
+                                              Square                  black_ksq,
+                                              const DiffType&         diff,
+                                              IndexList&              white_removed,
+                                              IndexList&              white_added,
+                                              IndexList&              black_removed,
+                                              IndexList&              black_added,
+                                              const ThreatWeightType* prefetchBase,
+                                              IndexType               prefetchStride) {
+    for (const auto& dirty : diff.list)
+    {
+        const Piece  attacker = dirty.pc();
+        const Piece  attacked = dirty.threatened_pc();
+        const Square from     = dirty.pc_sq();
+        const Square to       = dirty.threatened_sq();
+        const bool   add      = dirty.add();
+        auto& white_insert = add ? white_added : white_removed;
+        auto& black_insert = add ? black_added : black_removed;
+        const IndexType white_index = make_index(WHITE, attacker, from, to, attacked, white_ksq);
+        const IndexType black_index = make_index(BLACK, attacker, from, to, attacked, black_ksq);
+        if (white_index < Dimensions)
+        {
+            if (prefetchBase)
+                prefetch<PrefetchRw::READ, PrefetchLoc::LOW>(
+                  prefetchBase + static_cast<isize>(white_index) * prefetchStride);
+            white_insert.push_back(white_index);
+        }
+        if (black_index < Dimensions)
+        {
+            if (prefetchBase)
+                prefetch<PrefetchRw::READ, PrefetchLoc::LOW>(
+                  prefetchBase + static_cast<isize>(black_index) * prefetchStride);
+            black_insert.push_back(black_index);
+        }
+    }
+}
+
 }  // namespace Stockfish::Eval::NNUE::Features
