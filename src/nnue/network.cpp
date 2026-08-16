@@ -44,8 +44,14 @@
 //     const unsigned char *const gEmbeddedNNUEEnd;     // a marker to the end
 //     const unsigned int         gEmbeddedNNUESize;    // the size of the embedded file
 // Note that this does not work in Microsoft Visual Studio.
-#if !defined(_MSC_VER) && !defined(NNUE_EMBEDDING_OFF)
+#if !defined(UNIVERSAL_BINARY) && !defined(_MSC_VER) && !defined(NNUE_EMBEDDING_OFF)
 INCBIN(EmbeddedNNUEBig, EvalFileDefaultName);
+#elif defined(UNIVERSAL_BINARY_MACOS_X86_SLICE)
+extern const unsigned char* const gEmbeddedNNUEData;
+extern const unsigned int         gEmbeddedNNUESize;
+#elif defined(UNIVERSAL_BINARY)
+extern const unsigned char gEmbeddedNNUEData[];
+extern const unsigned int  gEmbeddedNNUESize;
 #else
 const unsigned char        gEmbeddedNNUEBigData[1] = {0x0};
 const unsigned char* const gEmbeddedNNUEBigEnd      = &gEmbeddedNNUEBigData[1];
@@ -70,7 +76,12 @@ using namespace Stockfish::Eval::NNUE;
 
 EmbeddedNNUE get_embedded(EmbeddedNNUEType type) {
     (void) type;
+#if defined(UNIVERSAL_BINARY)
+    return EmbeddedNNUE(gEmbeddedNNUEData, gEmbeddedNNUEData + gEmbeddedNNUESize,
+                        gEmbeddedNNUESize);
+#else
     return EmbeddedNNUE(gEmbeddedNNUEBigData, gEmbeddedNNUEBigEnd, gEmbeddedNNUEBigSize);
+#endif
 }
 
 }

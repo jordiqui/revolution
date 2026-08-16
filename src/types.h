@@ -536,6 +536,9 @@ class Move {
         usize operator()(const Move& m) const { return make_key(m.data); }
     };
 
+    static constexpr int FromSqShift = 6;
+    static constexpr int ToSqShift   = 0;
+
    protected:
     u16 data;
 };
