@@ -207,71 +207,51 @@ inline sf_always_inline IndexType FullThreats::make_index(
 // Get a list of indices for active features in ascending order
 
 void FullThreats::append_active_indices(Color perspective, const Position& pos, IndexList& active) {
-    Square   ksq      = pos.square<KING>(perspective);
-    Bitboard occupied = pos.pieces();
-
+    const Square   ksq                = pos.square<KING>(perspective);
+    const Bitboard occupied           = pos.pieces();
     const Bitboard pawnTargets        = pos.pieces(KNIGHT, ROOK);
     const Bitboard minorSliderTargets = pos.pieces(PAWN, KNIGHT, BISHOP, ROOK);
     const Bitboard queenTargets       = pos.pieces(PAWN, KNIGHT, BISHOP, ROOK, QUEEN);
 
-    for (Color color : {WHITE, BLACK})
-    {
-        for (PieceType pt = PAWN; pt < KING; ++pt)
+    auto process_pawn_attacks = [&](Color c, Direction attkDir) {
+        const Bitboard cPawns  = pos.pieces(c, PAWN);
+        Bitboard       attacks = shift(cPawns, attkDir) & pawnTargets;
+        while (attacks)
         {
-            Color    c        = Color(perspective ^ color);
+            Square    to       = pop_lsb(attacks);
+            Square    from     = to - attkDir;
+            Piece     attacked = pos.piece_on(to);
+            Piece     attacker = make_piece(c, PAWN);
+            IndexType index    = make_index(perspective, attacker, from, to, attacked, ksq);
+            if (index < Dimensions)
+                active.push_back(index);
+        }
+    };
+
+    process_pawn_attacks(WHITE, NORTH_EAST);
+    process_pawn_attacks(WHITE, NORTH_WEST);
+
+    process_pawn_attacks(BLACK, SOUTH_WEST);
+    process_pawn_attacks(BLACK, SOUTH_EAST);
+
+    for (Color c : {WHITE, BLACK})
+    {
+        for (PieceType pt = KNIGHT; pt < KING; ++pt)
+        {
             Piece    attacker = make_piece(c, pt);
             Bitboard bb       = pos.pieces(c, pt);
-
-            if (pt == PAWN)
+            Bitboard targets  = pt == KNIGHT || pt == QUEEN ? queenTargets : minorSliderTargets;
+            while (bb)
             {
-                auto right = (c == WHITE) ? NORTH_EAST : SOUTH_WEST;
-                auto left  = (c == WHITE) ? NORTH_WEST : SOUTH_EAST;
-                auto attacks_left =
-                  ((c == WHITE) ? shift<NORTH_EAST>(bb) : shift<SOUTH_WEST>(bb)) & pawnTargets;
-                auto attacks_right =
-                  ((c == WHITE) ? shift<NORTH_WEST>(bb) : shift<SOUTH_EAST>(bb)) & pawnTargets;
-
-                while (attacks_left)
+                Square   from    = pop_lsb(bb);
+                Bitboard attacks = Attacks::attacks_bb(pt, from, occupied) & targets;
+                while (attacks)
                 {
-                    Square    to       = pop_lsb(attacks_left);
-                    Square    from     = to - right;
+                    Square    to       = pop_lsb(attacks);
                     Piece     attacked = pos.piece_on(to);
                     IndexType index    = make_index(perspective, attacker, from, to, attacked, ksq);
-
                     if (index < Dimensions)
-                        active.push_back(index);
-                }
-
-                while (attacks_right)
-                {
-                    Square    to       = pop_lsb(attacks_right);
-                    Square    from     = to - left;
-                    Piece     attacked = pos.piece_on(to);
-                    IndexType index    = make_index(perspective, attacker, from, to, attacked, ksq);
-
-                    if (index < Dimensions)
-                        active.push_back(index);
-                }
-
-            }
-            else
-            {
-                while (bb)
-                {
-                    Square   from    = pop_lsb(bb);
-                    Bitboard targets = pt == KNIGHT || pt == QUEEN ? queenTargets : minorSliderTargets;
-                    Bitboard attacks = (attacks_bb(pt, from, occupied)) & targets;
-
-                    while (attacks)
-                    {
-                        Square    to       = pop_lsb(attacks);
-                        Piece     attacked = pos.piece_on(to);
-                        IndexType index =
-                          make_index(perspective, attacker, from, to, attacked, ksq);
-
-                        if (index < Dimensions)
-                            active.push_back(index);
-                    }
+                active.push_back(index);
                 }
             }
         }
