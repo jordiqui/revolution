@@ -61,7 +61,7 @@ endif
 
 ### Release and executable identity
 ENGINE_BASENAME = Revolution
-RELEASE_TAG ?= 6.20-160826
+RELEASE_TAG ?= 6.30-240826
 BASE_ID = $(ENGINE_BASENAME)-$(RELEASE_TAG)
 
 ifeq ($(target_windows),yes)
