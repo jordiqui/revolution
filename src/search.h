@@ -58,11 +58,63 @@ class OptionsMap;
 
 namespace Search {
 
+// syzygy_extend_pv() may lead to PVs longer than MAX_PLY
+struct RootPVMoves: public std::vector<Move> {
+    RootPVMoves() { reserve(MAX_PLY); }
+};
+
+struct PVMoves {
+    Move  moves[MAX_PLY + 1];
+    usize length = 0;
+
+    Move*       begin() { return moves; }
+    const Move* begin() const { return moves; }
+    Move*       end() { return moves + length; }
+    const Move* end() const { return moves + length; }
+
+    Move&       operator[](usize index) { return moves[index]; }
+    const Move& operator[](usize index) const { return moves[index]; }
+
+    bool  empty() const { return length == 0; }
+    usize size() const { return length; }
+
+    void clear() { length = 0; }
+
+    void push_back(Move move) {
+        assert(length < MAX_PLY + 1);
+        moves[length++] = move;
+    }
+
+    void resize(usize newSize) {
+        assert(newSize <= length);
+        length = newSize;
+    }
+
+    void update(Move move, const PVMoves* childPv) {
+        assert(childPv == nullptr || childPv->size() <= MAX_PLY);
+        length = childPv ? childPv->length : 0;
+
+        if (childPv)
+        {
+            std::memcpy(moves + 1, childPv->moves, length * sizeof(Move));
+        }
+
+        moves[0] = move;
+        ++length;
+    }
+
+    PVMoves& operator=(const RootPVMoves& rhs) {
+        length = std::min(rhs.size(), usize(MAX_PLY));
+        std::memcpy(moves, rhs.data(), length * sizeof(Move));
+        return *this;
+    }
+};
+
 // Stack struct keeps track of the information we need to remember from nodes
 // shallower and deeper in the tree during the search. Each search thread has
 // its own array of Stack objects, indexed by the current ply.
 struct Stack {
-    Move*                       pv;
+    PVMoves*                    pv;
     PieceToHistory*             continuationHistory;
     CorrectionHistory<PieceTo>* continuationCorrectionHistory;
     int                         ply;
@@ -84,8 +136,7 @@ struct Stack {
 // fail low). Score is normally set at -VALUE_INFINITE for all non-pv moves.
 struct RootMove {
 
-    explicit RootMove(Move m) :
-        pv(1, m) {}
+    explicit RootMove(Move m) { pv.push_back(m); }
     bool extract_ponder_from_tt(const TranspositionTable& tt, Position& pos);
     bool operator==(const Move& m) const { return pv[0] == m; }
     // Sort in descending order
@@ -111,7 +162,7 @@ struct RootMove {
     int               selDepth           = 0;
     int               tbRank             = 0;
     Value             tbScore;
-    std::vector<Move> pv, previousPV;
+    RootPVMoves       pv, previousPV;
 };
 
 using RootMoves = std::vector<RootMove>;
