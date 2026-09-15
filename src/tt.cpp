@@ -43,20 +43,26 @@ namespace Stockfish {
 // value      16 bit
 // evaluation 16 bit
 //
-// These fields are in the same order as accessed by TT::probe(), since memory is fastest sequentially.
-// Equally, the store order in save() matches this order.
+// These fields are in the same order as accessed by TT::probe(), since memory
+// is fastest sequentially. The store order in save() matches this order.
 
 struct TTEntry {
 
-    // Convert internal bitfields to external types
+    // Extract data from the TT entry. We have to convert TT internal bitfields
+    // to external types.
     TTData read() const {
         return TTData{Move(move16),           Value(value16),
                       Value(eval16),          Depth(depth8 + DEPTH_ENTRY_OFFSET),
                       Bound(genBound8 & 0x3), bool(genBound8 & 0x4)};
     }
 
+    // Check if the TT entry is occupied
     bool is_occupied() const;
+
+    // Insert data in the TT entry
     void save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8);
+
+    // Return TT entry age
     // The returned age is a multiple of TranspositionTable::GENERATION_DELTA
     u8 relative_age(const u8 generation8) const;
 
@@ -89,8 +95,9 @@ static constexpr int GENERATION_MASK = (0xFF << GENERATION_BITS) & 0xFF;
 // we sacrifice the ability to store depths greater than 1<<8 less the offset, as asserted in `save`.)
 bool TTEntry::is_occupied() const { return bool(depth8); }
 
-// Populates the TTEntry with a new node's data, possibly
-// overwriting an old position. The update is not atomic and can be racy.
+// Populates the TTEntry with a new node's data, possibly overwriting an old
+// position. The update is non-atomic and can be racy. We convert external
+// types to internal bitfields.
 void TTEntry::save(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8) {
 
@@ -126,23 +133,27 @@ u8 TTEntry::relative_age(const u8 generation8) const {
 }
 
 
-// TTWriter is but a very thin wrapper around the pointer
+// TTWriter is but a very thin wrapper around the TTEntry pointer
 TTWriter::TTWriter(TTEntry* tte) :
     entry(tte) {}
 
+// Wrapper around TTEntry::save()
 void TTWriter::write(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8) {
     entry->save(k, v, pv, b, d, m, ev, generation8);
 }
 
+// Flag a TTEntry as useless (decrementing the stored depth by the given penalty)
 void TTWriter::penalize(int penalty) {
     entry->depth8 = std::max(int(entry->depth8) - penalty, 0);
 }
 
 
-// A TranspositionTable is an array of Cluster, of size clusterCount. Each cluster consists of ClusterSize number
-// of TTEntry. Each non-empty TTEntry contains information on exactly one position. The size of a Cluster should
-// divide the size of a cache line for best performance, as the cacheline is prefetched when possible.
+// A TranspositionTable is an array of Cluster, of size clusterCount. Each
+// cluster consists of ClusterSize number of TTEntry. Each non-empty TTEntry
+// contains information on exactly one position. The size of a Cluster should
+// divide the size of a cache line for best performance, as the cacheline is
+// prefetched when possible.
 
 static constexpr int ClusterSize = 3;
 
@@ -154,9 +165,9 @@ struct Cluster {
 static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
 
 
-// Sets the size of the transposition table,
-// measured in megabytes. Transposition table consists
-// of clusters and each cluster consists of ClusterSize number of TTEntry.
+// Sets the size of the transposition table, measured in megabytes.
+// Transposition table consists of clusters and each cluster consists
+// of ClusterSize number of TTEntry.
 void TranspositionTable::resize(usize mbSize, ThreadPool& threads) {
     aligned_large_pages_free(table);
 
@@ -174,8 +185,7 @@ void TranspositionTable::resize(usize mbSize, ThreadPool& threads) {
 }
 
 
-// Initializes the entire transposition table to zero,
-// in a multi-threaded way.
+// Initializes the entire transposition table to zero, in a multi-threaded way
 void TranspositionTable::clear(ThreadPool& threads) {
     generation8              = 0;
     const usize threadCount = threads.num_threads();
@@ -197,9 +207,9 @@ void TranspositionTable::clear(ThreadPool& threads) {
 }
 
 
-// Returns an approximation of the hashtable
-// occupation during a search. The hash is x permill full, as per UCI protocol.
-// Only counts entries which match the current generation.
+// Returns an approximation of the hashtable occupation during a search.
+// The hash is x permill full, as per UCI protocol. Only counts entries
+// which are younger than maxAge.
 int TranspositionTable::hashfull(int maxAge) const {
     int maxAgeInternal = maxAge << GENERATION_BITS;
     int cnt            = 0;
@@ -212,21 +222,22 @@ int TranspositionTable::hashfull(int maxAge) const {
 }
 
 
+// Must be called at the beginning of each root search to track entry aging
 void TranspositionTable::new_search() {
     // increment by delta to keep lower bits as is
     generation8 += GENERATION_DELTA;
 }
 
 
+// The current age, used when writing new data to the TT
 u8 TranspositionTable::generation() const { return generation8; }
 
 
-// Looks up the current position in the transposition
-// table. It returns true if the position is found.
-// Otherwise, it returns false and a pointer to an empty or least valuable TTEntry
-// to be replaced later. The replace value of an entry is calculated as its depth
-// minus 8 times its relative age. TTEntry t1 is considered more valuable than
-// TTEntry t2 if its replace value is greater than that of t2.
+// Looks up the current position in the transposition table. Calling probe(key)
+// returns true if the key is found (which may be a collision) and has non-null
+// data. Otherwise, it returns false and a pointer to an empty or least valuable
+// TTEntry to be replaced later. The value of an entry is its depth minus 8 times
+// its relative age.
 std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) const {
 
     TTEntry* const tte   = first_entry(key);
@@ -251,6 +262,7 @@ std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) cons
 }
 
 
+// The hash function; its only external use is memory prefetching
 TTEntry* TranspositionTable::first_entry(const Key key) const {
     return &table[mul_hi64(key, clusterCount)].entry[0];
 }

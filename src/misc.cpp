@@ -517,6 +517,7 @@ u64 hash_bytes(const char* data, usize size) {
 void start_logger(const fs::path& fname) { Logger::start(fname); }
 
 
+// Read a numerical value from the command line
 std::optional<usize> str_to_size_t(const std::string& s) {
     if (s.empty() || s[0] == '-')
         return std::nullopt;
@@ -529,6 +530,7 @@ std::optional<usize> str_to_size_t(const std::string& s) {
     return static_cast<usize>(value);
 }
 
+// Read the given file as bytes (returns std::nullopt if the file does not exist)
 std::optional<std::string> read_file_to_string(const std::string& path) {
     std::ifstream f(path, std::ios_base::binary);
     if (!f)
@@ -536,15 +538,19 @@ std::optional<std::string> read_file_to_string(const std::string& path) {
     return std::string(std::istreambuf_iterator<char>(f), std::istreambuf_iterator<char>());
 }
 
+// Remove all spaces from a string
 void remove_whitespace(std::string& s) {
     s.erase(std::remove_if(s.begin(), s.end(), [](unsigned char c) { return std::isspace(c); }),
             s.end());
 }
 
+// Test if a string has only spaces
 bool is_whitespace(std::string_view s) {
     return std::all_of(s.begin(), s.end(), [](unsigned char c) { return std::isspace(c); });
 }
 
+
+// Convert a wide string to an UTF8 string
 std::string utf8_from_wstring(std::wstring_view s) {
 #ifdef _WIN32
     if (s.empty())
@@ -562,6 +568,8 @@ std::string utf8_from_wstring(std::wstring_view s) {
 #endif
 }
 
+
+// This utility allows us to handle filenames and paths with UTF8 encoding
 fs::path path_from_utf8(const std::string& path) {
 #ifdef _WIN32
     int u8len = static_cast<int>(path.size());
@@ -586,6 +594,8 @@ fs::path path_from_utf8(const std::string& path) {
 #endif
 }
 
+
+// Constructor for the CommandLine class
 CommandLine::CommandLine(int _argc, char** _argv) :
     argc(_argc),
     argv(_argv) {
@@ -607,6 +617,10 @@ CommandLine::CommandLine(int _argc, char** _argv) :
 #endif
 }
 
+
+// Return the directory where our Stockfish binary sits. This is useful,
+// because when the NNUE network is not embeded in the binary, this directory
+// is one of the locations where we look for the NNUE file.
 fs::path CommandLine::get_binary_directory(fs::path argv0) {
 #ifdef _WIN32
     constexpr DWORD MaxPath = 32768;
@@ -621,8 +635,11 @@ fs::path CommandLine::get_binary_directory(fs::path argv0) {
     return binaryDirectory;
 }
 
+// Return the working directory
 fs::path CommandLine::get_working_directory() { return fs::current_path(); }
 
+
+// On Windows, tell the console to use UTF8 encoding
 void set_console_utf8() {
 #ifdef _WIN32
     SetConsoleCP(CP_UTF8);
