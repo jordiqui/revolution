@@ -42,7 +42,8 @@ int main(int argc, char* argv[]) {
     Attacks::init();
     Position::init();
 
-    auto uci = std::make_unique<UCIEngine>(argc, argv);
+    auto cli = CommandLine(argc, argv);
+    auto uci = std::make_unique<UCIEngine>(std::move(cli));
 
     Tune::init(uci->engine_options());
 

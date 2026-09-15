@@ -71,6 +71,7 @@ using GetThreadSelectedCpuSetMasks_t = BOOL (*)(HANDLE, PGROUP_AFFINITY, USHORT,
 #endif
 
 #include "misc.h"
+#include "thread_native.h"
 
 namespace Stockfish {
 
@@ -299,7 +300,7 @@ inline WindowsAffinity get_process_affinity() {
 
         if (GetThreadSelectedCpuSetMasks_f != nullptr)
         {
-            std::thread th([&]() {
+            NativeThread th = create_native_thread(NativeThreadOptions{}, [&]() {
                 std::set<CpuIndex> cpus;
                 bool               isAffinityFull = true;
 
@@ -365,7 +366,10 @@ inline WindowsAffinity get_process_affinity() {
                 }
             });
 
-            th.join();
+            if (!th.joinable())
+                affinity.isOldDeterminate = false;
+            else
+                th.join();
         }
     }
 
@@ -833,7 +837,7 @@ class NumaConfig {
     }
 
     NumaReplicatedAccessToken bind_current_thread_to_numa_node(NumaIndex n) const {
-        if (n >= nodes.size() || nodes[n].size() == 0)
+        if (n >= nodes.size() || nodes[n].empty())
             std::exit(EXIT_FAILURE);
 
 #if defined(__linux__) && !defined(__ANDROID__)
@@ -956,10 +960,16 @@ class NumaConfig {
 
     template<typename FuncT>
     void execute_on_numa_node(NumaIndex n, FuncT&& f) const {
-        std::thread th([this, &f, n]() {
+        NativeThread th = create_native_thread(NativeThreadOptions{}, [this, &f, n]() {
             bind_current_thread_to_numa_node(n);
             std::forward<FuncT>(f)();
         });
+
+        if (!th.joinable())
+        {
+            std::cerr << "Failed to execute function on NUMA node\n";
+            std::exit(EXIT_FAILURE);
+        }
 
         th.join();
     }

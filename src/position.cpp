@@ -1447,8 +1447,6 @@ bool Position::has_repeated() const {
 // This function accurately matches the outcome of is_draw() over all legal moves.
 bool Position::upcoming_repetition(int ply) const {
 
-    int j;
-
     int end = std::min(st->rule50, st->pliesFromNull);
 
     if (end < 3)
@@ -1468,7 +1466,8 @@ bool Position::upcoming_repetition(int ply) const {
             continue;
 
         Key moveKey = originalKey ^ stp->key;
-        if ((j = H1(moveKey), cuckoo[j] == moveKey) || (j = H2(moveKey), cuckoo[j] == moveKey))
+
+        if (int j = H1(moveKey); cuckoo[j] == moveKey || (j = H2(moveKey), cuckoo[j] == moveKey))
         {
             Move   move = cuckooMove[j];
             Square s1   = move.from_sq();
