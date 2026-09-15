@@ -92,6 +92,10 @@ jobs:
       matrix: ${{ needs.Matrix.outputs.arm_matrix }}
   IWYU:
     uses: ./.github/workflows/iwyu.yml
+  MSVC:
+    name: MSVC
+    if: ${{ always() }}
+    uses: ./.github/workflows/msvc.yml
   Sanitizers:
     uses: ./.github/workflows/sanitizers.yml
   Tests:

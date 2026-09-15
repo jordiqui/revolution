@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cassert>
 #include <deque>
+#include <filesystem>
 #include <iosfwd>
 #include <memory>
 #include <ostream>
@@ -60,29 +61,29 @@ constexpr NumaAutoPolicy DefaultNumaPolicy = BundledL3Policy{32};
 
 namespace {
 
-std::unique_ptr<NN::ActiveNetwork> make_default_big_network(const std::string& binaryDirectory) {
-    auto network =
-      std::make_unique<NN::ActiveNetwork>(NN::EvalFile{EvalFileDefaultName, "None", ""},
-                                       NN::EmbeddedNNUEType::BIG);
+std::unique_ptr<NN::ActiveNetwork> make_default_big_network(
+  const std::filesystem::path& binaryDirectory, NN::EvalFile& networkFile) {
+    auto network = std::make_unique<NN::ActiveNetwork>(NN::EmbeddedNNUEType::BIG);
 
-    network->load(binaryDirectory, "");
+    network->load(binaryDirectory, std::filesystem::path{}, networkFile);
     return network;
 }
 
 }  // namespace
 
-Engine::Engine(std::optional<std::string> path) :
-    binaryDirectory(path ? CommandLine::get_binary_directory(*path) : ""),
+Engine::Engine(std::optional<std::filesystem::path> path) :
+    binaryDirectory(path ? CommandLine::get_binary_directory(*path) : std::filesystem::path{}),
     numaContext(NumaConfig::from_system(DefaultNumaPolicy)),
     states(new std::deque<StateInfo>(1)),
     threads(),
+    networkFile{EvalFileDefaultName, std::nullopt, ""},
     networks(numaContext, get_default_network()) {
 
     pos.set(StartFEN, false, &states->back());
 
     options.add(  //
       "Debug Log File", Option("", [](const Option& o) {
-          start_logger(o);
+          start_logger(path_from_utf8(std::string(o)));
           return std::nullopt;
       }));
 
@@ -183,7 +184,7 @@ Engine::Engine(std::optional<std::string> path) :
 
     options.add(  //
       "EvalFile", Option(EvalFileDefaultName, [this](const Option& o) {
-          load_big_network(o);
+          load_big_network(path_from_utf8(std::string(o)));
           return std::nullopt;
       }));
 
@@ -325,7 +326,8 @@ void Engine::set_ponderhit(bool b) { threads.main_manager()->ponder = b; }
 // network related
 
 void Engine::verify_networks() const {
-    networks->verify(options["EvalFile"], onVerifyNetwork);
+    networks->verify(onVerifyNetwork, networkFile,
+                     path_from_utf8(std::string(options["EvalFile"])));
 
     auto statuses = networks.get_status_and_errors();
     for (usize i = 0; i < statuses.size(); ++i)
@@ -361,7 +363,7 @@ void Engine::verify_networks() const {
 void Engine::verify_network() const {
     const auto report = onVerifyNetwork ? onVerifyNetwork : [](std::string_view) {};
 
-    networks->verify(options["EvalFile"], report);
+    networks->verify(report, networkFile, path_from_utf8(std::string(options["EvalFile"])));
 
     auto statuses = networks.get_status_and_errors();
 
@@ -397,22 +399,23 @@ void Engine::verify_network() const {
     }
 }
 
-std::unique_ptr<Eval::NNUE::ActiveNetwork> Engine::get_default_network() const {
-    return make_default_big_network(binaryDirectory);
+std::unique_ptr<Eval::NNUE::ActiveNetwork> Engine::get_default_network() {
+    return make_default_big_network(binaryDirectory, networkFile);
 }
 
-void Engine::load_network(const std::string& file) { load_big_network(file); }
+void Engine::load_network(const std::filesystem::path& file) { load_big_network(file); }
 
-void Engine::load_big_network(const std::string& file) {
-    networks.modify_and_replicate(
-      [this, &file](NN::ActiveNetwork& network_) { network_.load(binaryDirectory, file); });
+void Engine::load_big_network(const std::filesystem::path& file) {
+    networks.modify_and_replicate([this, &file](NN::ActiveNetwork& network_) {
+        network_.load(binaryDirectory, file, networkFile);
+    });
     threads.clear();
     threads.ensure_network_replicated();
 }
 
-void Engine::save_network(const std::pair<std::optional<std::string>, std::string>& file) {
+void Engine::save_network(const std::optional<std::filesystem::path>& file) {
     networks.modify_and_replicate(
-      [&file](NN::ActiveNetwork& network_) { network_.save(file.first); });
+      [this, &file](NN::ActiveNetwork& network_) { network_.save(networkFile, file); });
 }
 
 // utility functions
