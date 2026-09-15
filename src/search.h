@@ -95,9 +95,7 @@ struct PVMoves {
         length = childPv ? childPv->length : 0;
 
         if (childPv)
-        {
             std::memcpy(moves + 1, childPv->moves, length * sizeof(Move));
-        }
 
         moves[0] = move;
         ++length;
@@ -144,11 +142,11 @@ struct RootMove {
         return m.score != score ? m.score < score : m.previousScore < previousScore;
     }
 
-    bool score_is_bound() const { return scoreLowerbound || scoreUpperbound; }
-    bool score_is_exact_loss() const {
-        return score != -VALUE_INFINITE && is_loss(score) && !score_is_bound();
+    bool is_inexact() const { return inexactLower || inexactUpper; }
+    bool is_exact_loss() const {
+        return score != -VALUE_INFINITE && is_loss(score) && !is_inexact();
     }
-    void unset_bound_flags() { scoreLowerbound = scoreUpperbound = false; }
+    void unset_inexact() { inexactLower = inexactUpper = false; }
 
     u64               effort             = 0;
     Value             score              = -VALUE_INFINITE;
@@ -156,8 +154,8 @@ struct RootMove {
     Value             averageScore       = -VALUE_INFINITE;
     Value             meanSquaredScore   = -VALUE_INFINITE * VALUE_INFINITE;
     Value             uciScore           = -VALUE_INFINITE;
-    bool              scoreLowerbound    = false;
-    bool              scoreUpperbound    = false;
+    bool              inexactLower    = false;
+    bool              inexactUpper    = false;
     bool              previousScoreExact = false;
     int               selDepth           = 0;
     int               tbRank             = 0;

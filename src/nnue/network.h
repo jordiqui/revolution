@@ -21,6 +21,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -58,8 +59,7 @@ class Network {
     static constexpr IndexType FTDimensions = Arch::TransformedFeatureDimensions;
 
    public:
-    Network(EvalFile file, EmbeddedNNUEType type) :
-        evalFile(file),
+    explicit Network(EmbeddedNNUEType type) :
         embeddedType(type) {}
 
     Network(const Network& other) = default;
@@ -68,8 +68,10 @@ class Network {
     Network& operator=(const Network& other) = default;
     Network& operator=(Network&& other)      = default;
 
-    void load(const std::string& rootDirectory, std::string evalfilePath);
-    bool save(const std::optional<std::string>& filename) const;
+    void load(const std::filesystem::path& rootDirectory,
+              std::filesystem::path        evalfilePath,
+              EvalFile&                    evalFile);
+    bool save(const EvalFile& evalFile, const std::optional<std::filesystem::path>& filename) const;
 
     usize get_content_hash() const;
 
@@ -78,18 +80,20 @@ class Network {
                            AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
 
-    void verify(std::string evalfilePath, const std::function<void(std::string_view)>&) const;
+    void verify(const std::function<void(std::string_view)>&,
+                const EvalFile&,
+                std::filesystem::path evalfilePath) const;
     NnueEvalTrace trace_evaluate(const Position&                         pos,
                                  AccumulatorStack&                       accumulatorStack,
                                  AccumulatorCaches::Cache<FTDimensions>& cache) const;
 
    private:
-    void load_user_net(const std::string&, const std::string&);
-    void load_internal();
+    void load_external(const std::filesystem::path&, const std::filesystem::path&, EvalFile&);
+    void load_internal(EvalFile&);
 
     void initialize();
 
-    bool                       save(std::ostream&, const std::string&, const std::string&) const;
+    bool                       save(std::ostream&, const std::string&) const;
     std::optional<std::string> load(std::istream&);
 
     bool read_header(std::istream&, u32*, std::string*) const;
@@ -104,7 +108,6 @@ class Network {
     // Evaluation function
     Arch network[LayerStacks];
 
-    EvalFile         evalFile;
     EmbeddedNNUEType embeddedType;
 
     bool initialized = false;
