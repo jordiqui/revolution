@@ -366,7 +366,10 @@ inline WindowsAffinity get_process_affinity() {
                 }
             });
 
-            th.join();
+            if (!th.joinable())
+                affinity.isOldDeterminate = false;
+            else
+                th.join();
         }
     }
 

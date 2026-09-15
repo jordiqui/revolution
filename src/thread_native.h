@@ -82,14 +82,18 @@ struct ThreadCallable final: ThreadCallableBase {
 // equal to the Linux 8MB default, on platforms that support it.
 
 class NativeThread {
-    pthread_t thread;
+    pthread_t thread{};
     bool      running_ = false;
 
     static constexpr usize TH_STACK_SIZE = 8 * 1024 * 1024;
 
     void start(NativeThreadOptions options, ThreadCallableBase* func) {
         pthread_attr_t attr_storage, *attr = &attr_storage;
-        pthread_attr_init(attr);
+        if (pthread_attr_init(attr) != 0)
+        {
+            delete func;
+            return;
+        }
         if (options.largeStack)
         {
             pthread_attr_setstacksize(attr, TH_STACK_SIZE);
