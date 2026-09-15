@@ -36,7 +36,6 @@ namespace Stockfish {
 // Keep Revolution's existing attack call sites source-compatible while attack
 // initialization and storage live in the dedicated Attacks topology.
 using Attacks::PseudoAttacks;
-using Attacks::PawnPushOrAttacks;
 using Attacks::BetweenBB;
 using Attacks::RayPassBB;
 using Attacks::attacks_bb;
