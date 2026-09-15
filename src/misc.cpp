@@ -62,7 +62,7 @@ constexpr std::string_view engineName = "Revolution";
 #ifdef ENGINE_VERSION
 constexpr std::string_view version = ENGINE_VERSION;
 #else
-constexpr std::string_view version = "6.30-240826";
+constexpr std::string_view version = "6.40-150926";
 #endif
 
 // Our fancy logging facility. The trick here is to replace cin.rdbuf() and
@@ -204,7 +204,7 @@ std::string engine_info(bool to_uci) {
     const std::string name = to_uci ? engine_version_info() : engine_architecture_info();
 
     return name + (to_uci ? "\nid author " : " by ")
-         + "Jorge Ruiz and the Stockfish developers (see AUTHORS file)";
+         + "Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)";
 }
 
 
