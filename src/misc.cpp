@@ -106,7 +106,7 @@ class Logger {
     Tie           in, out;
 
    public:
-    static void start(const std::string& fname) {
+    static void start(const fs::path& fname) {
 
         static Logger l;
 
