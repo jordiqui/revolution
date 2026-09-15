@@ -14,7 +14,7 @@ import queue
 import threading
 import tempfile
 import shutil
-import urllib.request
+import requests
 
 CYAN_COLOR = "\033[36m"
 GRAY_COLOR = "\033[2m"
@@ -103,10 +103,11 @@ class Syzygy:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 tarball_path = os.path.join(tmpdirname, f"{file}.tar.gz")
 
-                with urllib.request.urlopen(url) as response, open(
-                    tarball_path, "wb"
-                ) as f:
-                    shutil.copyfileobj(response, f)
+                response = requests.get(url, stream=True)
+                response.raise_for_status()
+                with open(tarball_path, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
 
                 with tarfile.open(tarball_path, "r:gz") as tar:
                     tar.extractall(tmpdirname)

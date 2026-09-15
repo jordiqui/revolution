@@ -59,7 +59,8 @@ void syzygy_extend_pv(const OptionsMap&            options,
                       const Search::LimitsType&    limits,
                       Stockfish::Position&         pos,
                       Stockfish::Search::RootMove& rootMove,
-                      Value&                       v);
+                      Value&                       v,
+                      const usize                  multiPV);
 
 using namespace Search;
 
@@ -2127,19 +2128,24 @@ void syzygy_extend_pv(const OptionsMap&         options,
                       const Search::LimitsType& limits,
                       Position&                 pos,
                       RootMove&                 rootMove,
-                      Value&                    v) {
+                      Value&                    v,
+                      const usize               multiPV) {
 
     auto t_start      = std::chrono::steady_clock::now();
     int  moveOverhead = int(options["Move Overhead"]);
     bool rule50       = bool(options["Syzygy50MoveRule"]);
 
-    // Do not use more than moveOverhead / 2 time, if time management is active
-    auto time_abort = [&t_start, &moveOverhead, &limits]() -> bool {
+    // Do not use more than moveOverhead / 2 ms, if time management is active.
+    // Under 'nodestime' the pos.do_move() calls come for free.
+    auto time_abort = [&t_start, &moveOverhead, &limits, &multiPV]() -> bool {
         auto t_end = std::chrono::steady_clock::now();
-        return limits.use_time_management()
-            && 2 * std::chrono::duration<double, std::milli>(t_end - t_start).count()
-                 > moveOverhead;
+        return !limits.npmsec && limits.use_time_management()
+            && 2 * multiPV * std::chrono::duration<double, std::milli>(t_end - t_start).count()
+                 >= moveOverhead;
     };
+
+    if (time_abort())
+        return;
 
     std::list<StateInfo> sts;
 
@@ -2290,7 +2296,7 @@ void SearchManager::output_pv(Search::Worker&           worker,
         // Potentially correct and extend the PV, and in exceptional cases v
         if (is_decisive(v) && std::abs(v) < VALUE_MATE_IN_MAX_PLY && !usePreviousScore
             && ((!rootMoves[i].inexactLower && !rootMoves[i].inexactUpper) || isExact))
-            syzygy_extend_pv(worker.options, worker.limits, pos, rootMoves[i], v);
+            syzygy_extend_pv(worker.options, worker.limits, pos, rootMoves[i], v, multiPV);
 
         std::string pv;
         for (Move m : usePreviousScore ? rootMoves[i].previousPV : rootMoves[i].pv)
