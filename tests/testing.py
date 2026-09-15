@@ -30,7 +30,14 @@ PATH = pathlib.Path(__file__).parent.resolve()
 
 class Valgrind:
     @staticmethod
-    def get_valgrind_command():
+    def get_valgrind_command(expect_failure=False):
+        if expect_failure:
+            return [
+                "valgrind",
+                "--error-exitcode=42",
+                "--leak-check=no",
+            ]
+
         return [
             "valgrind",
             "--error-exitcode=42",
@@ -188,6 +195,7 @@ class MiniTestFramework:
 
         buffer = io.StringIO()
         fails = 0
+        failed = False
 
         try:
             t0 = time.time()
@@ -206,6 +214,8 @@ class MiniTestFramework:
             self.print_success(f" {method} ({duration * 1000:.2f}ms)")
             self.passed_tests += 1
         except Exception as e:
+            failed = True
+
             if isinstance(e, TimeoutException):
                 self.print_failure(
                     f" {method} (hit execution limit of {e.timeout} seconds)"
@@ -215,12 +225,12 @@ class MiniTestFramework:
                 self.__handle_assertion_error(t0, method)
 
             if self.stop_on_failure:
-                self.__print_buffer_output(buffer)
                 raise e
 
             fails += 1
         finally:
-            self.__print_buffer_output(buffer)
+            if failed:
+                self.__print_buffer_output(buffer)
 
         return fails
 
@@ -268,11 +278,13 @@ class Stockfish:
         path: str,
         args: List[str] = [],
         cli: bool = False,
+        expect_failure: bool = False,
     ):
         self.path = path
         self.process = None
         self.args = args
         self.cli = cli
+        self.expect_failure = expect_failure
         self.prefix = prefix
         self.output = []
         self.output_queue = queue.Queue()
@@ -292,6 +304,11 @@ class Stockfish:
                 capture_output=True,
                 text=True,
             )
+
+            if self.process.stdout:
+                self.output.extend(self.process.stdout.splitlines())
+            if self.process.stderr:
+                self.output.extend(self.process.stderr.splitlines())
 
             if self.process.returncode != 0:
                 print(self.process.stdout)

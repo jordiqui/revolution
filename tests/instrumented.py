@@ -20,9 +20,9 @@ PATH = pathlib.Path(__file__).parent.resolve()
 CWD = os.getcwd()
 
 
-def get_prefix():
+def get_prefix(expect_failure=False):
     if args.valgrind:
-        return Valgrind.get_valgrind_command()
+        return Valgrind.get_valgrind_command(expect_failure)
     if args.valgrind_thread:
         return Valgrind.get_valgrind_thread_command()
 
@@ -60,11 +60,17 @@ def postfix_check(output):
                         print(output[debug_idx])
                 return False
 
+    if args.valgrind or args.valgrind_thread:
+        for line in output:
+            match = re.search(r"ERROR SUMMARY:\s*(\d+) errors", line)
+            if match and int(match.group(1)) > 0:
+                return False
+
     return True
 
 
-def Stockfish(*args, **kwargs):
-    return Engine(get_prefix(), get_path(), *args, **kwargs)
+def Stockfish(*args, expect_failure=False, **kwargs):
+    return Engine(get_prefix(expect_failure), get_path(), *args, expect_failure=expect_failure, **kwargs)
 
 
 class TestCLI(metaclass=OrderedClassMembers):
