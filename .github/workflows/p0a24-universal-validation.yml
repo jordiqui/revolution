@@ -1,0 +1,198 @@
+name: P0A24 Universal validation only
+on:
+  pull_request:
+    branches: [validation/p0a24-harness-base]
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+jobs:
+  universal:
+    if: github.head_ref == 'validation/p0a24-harness-only'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 1e09b4eb3be6d118a1d9ff7aae60560cb2d4728d
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact candidate tree and download authentic NNUE
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^{tree})" = 5bd3699f01bcc9f6e4f58f0a4181a7fb5f4c7a50
+          git rev-parse HEAD
+          git diff --check HEAD^ HEAD
+          if git grep -nE 'HalfKAv2_hm|half_ka_v2_hm|read_leb_128|write_leb_128|Leb128MagicString' -- src; then exit 1; fi
+          if git grep -nE 'MoveList<LEGAL>|generate<LEGAL>|NON_EVASIONS|pseudo_legal\(|attackers_to_exist\(|set_check_info\(|\bRayPassBB\b' -- src ':!src/sparsehash'; then exit 1; fi
+          cd src
+          net=nn-c9e480e92425.nnue
+          if ! curl -fL --retry 2 --max-time 300 "https://tests.stockfishchess.org/api/nn/$net" -o "$net"; then
+            curl -fL --retry 2 --max-time 300 "https://media.githubusercontent.com/media/official-stockfish/networks/master/$net" -o "$net"
+          fi
+          test "$(stat -c %s "$net")" = 113178980
+          echo "c9e480e92425f887df6ab9b05c6180fbd762b07879df9d9845f1aa75440caa73  $net" | sha256sum -c -
+      - name: Build Universal with Clang and LLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y clang-21 lld-21 llvm-21
+          export PATH="/usr/lib/llvm-21/bin:$PATH"
+          c=/usr/lib/llvm-21/bin/clang++
+          "$c" --version
+          ld.lld --version
+          llvm-objcopy --version
+          mkdir -p /tmp/embed-probe
+          printf '\000\177\200\372\377' > /tmp/embed-probe/bytes.bin
+          cat > /tmp/embed-probe/probe.cpp <<'CPP'
+          constexpr unsigned char bytes[] = {
+          #embed "bytes.bin"
+          };
+          static_assert(sizeof(bytes) == 5 && bytes[0] == 0 && bytes[1] == 127 && bytes[2] == 128 && bytes[3] == 250 && bytes[4] == 255);
+          int main() {}
+          CPP
+          "$c" -std=c++20 -Wno-c++26-extensions -Wno-c23-extensions -Werror --embed-dir=/tmp/embed-probe /tmp/embed-probe/probe.cpp -fuse-ld=lld -o /tmp/embed-probe/probe
+          /tmp/embed-probe/probe
+          echo 'EMBED_PROBE=PASS'
+          make -C src clean
+          make -C src -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee build-universal.log
+          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' build-universal.log; then exit 1; fi
+          test -x src/Revolution-6.40-150926-x86-64-universal
+          echo 'UNIVERSAL_BUILD_STATUS=0 WARNINGS=0 ERRORS=0'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          nnue=Path('src/nn-c9e480e92425.nnue').read_bytes()
+          exe=Path('src/Revolution-6.40-150926-x86-64-universal').read_bytes()
+          assert hashlib.sha256(nnue).hexdigest()=='c9e480e92425f887df6ab9b05c6180fbd762b07879df9d9845f1aa75440caa73'
+          assert len(nnue)==113178980
+          offset=exe.find(nnue)
+          assert offset>=0,'Authentic NNUE bytes not found inside executable'
+          print('EMBEDDED_NNUE_SHA256=PASS OFFSET='+str(offset))
+          PY
+          mv src/nn-c9e480e92425.nnue "$RUNNER_TEMP/nn-c9e480e92425.nnue"
+
+      - name: UCI bench perft and legal search
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          python3 -u - <<'PY' | tee ../runtime-validation.log
+          import subprocess, threading, queue, re, time
+          bin='./Revolution-6.40-150926-x86-64-universal'
+          p=subprocess.Popen([bin],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+          q=queue.Queue()
+          def reader():
+              for l in p.stdout: q.put(l.strip())
+              q.put(None)
+          threading.Thread(target=reader,daemon=True).start()
+          def send(s):
+              p.stdin.write(s+'\n'); p.stdin.flush()
+          def wait(pattern,timeout=120):
+              end=time.monotonic()+timeout; lines=[]
+              while time.monotonic()<end:
+                  l=q.get(timeout=max(0.1,end-time.monotonic()))
+                  if l is None: raise RuntimeError('unexpected EOF')
+                  print(l,flush=True); lines.append(l)
+                  if re.search(pattern,l): return lines
+              raise RuntimeError('timeout')
+          try:
+              send('uci'); lines=wait(r'^uciok$')
+              for opt in ['Experience Enabled','Experience File','Experience Book','CTG/BIN Book 1 File','EvalFile','SyzygyPath']:
+                  assert any('option name '+opt+' type' in l for l in lines),opt
+              send('setoption name Threads value 1')
+              send('setoption name Hash value 64')
+              send('setoption name Experience Enabled value false')
+              send('isready');wait(r'^readyok$')
+              send('position startpos');send('go perft 4')
+              assert wait(r'Nodes searched:')[ -1].split()[-1]=='197281'
+              send('position fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1')
+              send('go perft 4')
+              assert wait(r'Nodes searched:')[-1].split()[-1]=='4085603'
+              def perft(fen, depth):
+                  send('position '+fen)
+                  send('go perft '+str(depth))
+                  lines=wait(r'Nodes searched:',timeout=240)
+                  return int(lines[-1].split()[-1]), {l.split(':')[0] for l in lines if re.match(r'^[a-h][1-8][a-h][1-8][qrbn]?:',l)}
+              for fen,depth,n in [
+                  ('startpos',5,4865609),
+                  ('fen 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1',5,674624),
+                  ('fen r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1',4,422333),
+                  ('fen rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8',4,2103487),
+                  ('fen r7/4p3/5p1q/3P4/4pQ2/4pP2/6pp/R3K1kr w Q - 1 3',5,11609488)
+              ]:
+                  assert perft(fen,depth)[0]==n,(fen,depth,n)
+              for fen,move,legal in [
+                  ('fen 8/8/8/r4pPK/8/8/8/4k3 w - f6 0 1','g5f6',False),
+                  ('fen 4k3/8/8/5pP1/8/8/8/4K3 w - f6 0 1','g5f6',True),
+                  ('fen k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1','e5d6',False),
+                  ('fen 4k3/8/8/3pP3/4K3/8/8/8 w - d6 0 1','e5d6',True)
+              ]:
+                  assert (move in perft(fen,1)[1])==legal,(fen,move,legal)
+              _,promos=perft('fen 4k3/P7/8/8/8/8/7p/4K3 w - - 0 1',1)
+              assert {'a7a8q','a7a8r','a7a8b','a7a8n'} <= promos
+              _,double=perft('fen k3r3/8/8/8/1b6/8/8/4K2R w - - 0 1',1)
+              assert double and all(m.startswith('e1') for m in double)
+              send('setoption name UCI_Chess960 value true');send('isready');wait(r'^readyok$')
+              for fen,depth,n in [
+                  ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2R2R b E - 1 20',2,1438),
+                  ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 w E - 0 20',3,37340),
+                  ('fen rr6/2kpp3/1ppnb1p1/p2Q1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 b E - 2 19',4,2237725),
+                  ('fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19',4,2098209)
+              ]:
+                  assert perft(fen,depth)[0]==n,(fen,depth,n)
+              send('setoption name UCI_Chess960 value false');send('isready');wait(r'^readyok$')
+              print('EXTENDED_PERFT=PASS EP=PASS PROMOTIONS=PASS DOUBLE_CHECK=PASS CHESS960=PASS')
+              send('position fen 7k/5Q2/6K1/8/8/8/8/8 w - - 0 1');send('go depth 6')
+              assert any('score mate 1 ' in l for l in wait(r'^bestmove ')), 'mate in one not found'
+              print('MATE_IN_ONE=PASS')
+              # Exercise transitions in opponent queen presence, including promotions.
+              for fen in [
+                  '4k3/8/8/4q3/4R3/8/8/4K3 w - - 0 1',
+                  '4k3/P7/8/8/8/8/7p/4K3 w - - 0 1',
+                  '4k3/8/8/3q4/8/2Q5/8/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1',
+                  '4k3/8/8/8/8/8/8/4K3 w - - 0 1'
+              ]:
+                  _, legal = perft('fen '+fen, 1)
+                  send('position fen '+fen)
+                  send('go depth 8')
+                  out=wait(r'^bestmove ')
+                  assert out[-1].split()[1] in legal,(fen,out[-1],legal)
+              # Force a queen capture and both colours' queen promotions in actual search.
+              for fen,m in [
+                  ('4k3/8/8/4q3/4R3/8/8/4K3 w - - 0 1','e4e5'),
+                  ('4k3/P7/8/8/8/8/7p/4K3 w - - 0 1','a7a8q'),
+                  ('4k3/P7/8/8/8/8/7p/4K3 b - - 0 1','h2h1q')
+              ]:
+                  send('position fen '+fen)
+                  send('go depth 8 searchmoves '+m)
+                  assert wait(r'^bestmove ')[-1].split()[1]==m,(fen,m)
+              print('SFNNV18_QUEEN_TRANSITIONS=PASS')
+              send('position startpos');send('go depth 8')
+              move=wait(r'^bestmove ')[-1].split()[1]
+              assert move in {f+str(2)+f+str(r) for f in 'abcdefgh' for r in (3,4)} | {'b1a3','b1c3','g1f3','g1h3'},move
+              for opening in ['e2e4','d2d4','g1f3','c2c4']:
+                  send('position startpos moves '+opening);send('go depth 6')
+                  reply=wait(r'^bestmove ')[-1].split()[1]
+                  assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
+              send('setoption name MultiPV value 3')
+              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
+              send('quit');assert p.wait(timeout=20)==0
+          finally:
+              if p.poll() is None: p.kill()
+          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+          print(result.stdout)
+          assert result.returncode==0 and 'Nodes searched' in result.stdout
+          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: p0a24-universal-validation-logs
+          path: |
+            build-universal.log
+            runtime-validation.log
