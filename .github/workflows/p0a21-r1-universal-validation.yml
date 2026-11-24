@@ -1,17 +1,17 @@
-name: P0A21 Universal validation only
+name: P0A21 R2 Universal validation only
 on:
   pull_request:
-    branches: [validation/revolution-p0a21-base]
+    branches: [validation/revolution-p0a21-r1-base]
     types: [opened, synchronize, reopened]
 permissions:
   contents: read
 jobs:
   universal:
-    if: github.head_ref == 'validation/revolution-p0a21-universal'
+    if: github.head_ref == 'validation/revolution-p0a21-r1-universal'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -20,7 +20,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git checkout --detach HEAD^
+          git checkout --detach a63c41c67be62504d5b80bc046ef4770dda1db07
           test "$(git rev-parse HEAD^{tree})" = 38a421779a22d767476b5c28454092ef90a617d5
           git rev-parse HEAD
           cd src
@@ -34,13 +34,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for c in clang++-22 clang++-21 clang++-20 clang++-19 clang++; do
-            if command -v "$c" >/dev/null; then break; fi
-          done
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y clang-21 lld-21 llvm-21
+          export PATH="/usr/lib/llvm-21/bin:$PATH"
+          c=/usr/lib/llvm-21/bin/clang++
           "$c" --version
           ld.lld --version
+          llvm-objcopy --version
+          mkdir -p /tmp/embed-probe
+          printf '\000\177\200\372\377' > /tmp/embed-probe/bytes.bin
+          cat > /tmp/embed-probe/probe.cpp <<'CPP'
+          constexpr unsigned char bytes[] = {
+          #embed "bytes.bin"
+          };
+          static_assert(sizeof(bytes) == 5 && bytes[0] == 0 && bytes[1] == 127 && bytes[2] == 128 && bytes[3] == 250 && bytes[4] == 255);
+          int main() {}
+          CPP
+          "$c" -std=c++20 -Wno-c++26-extensions -Wno-c23-extensions -Werror --embed-dir=/tmp/embed-probe /tmp/embed-probe/probe.cpp -fuse-ld=lld -o /tmp/embed-probe/probe
+          /tmp/embed-probe/probe
+          echo 'EMBED_PROBE=PASS'
           make -C src clean
-          make -C src -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee build-universal.log
+          make -C src -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee build-universal.log
           if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' build-universal.log; then exit 1; fi
           test -x src/Revolution-6.40-150926-x86-64-universal
           echo 'UNIVERSAL_BUILD_STATUS=0 WARNINGS=0 ERRORS=0'
@@ -84,6 +100,10 @@ jobs:
               send('position startpos');send('go depth 8')
               move=wait(r'^bestmove ')[-1].split()[1]
               assert move in {f+str(2)+f+str(r) for f in 'abcdefgh' for r in (3,4)} | {'b1a3','b1c3','g1f3','g1h3'},move
+              for opening in ['e2e4','d2d4','g1f3','c2c4']:
+                  send('position startpos moves '+opening);send('go depth 6')
+                  reply=wait(r'^bestmove ')[-1].split()[1]
+                  assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
               send('setoption name MultiPV value 3')
               send('position startpos');send('go depth 6');wait(r'^bestmove ')
               send('quit');assert p.wait(timeout=20)==0
@@ -94,7 +114,7 @@ jobs:
           assert result.returncode==0 and 'Nodes searched' in result.stdout
           print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: p0a21-universal-validation-logs
