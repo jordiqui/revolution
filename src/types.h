@@ -82,17 +82,13 @@
         #endif
     #endif
 
-    #if defined(_WIN64) && defined(_MSC_VER)  // No Makefile used
-        #include <intrin.h>                   // Microsoft header for _BitScanForward64()
-        #define IS_64BIT
-    #endif
-
     #if defined(_MSC_VER)
-        #include <nmmintrin.h>  // Microsoft header for _mm_popcnt_u64()
-    #endif
+        #if defined(_WIN64)      // No Makefile used
+            #include <intrin.h>  // Microsoft header for _BitScanForward64()
+            #define IS_64BIT
+        #endif
 
-    #if !defined(NO_PREFETCH) && defined(_MSC_VER)
-        #include <xmmintrin.h>  // Microsoft header for _mm_prefetch()
+        #include <nmmintrin.h>  // Microsoft header for _mm_popcnt_u64()
     #endif
 
     #if defined(USE_PEXT)
@@ -309,6 +305,8 @@ enum Square : u8 {
 };
 // clang-format on
 
+static_assert(std::is_unsigned_v<std::underlying_type_t<Square>>);
+
 enum Direction : i8 {
     NORTH = 8,
     EAST  = 1,
@@ -369,10 +367,9 @@ struct DirtyThreat {
     DirtyThreat() { /* don't initialize data */ }
     DirtyThreat(u32 raw) :
         data(raw) {}
-    DirtyThreat(Piece pc, Piece threatened_pc, Square pc_sq, Square threatened_sq, bool add) {
-        data = (u32(add) << 31) | (pc << PcOffset) | (threatened_pc << ThreatenedPcOffset)
-             | (threatened_sq << ThreatenedSqOffset) | (pc_sq << PcSqOffset);
-    }
+    DirtyThreat(Piece pc, Piece threatened_pc, Square pc_sq, Square threatened_sq, bool add) :
+        data((u32(add) << 31) | (pc << PcOffset) | (threatened_pc << ThreatenedPcOffset)
+             | (threatened_sq << ThreatenedSqOffset) | (pc_sq << PcSqOffset)) {}
 
     Piece  pc() const { return static_cast<Piece>(data >> PcOffset & 0xf); }
     Piece  threatened_pc() const { return static_cast<Piece>(data >> ThreatenedPcOffset & 0xf); }
@@ -456,7 +453,7 @@ constexpr Color color_of(Piece pc) {
     return Color(pc >> 3);
 }
 
-constexpr bool is_ok(Square s) { return s >= SQ_A1 && s <= SQ_H8; }
+constexpr bool is_ok(Square s) { return s <= SQ_H8; }
 
 constexpr File file_of(Square s) { return File(s & 7); }
 
