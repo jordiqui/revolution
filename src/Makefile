@@ -1199,7 +1199,7 @@ MODNAME := $(subst -,_,$(notdir $(CURDIR)))
 universal-object-pgo: objclean profileclean universalclean
 	@echo ""
 	@echo "Step 1/4. Building instrumented executable ..."
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) ENV_LDFLAGS='$(ENV_LDFLAGS) $(NNUE_EMBED_OBJ)' $(profile_make)
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) ENV_LDFLAGS='$(ENV_LDFLAGS) $(UNIVERSAL_MAIN_LDFLAG) $(NNUE_EMBED_OBJ)' $(profile_make)
 	@echo ""
 	@echo "Step 2/4. Running benchmark for pgo-build ..."
 	$(PGOBENCH) > PGOBENCH.out 2>&1
@@ -1207,7 +1207,7 @@ universal-object-pgo: objclean profileclean universalclean
 	@echo ""
 	@echo "Step 3/4. Building optimized object files ..."
 	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) objclean
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) ENV_LDFLAGS='$(SAVE_TEMPS) $(NNUE_EMBED_OBJ)' $(profile_use)
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) ENV_LDFLAGS='$(SAVE_TEMPS) $(UNIVERSAL_MAIN_LDFLAG) $(NNUE_EMBED_OBJ)' $(profile_use)
 	@echo ""
 ifeq ($(use_lto_emit_asm),yes)
 	@echo "Step 4/4. Renaming ctors and extracting LTO-optimized relocatable object ..."
@@ -1221,7 +1221,7 @@ else
 endif
 
 universal-object-nopgo: objclean universalclean
-	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) ENV_LDFLAGS='$(SAVE_TEMPS) $(NNUE_EMBED_OBJ)' all
+	$(MAKE) ARCH=$(ARCH) COMP=$(COMP) ENV_LDFLAGS='$(SAVE_TEMPS) $(UNIVERSAL_MAIN_LDFLAG) $(NNUE_EMBED_OBJ)' all
 ifeq ($(use_lto_emit_asm),yes)
 	awk -v MODNAME=$(MODNAME) -f ../../universal/rewrite_asm_sections.awk *.lto.s > renamed.s
 	$(CXX) -c renamed.s -o stockfish.o $(ASM_FLAGS)
@@ -1479,12 +1479,15 @@ arch-mac-section = _i_$(subst -,_,$(patsubst x86-64,,$(patsubst x86-64-%,%,$(1))
 
 ifeq ($(TARGET_KERNEL),Darwin)
   arch-defmain = -Wl,-alias,_$(call arch-mangled,$(1)),_main
+  arch-main-ldflags = $(call arch-defmain,$(1))
 # lld-link, used on Windows+clang, doesn't accept --defsym, so
 # we define main directly in main.cpp instead and delete it later.
 else ifeq ($(target_windows)+$(COMP),yes+clang)
   arch-defmain = -DUNIVERSAL_NEEDS_MAIN_SHIM
+  arch-main-cxxflags = $(call arch-defmain,$(1))
 else
   arch-defmain = -Wl,--defsym=main=$(call arch-mangled,$(1))
+  arch-main-ldflags = $(call arch-defmain,$(1))
 endif
 
 EMBED_DIR_SUPPORTED := $(shell echo 'int main(){}' | $(CXX) -x c++ --embed-dir=. -o /dev/null -c - 2>/dev/null && echo 1 || echo 0)
@@ -1500,7 +1503,7 @@ ifeq ($(MACOS_X86_SLICE),1)
 endif
 
 arch-cxxflags   = $(EMBED_DIR) -DStockfish=$(call arch-namespace,$(1)) -DUNIVERSAL_BINARY $(SLICE_DEF) \
-                  $(call arch-defmain,$(1)) -Wno-c++26-extensions -Wno-c23-extensions
+                  $(call arch-main-cxxflags,$(1)) -Wno-c++26-extensions -Wno-c23-extensions
 
 UOBJ_TGT ?= universal-object-pgo
 ifeq ($(COMP),clang)
@@ -1543,6 +1546,7 @@ $(TEMP_DIR)/%/stockfish.o: $(TEMP_DIR)/%/.setup $(NNUE_EMBED_OBJ) $(NET_SENTINEL
 	+ENV_CXXFLAGS='$(ENV_CXXFLAGS) $(call arch-cxxflags,$*)' \
 	    $(MAKE) -C $(TEMP_DIR)/$* $(UOBJ_TGT) \
 	        ARCH=$* CXX=$(CXX) COMP=$(COMP) UNIVERSAL_SLICE=true \
+	        UNIVERSAL_MAIN_LDFLAG='$(call arch-main-ldflags,$*)' \
 	        NNUE_EMBED_OBJ=$(NNUE_EMBED_OBJ)
 ifeq ($(TARGET_KERNEL),Darwin)
 # Rename the initializer section
