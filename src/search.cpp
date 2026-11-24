@@ -69,6 +69,14 @@ namespace {
 constexpr int SEARCHEDLIST_CAPACITY = 32;
 using SearchedList                  = ValueList<Move, SEARCHEDLIST_CAPACITY>;
 
+// Reductions lookup table indexed by depth or move number.
+const std::array<int, MAX_MOVES> reductions = [] {
+    std::array<int, MAX_MOVES> table{};
+    for (usize i = 1; i < table.size(); ++i)
+        table[i] = int(2872 / 128.0 * std::log(i));
+    return table;
+}();
+
 // (*Scalers):
 // The values with Scaler asterisks have proven non-linear scaling.
 // They are optimized to time controls of 180 + 1.8 and longer,
@@ -392,7 +400,6 @@ void Search::Worker::iterative_deepening() {
                 // effective increment for every four searchAgain steps (see issue #2717).
                 Depth adjustedDepth = std::max(1, rootDepth - failedHighCnt - failHighRecovery
                                                     - 3 * (searchAgainCounter + 1) / 4);
-                rootDelta           = beta - alpha;
                 bestValue           = search<Root>(rootPos, ss, alpha, beta, adjustedDepth, false);
 
                 // Bring the best move to the front. It is critical that sorting
@@ -706,9 +713,6 @@ void Search::Worker::clear() {
                     for (auto& h : to)
                         h.fill(-586);
 
-    for (usize i = 1; i < reductions.size(); ++i)
-        reductions[i] = int(2872 / 128.0 * std::log(i));
-
     refreshTable.clear_big(big_network());
 }
 
@@ -907,13 +911,12 @@ Value Search::Worker::search(
                     return ttData.value;
             }
         }
-        // Case B: No cutoff, but depth was sufficient. Compare the aspiration window to the bound.
-        else if (ttData.bound != BOUND_EXACT
-                 && (ttData.bound & (ttData.value >= beta ? BOUND_UPPER : BOUND_LOWER))
-                 && depth > 5)
+        // Case B: No cutoff, but depth was sufficient, so the bound points the wrong way.
+        else if (depth > 5)
         {
-            // If a window-bound mismatch is the only reason cutoff failed, penalize
-            // the now-useless TT entry
+            assert(!(ttData.bound & (ttData.value >= beta ? BOUND_LOWER : BOUND_UPPER)));
+
+            // If such a mismatch is the only reason cutoff failed, the TT entry is now useless
             ttWriter.penalize(1);
         }
     }
@@ -1144,10 +1147,8 @@ moves_loop:  // When in check, search starts here
         ss->moveCount = ++moveCount;
 
         if (rootNode && is_mainthread() && nodes > 10000000)
-        {
             main_manager()->updates.onIter(
               {depth, UCIEngine::move(move, pos.is_chess960()), moveCount + pvIdx});
-        }
         if (PvNode)
             (ss + 1)->pv = nullptr;
 
@@ -1159,9 +1160,11 @@ moves_loop:  // When in check, search starts here
         // Calculate new depth for this move
         newDepth = depth - 1;
 
-        int delta = beta - alpha;
+        int r = reduction(improving, depth, moveCount);
 
-        Depth r = reduction(improving, depth, moveCount, delta);
+        // Decrease reduction for PvNodes
+        if (PvNode)
+            r -= 512;
 
         // Increase reduction for ttPv nodes
         // (*Scaler) Larger values scale well.
@@ -1603,8 +1606,10 @@ moves_loop:  // When in check, search starts here
     }
 
     // Bonus for prior capture countermove that caused the fail low
-    else if (priorCapture && prevSq != SQ_NONE)
+    else if (prevSq != SQ_NONE)
     {
+        assert(priorCapture);
+
         Piece capturedPiece = pos.captured_piece();
         assert(capturedPiece != NO_PIECE);
         captureHistory[pos.piece_on(prevSq)][prevSq][type_of(capturedPiece)] << 892;
@@ -1746,8 +1751,8 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
         // Stand pat. Return immediately if static value is at least beta
         if (bestValue >= beta)
         {
-            if (!is_decisive(bestValue))
-                bestValue = (441 * bestValue + 583 * beta) / 1024;
+            assert(!is_decisive(bestValue));
+            bestValue = (441 * bestValue + 583 * beta) / 1024;
 
             if (!ss->ttHit)
                 ttWriter.write(posKey, value_to_tt(bestValue, ss->ply), false, BOUND_LOWER,
@@ -1885,9 +1890,9 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     return bestValue;
 }
 
-Depth Search::Worker::reduction(bool i, Depth d, int mn, int delta) const {
+int Search::Worker::reduction(bool i, Depth d, int mn) const {
     int reductionScale = reductions[d] * reductions[mn];
-    return reductionScale - delta * 577 / rootDelta + !i * reductionScale * 197 / 512 + 982;
+    return reductionScale + !i * reductionScale * 197 / 512 + 948;
 }
 
 // elapsed() returns the time elapsed since the search started. If the
@@ -2036,11 +2041,11 @@ void update_all_stats(const Position& pos,
 // Updates histories of the move pairs formed by moves
 // at ply -1, -2, -3, -4, and -6 with current move.
 void update_continuation_histories(Stack* ss, Piece pc, Square to, int bonus) {
-    static constexpr std::array<ConthistBonus, 6> conthist_bonuses = {
-      {{1, 520}, {2, 390}, {3, 145}, {4, 251}, {5, 66}, {6, 209}}};
+    static constexpr std::array<ConthistBonus, 5> conthist_bonuses = {
+      {{1, 520}, {2, 390}, {3, 145}, {4, 251}, {6, 209}}};
 
     // Multipliers for positive history consistency
-    constexpr int CMHCMultipliers[] = {94, 103, 110, 106, 119, 126, 121};
+    constexpr int CMHCMultipliers[] = {94, 103, 110, 106, 119, 126};
     int           positiveCount     = 0;
 
     for (const auto [i, weight] : conthist_bonuses)
