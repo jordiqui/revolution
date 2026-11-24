@@ -601,7 +601,7 @@ void Search::Worker::iterative_deepening() {
             // Cap used time in case of a single legal move for a better viewer experience
             if (rootMoves.size() == 1)
                 // Cap used time to 0.5s for a better viewer experience
-                totalTime = std::min(500.0, totalTime);
+                totalTime = std::min(500.0 * std::max(limits.npmsec, TimePoint(1)), totalTime);
 
             auto elapsedTime = elapsed();
 
@@ -663,7 +663,7 @@ void Search::Worker::do_move(
     ++nodes;
 
     Dirties& dirties = accumulatorStack.push();
-    pos.do_move(move, st, givesCheck, dirties, &tt, &sharedHistory);
+    pos.do_move(move, st, givesCheck, dirties, &sharedHistory);
 
     if (ss != nullptr)
     {
@@ -2385,7 +2385,7 @@ bool RootMove::extract_ponder_from_tt(const TranspositionTable& tt, Position& po
     if (pv[0] == Move::none())
         return false;
 
-    pos.do_move(pv[0], st, &tt);
+    pos.do_move(pv[0], st);
 
     auto [ttHit, ttData, ttWriter] = tt.probe(pos.key());
     if (ttHit)
