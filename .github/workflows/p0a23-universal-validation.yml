@@ -135,31 +135,7 @@ jobs:
               assert {'a7a8q','a7a8r','a7a8b','a7a8n'} <= promos
               _,double=perft('fen k3r3/8/8/8/1b6/8/8/4K2R w - - 0 1',1)
               assert double and all(m.startswith('e1') for m in double)
-              send('setoption name UCI_Chess960 value true');send('isready');wait(r'^readyok
-              move=wait(r'^bestmove ')[-1].split()[1]
-              assert move in {f+str(2)+f+str(r) for f in 'abcdefgh' for r in (3,4)} | {'b1a3','b1c3','g1f3','g1h3'},move
-              for opening in ['e2e4','d2d4','g1f3','c2c4']:
-                  send('position startpos moves '+opening);send('go depth 6')
-                  reply=wait(r'^bestmove ')[-1].split()[1]
-                  assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
-              send('setoption name MultiPV value 3')
-              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
-              send('quit');assert p.wait(timeout=20)==0
-          finally:
-              if p.poll() is None: p.kill()
-          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
-          print(result.stdout)
-          assert result.returncode==0 and 'Nodes searched' in result.stdout
-          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
-          PY
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: p0a23-universal-validation-logs
-          path: |
-            build-universal.log
-            runtime-validation.log
-)
+              send('setoption name UCI_Chess960 value true');send('isready');wait(r'^readyok$')
               for fen,depth,n in [
                   ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2R2R b E - 1 20',2,1438),
                   ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 w E - 0 20',3,37340),
@@ -167,31 +143,7 @@ jobs:
                   ('fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19',4,2098209)
               ]:
                   assert perft(fen,depth)[0]==n,(fen,depth,n)
-              send('setoption name UCI_Chess960 value false');send('isready');wait(r'^readyok
-              move=wait(r'^bestmove ')[-1].split()[1]
-              assert move in {f+str(2)+f+str(r) for f in 'abcdefgh' for r in (3,4)} | {'b1a3','b1c3','g1f3','g1h3'},move
-              for opening in ['e2e4','d2d4','g1f3','c2c4']:
-                  send('position startpos moves '+opening);send('go depth 6')
-                  reply=wait(r'^bestmove ')[-1].split()[1]
-                  assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
-              send('setoption name MultiPV value 3')
-              send('position startpos');send('go depth 6');wait(r'^bestmove ')
-              send('quit');assert p.wait(timeout=20)==0
-          finally:
-              if p.poll() is None: p.kill()
-          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
-          print(result.stdout)
-          assert result.returncode==0 and 'Nodes searched' in result.stdout
-          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
-          PY
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: p0a23-universal-validation-logs
-          path: |
-            build-universal.log
-            runtime-validation.log
-)
+              send('setoption name UCI_Chess960 value false');send('isready');wait(r'^readyok$')
               print('EXTENDED_PERFT=PASS EP=PASS PROMOTIONS=PASS DOUBLE_CHECK=PASS CHESS960=PASS')
               send('position fen 7k/5Q2/6K1/8/8/8/8/8 w - - 0 1');send('go depth 6')
               assert any('score mate 1 ' in l for l in wait(r'^bestmove ')), 'mate in one not found'
@@ -204,7 +156,7 @@ jobs:
                   reply=wait(r'^bestmove ')[-1].split()[1]
                   assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
               send('setoption name MultiPV value 3')
-              send('position startpos');send('go depth 6');wait(r'^bestmove ')
+              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
               send('quit');assert p.wait(timeout=20)==0
           finally:
               if p.poll() is None: p.kill()
