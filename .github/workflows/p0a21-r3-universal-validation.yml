@@ -1,13 +1,13 @@
-name: P0A21 R2 Universal validation only
+name: P0A21 R3 Universal validation only
 on:
   pull_request:
-    branches: [validation/revolution-p0a21-r1-base]
+    branches: [validation/revolution-p0a21-r3-base]
     types: [opened, synchronize, reopened]
 permissions:
   contents: read
 jobs:
   universal:
-    if: github.head_ref == 'validation/revolution-p0a21-r1-universal'
+    if: github.head_ref == 'validation/revolution-p0a21-r3-universal'
     runs-on: ubuntu-24.04
     timeout-minutes: 50
     steps:
@@ -20,8 +20,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          git checkout --detach a63c41c67be62504d5b80bc046ef4770dda1db07
-          test "$(git rev-parse HEAD^{tree})" = 38a421779a22d767476b5c28454092ef90a617d5
+          git checkout --detach 78e05667b7e08ef6e525412245dcef039aed4b20
+          test "$(git rev-parse HEAD^{tree})" = 80c5fc61d51fcbb0d3ac39b76e7c15d2944dbef7
           git rev-parse HEAD
           cd src
           net=nn-252f33942263.nnue
@@ -60,6 +60,19 @@ jobs:
           if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' build-universal.log; then exit 1; fi
           test -x src/Revolution-6.40-150926-x86-64-universal
           echo 'UNIVERSAL_BUILD_STATUS=0 WARNINGS=0 ERRORS=0'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          nnue=Path('src/nn-252f33942263.nnue').read_bytes()
+          exe=Path('src/Revolution-6.40-150926-x86-64-universal').read_bytes()
+          assert hashlib.sha256(nnue).hexdigest()=='252f33942263bc8b8f740ba8aec3fed5a159ff148113c47a55c18c33d6627ab3'
+          assert len(nnue)==98668604
+          offset=exe.find(nnue)
+          assert offset>=0,'Authentic NNUE bytes not found inside executable'
+          print('EMBEDDED_NNUE_SHA256=PASS OFFSET='+str(offset))
+          PY
+          mv src/nn-252f33942263.nnue "$RUNNER_TEMP/nn-252f33942263.nnue"
+
       - name: UCI bench perft and legal search
         shell: bash
         run: |
