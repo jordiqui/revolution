@@ -45,7 +45,6 @@ struct EvalFile {
 struct NnueEvalTrace {
     Value positional[LayerStacks];
     usize correctBucket;
-    usize layerStacks;
 };
 
 template<typename Arch, typename Transformer>
