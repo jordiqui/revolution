@@ -55,10 +55,10 @@ static Value scale_evaluation(Value nnue, int optimism, const Position& pos) {
     Value se = Eval::simple_eval(pos);
     int se_norm   = (se * 1024) / (std::abs(se) + 1024);
     int nnue_norm = (nnue * 1024) / (std::abs(nnue) + 1024);
-    int alignment = (se_norm * nnue_norm) / 512;
-    int base_eval = nnue + (nnue * alignment) / 65536 + (optimism * alignment) / 16384;
+    int correl    = (se_norm * nnue_norm) / 512;
+    int v = nnue + (nnue * correl) / 65536 + (optimism * correl) / 16384;
     int material = 521 * pos.count<PAWN>() + pos.non_pawn_material();
-    int v        = base_eval * i64(90649 + material) / 90649;
+    v += i64(material) * v / 90649;
     v -= v * pos.rule50_count() / 189;
     return std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
 }

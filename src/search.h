@@ -391,6 +391,7 @@ class Worker {
     StateInfo rootState;
     RootMoves rootMoves;
     Depth     rootDepth, completedDepth;
+    bool      seekMate = false;
 
     usize                    threadIdx, numaThreadIdx, numaTotal;
     NumaReplicatedAccessToken numaAccessToken;

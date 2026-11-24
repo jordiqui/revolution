@@ -318,8 +318,8 @@ void Position::set_castling_right(Color c, Square rfrom) {
 }
 
 
-// Sets king attacks to detect if a move gives check
-void Position::set_check_info() const {
+// Sets pinners, where stm can give check and squares threatened by ~stm
+void Position::set_extra_bitboards() const {
 
     update_slider_blockers(WHITE);
     update_slider_blockers(BLACK);
@@ -333,6 +333,14 @@ void Position::set_check_info() const {
     st->checkSquares[ROOK]   = rookAttacks;
     st->checkSquares[QUEEN]  = st->checkSquares[BISHOP] | st->checkSquares[ROOK];
     st->checkSquares[KING]   = 0;
+
+    Bitboard occ            = pieces() ^ square<KING>(sideToMove);
+    st->threats[ALL_PIECES] = st->threats[PAWN]    = xattacks_by(PAWN, ~sideToMove, occ);
+    st->threats[ALL_PIECES] |= st->threats[KNIGHT] = xattacks_by(KNIGHT, ~sideToMove, occ);
+    st->threats[ALL_PIECES] |= st->threats[BISHOP] = xattacks_by(BISHOP, ~sideToMove, occ);
+    st->threats[ALL_PIECES] |= st->threats[ROOK]   = xattacks_by(ROOK, ~sideToMove, occ);
+    st->threats[ALL_PIECES] |= st->threats[QUEEN]  = xattacks_by(QUEEN, ~sideToMove, occ);
+    st->threats[ALL_PIECES] |= st->threats[KING]   = xattacks_by(KING, ~sideToMove, occ);
 }
 
 
@@ -348,7 +356,7 @@ void Position::set_state() const {
     st->nonPawnMaterial[WHITE] = st->nonPawnMaterial[BLACK] = VALUE_ZERO;
     st->checkersBB = attackers_to(square<KING>(sideToMove)) & pieces(~sideToMove);
 
-    set_check_info();
+    set_extra_bitboards();
 
     for (Bitboard b = pieces(); b;)
     {
@@ -505,77 +513,9 @@ Bitboard Position::attackers_to(Square s, Bitboard occupied) const {
          | (attacks_bb(KNIGHT, s) & pieces(KNIGHT)) | (attacks_bb(KING, s) & pieces(KING));
 }
 
-bool Position::attackers_to_exist(Square s, Bitboard occupied, Color c) const {
-
-    return (attacks_bb(ROOK, s, occupied) & pieces(c, ROOK, QUEEN))
-        || (attacks_bb(BISHOP, s, occupied) & pieces(c, BISHOP, QUEEN))
-        || (attacks_bb(PAWN, s, ~c) & pieces(c, PAWN))
-        || (attacks_bb(KNIGHT, s) & pieces(c, KNIGHT)) || (attacks_bb(KING, s) & pieces(c, KING));
-}
-
-// Tests whether a pseudo-legal move is legal
+// Takes a random move and tests whether the move is legal. It is used to validate moves
+// from TT that can be corrupted due to SMP concurrent access or hash position key aliasing.
 bool Position::legal(Move m) const {
-
-    assert(m.is_ok());
-
-    Color  us   = sideToMove;
-    Square from = m.from_sq();
-    Square to   = m.to_sq();
-
-    assert(color_of(moved_piece(m)) == us);
-    assert(piece_on(square<KING>(us)) == make_piece(us, KING));
-
-    // En passant captures are a tricky special case. Because they are rather
-    // uncommon, we do it simply by testing whether the king is attacked after
-    // the move is made.
-    if (m.type_of() == EN_PASSANT)
-    {
-        Square   ksq      = square<KING>(us);
-        Square   capsq    = to - pawn_push(us);
-        Bitboard occupied = (pieces() ^ from ^ capsq) | to;
-
-        assert(to == ep_square());
-        assert(moved_piece(m) == make_piece(us, PAWN));
-        assert(piece_on(capsq) == make_piece(~us, PAWN));
-        assert(piece_on(to) == NO_PIECE);
-
-        return !(attacks_bb(ROOK, ksq, occupied) & pieces(~us, QUEEN, ROOK))
-            && !(attacks_bb(BISHOP, ksq, occupied) & pieces(~us, QUEEN, BISHOP));
-    }
-
-    // Castling moves generation does not check if the castling path is clear of
-    // enemy attacks, it is delayed at a later time: now!
-    if (m.type_of() == CASTLING)
-    {
-        // After castling, the rook and king final positions are the same in
-        // Chess960 as they would be in standard chess.
-        to             = relative_square(us, to > from ? SQ_G1 : SQ_C1);
-        Direction step = to > from ? WEST : EAST;
-
-        for (Square s = to; s != from; s += step)
-            if (attackers_to_exist(s, pieces(), ~us))
-                return false;
-
-        // In case of Chess960, verify if the Rook blocks some checks.
-        // For instance an enemy queen in SQ_A1 when castling rook is in SQ_B1.
-        return !chess960 || !(blockers_for_king(us) & m.to_sq());
-    }
-
-    // If the moving piece is a king, check whether the destination square is
-    // attacked by the opponent.
-    if (type_of(piece_on(from)) == KING)
-        return !(attackers_to_exist(to, pieces() ^ from, ~us));
-
-    // A non-king move is legal if and only if it is not pinned or it
-    // is moving along the ray towards or away from the king.
-    return !(blockers_for_king(us) & from) || line_bb(from, to) & pieces(us, KING);
-}
-
-
-// Takes a random move and tests whether the move is
-// pseudo-legal. It is used to validate moves from TT that can be corrupted
-// due to SMP concurrent access or hash position key aliasing.
-bool Position::pseudo_legal(const Move m) const {
 
     Color  us   = sideToMove;
     Square from = m.from_sq();
@@ -583,10 +523,8 @@ bool Position::pseudo_legal(const Move m) const {
     Piece  pc   = moved_piece(m);
 
     // Use a slower but simpler function for uncommon cases
-    // yet we skip the legality check of MoveList<LEGAL>().
     if (m.type_of() != NORMAL)
-        return checkers() ? MoveList<EVASIONS>(*this).contains(m)
-                          : MoveList<NON_EVASIONS>(*this).contains(m);
+        return MoveList<ALL>(*this).contains(m);
 
     // Is not a promotion, so the promotion piece must be empty
     assert(m.promotion_type() - KNIGHT == NO_PIECE_TYPE);
@@ -620,22 +558,30 @@ bool Position::pseudo_legal(const Move m) const {
     else if (!(attacks_bb(type_of(pc), from, pieces()) & to))
         return false;
 
-    if (checkers() && type_of(pc) != KING)
+    if (type_of(pc) != KING)
     {
-        // In double check, only a king move can evade
-        if (more_than_one(checkers()))
-            return false;
+        if (checkers())
+        {
+            // In double check, only a king move can evade
+            if (more_than_one(checkers()))
+                return false;
 
-        // The move must block the check or capture the checker
-        if (!(between_bb(square<KING>(us), lsb(checkers())) & to))
-            return false;
+            // The move must block the check or capture the checker
+            if (!(between_bb(square<KING>(us), lsb(checkers())) & to))
+                return false;
+        }
+        // When not in check, a non-king move is legal if and only if it is not pinned
+        // or it is moving along the ray towards or away from the king.
+        return !(blockers_for_king(us) & from) || line_bb(from, to) & pieces(us, KING);
     }
-
-    return true;
+    else
+        // If the moving piece is a king, check whether the destination square is
+        // attacked by the opponent.
+        return !(to & threats_by(ALL_PIECES));
 }
 
 
-// Tests whether a pseudo-legal move gives a check
+// Tests whether a legal move gives a check
 bool Position::gives_check(Move m) const {
 
     assert(m.is_ok());
@@ -684,8 +630,7 @@ bool Position::gives_check(Move m) const {
 
 
 // Makes a move, and saves all information necessary
-// to a StateInfo object. The move is assumed to be legal. Pseudo-legal
-// moves should be filtered out before this function is called.
+// to a StateInfo object. The move is assumed to be legal.
 // If a pointer to the TT table is passed, the entry for the new position
 // will be prefetched, and likewise for shared history.
 void Position::do_move(Move                      m,
@@ -905,7 +850,7 @@ void Position::do_move(Move                      m,
     sideToMove = ~sideToMove;
 
     // Update king attacks used for fast check detection
-    set_check_info();
+    set_extra_bitboards();
 
     // Accurate e.p. info is needed for correct zobrist key generation and 3-fold checking
     while (checkEP)
@@ -1286,7 +1231,7 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
 
     sideToMove = ~sideToMove;
 
-    set_check_info();
+    set_extra_bitboards();
 
     st->repetition = 0;
 
@@ -1416,7 +1361,7 @@ bool Position::see_ge(Move m, int threshold) const {
 // or by repetition. It does not detect stalemates.
 bool Position::is_draw(int ply) const {
 
-    if (st->rule50 > 99 && (!checkers() || MoveList<LEGAL>(*this).size()))
+    if (st->rule50 > 99 && (!checkers() || MoveList<ALL>(*this).size()))
         return true;
 
     return is_repetition(ply);
@@ -1545,7 +1490,7 @@ bool Position::pos_is_ok() const {
         return true;
 
     if (pieceCount[W_KING] != 1 || pieceCount[B_KING] != 1
-        || attackers_to_exist(square<KING>(~sideToMove), pieces(), sideToMove))
+        || (attackers_to(square<KING>(~sideToMove)) & pieces(sideToMove)))
         assert(0 && "pos_is_ok: Kings");
 
     const bool pawnsOnInvalidRanks = pieces(PAWN) & (Rank1BB | Rank8BB);
