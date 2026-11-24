@@ -167,7 +167,7 @@ bool Network<Arch, Transformer>::save(
 }
 
 template<typename Arch, typename Transformer>
-NetworkOutput
+Value
 Network<Arch, Transformer>::evaluate(const Position&                         pos,
                                      AccumulatorStack&                       accumulatorStack,
                                      AccumulatorCaches::Cache<FTDimensions>& cache) const {
@@ -185,7 +185,7 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
     const auto psqt = featureTransformer.transform(pos, accumulatorStack, cache, transformedFeatures,
                                                    bucket, nnzInfo);
     const auto positional = network[bucket].propagate(transformedFeatures, nnzInfo);
-    return {static_cast<Value>(psqt / OutputScale), static_cast<Value>(positional / OutputScale)};
+    return static_cast<Value>(psqt / OutputScale) + static_cast<Value>(positional / OutputScale);
 }
 
 

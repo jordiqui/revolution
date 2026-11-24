@@ -26,7 +26,6 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
-#include <tuple>
 
 #include "misc.h"
 #include "nnue/network.h"
@@ -52,31 +51,25 @@ bool Eval::use_smallnet(const Position& pos) { return std::abs(simple_eval(pos))
 // Evaluate is the evaluator for the outer world. It returns a static evaluation
 // of the position from the point of view of the side to move.
 
+static Value scale_evaluation(Value nnue, int optimism, const Position& pos) {
+    Value se = Eval::simple_eval(pos);
+    int se_norm   = (se * 1024) / (std::abs(se) + 1024);
+    int nnue_norm = (nnue * 1024) / (std::abs(nnue) + 1024);
+    int alignment = (se_norm * nnue_norm) / 512;
+    int base_eval = nnue + (nnue * alignment) / 65536 + (optimism * alignment) / 16384;
+    int material = 521 * pos.count<PAWN>() + pos.non_pawn_material();
+    int v        = base_eval * i64(90649 + material) / 90649;
+    v -= v * pos.rule50_count() / 189;
+    return std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
+}
+
 Value Eval::evaluate(const Eval::NNUE::ActiveNetwork& network,
-                     const Position&               pos,
+                     const Position& pos,
                      Eval::NNUE::AccumulatorStack& accumulators,
-                     Eval::NNUE::ActiveAccumulatorCache&
-                       cache,
+                     Eval::NNUE::ActiveAccumulatorCache& cache,
                      int optimism) {
-
     assert(!pos.checkers());
-
-    auto [psqt, positional] = network.evaluate(pos, accumulators, cache);
-
-    Value nnue = psqt + positional;
-
-    int nnueComplexity = std::abs(psqt - positional);
-    optimism += optimism * i64(nnueComplexity) / 476;
-    nnue -= nnue * i64(nnueComplexity) / 18236;
-
-    int material = 534 * pos.count<PAWN>() + pos.non_pawn_material();
-    int v        = nnue + (nnue * i64(material) + optimism * i64(7675)) / 91000;
-
-    v -= v * pos.rule50_count() / 199;
-
-    v = std::clamp(v, VALUE_TB_LOSS_IN_MAX_PLY + 1, VALUE_TB_WIN_IN_MAX_PLY - 1);
-
-    return v;
+    return scale_evaluation(network.evaluate(pos, accumulators, cache), optimism, pos);
 }
 
 // Like evaluate(), but instead of returning a value, it returns
@@ -94,13 +87,12 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::ActiveNetwork& network)
     std::stringstream ss;
     ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);
 
-    auto [psqt, positional] = network.evaluate(pos, *accumulators, *caches);
-    Value v                 = psqt + positional;
-    v                       = pos.side_to_move() == WHITE ? v : -v;
-    ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)\n";
-
-    v = evaluate(network, pos, *accumulators, *caches, VALUE_ZERO);
+    Value nnue = network.evaluate(pos, *accumulators, *caches);
+    Value v = scale_evaluation(nnue, VALUE_ZERO, pos);
+    ss << "NNUE evaluation          " << nnue << " (side to move, internal units)\n";
+    nnue = pos.side_to_move() == WHITE ? nnue : -nnue;
     v = pos.side_to_move() == WHITE ? v : -v;
+    ss << "NNUE evaluation        " << 0.01 * UCIEngine::to_cp(nnue, pos) << " (white side)\n";
     ss << "Final evaluation       " << 0.01 * UCIEngine::to_cp(v, pos) << " (white side)";
     ss << " [with scaled NNUE, ...]";
     ss << "\n";

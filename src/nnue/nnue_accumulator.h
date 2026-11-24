@@ -36,9 +36,6 @@ class Position;
 
 namespace Stockfish::Eval::NNUE {
 
-template<IndexType Size>
-struct alignas(CacheLineSize) Accumulator;
-
 template<IndexType TransformedFeatureDimensions>
 class FeatureTransformer;
 
