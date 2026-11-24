@@ -203,9 +203,11 @@ bool has_large_pages() {
     void*           mem       = aligned_large_pages_alloc_windows(page_size);
     if (mem == nullptr)
         return false;
-
-    aligned_large_pages_free(mem);
-    return true;
+    else
+    {
+        aligned_large_pages_free(mem);
+        return true;
+    }
 
 #elif defined(__linux__)
 

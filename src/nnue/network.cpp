@@ -29,7 +29,6 @@
 #define INCBIN_SILENCE_BITCODE_WARNING
 #include "../incbin/incbin.h"
 
-#include "../bitboard.h"
 #include "../evaluate.h"
 #include "../misc.h"
 #include "../position.h"
@@ -168,21 +167,6 @@ bool Network<Arch, Transformer>::save(
 }
 
 template<typename Arch, typename Transformer>
-int Network<Arch, Transformer>::layer_stack(const Position& pos) const {
-    const Color stm = pos.side_to_move();
-    const int band = (pos.count<ALL_PIECES>() - 1) / 4;
-    const int queens = 2 * bool(pos.pieces(stm, QUEEN)) + bool(pos.pieces(~stm, QUEEN));
-    constexpr Bitboard QueenSide = FileABB | FileBBB | FileCBB | FileDBB;
-    const Bitboard pawns = pos.pieces(PAWN);
-    const int layout = !pawns ? 2 : (pawns & QueenSide) && (pawns & ~QueenSide) ? 0 : 1;
-    const auto officers = [&](Color c) {
-        return popcount(pos.pieces(c) & ~pos.pieces(PAWN, KING));
-    };
-    const bool many = std::max(officers(WHITE), officers(BLACK)) >= 2;
-    return layerStackIndex[((band * 4 + queens) * 3 + layout) * 2 + many];
-}
-
-template<typename Arch, typename Transformer>
 Value
 Network<Arch, Transformer>::evaluate(const Position&                         pos,
                                      AccumulatorStack&                       accumulatorStack,
@@ -197,7 +181,10 @@ Network<Arch, Transformer>::evaluate(const Position&                         pos
 
     NNZInfo<FTDimensions> nnzInfo;
 
-    const int bucket = layer_stack(pos);
+    const int   pcBucket    = (pos.count<ALL_PIECES>() - 1) / 4;
+    const Color stm         = pos.side_to_move();
+    const int   queenBucket = (pos.pieces(stm, QUEEN) ? 2 : 0) | (pos.pieces(~stm, QUEEN) ? 1 : 0);
+    const int   bucket      = pcBucket * 4 + queenBucket;
 
     featureTransformer.transform(pos, accumulatorStack, cache, transformedFeatures, nnzInfo);
     const auto positional = network[bucket].propagate(transformedFeatures, nnzInfo);
@@ -237,7 +224,7 @@ void Network<Arch, Transformer>::verify(const std::function<void(std::string_vie
 
     if (f)
     {
-        usize size = sizeof(featureTransformer) + sizeof(Arch) * storedLayerStacks;
+        usize size = sizeof(featureTransformer) + sizeof(Arch) * LayerStacks;
         f("NNUE evaluation using " + evalfilePath.string() + " (" + std::to_string(size / (1024 * 1024))
           + "MiB, (" + std::to_string(featureTransformer.TotalInputDimensions) + ", "
           + std::to_string(network[0].TransformedFeatureDimensions) + ", "
@@ -260,14 +247,16 @@ Network<Arch, Transformer>::trace_evaluate(const Position&                      
 
     ASSERT_ALIGNED(transformedFeatures, alignment);
 
-    const int bucket = layer_stack(pos);
+    const int   pcBucket    = (pos.count<ALL_PIECES>() - 1) / 4;
+    const Color stm         = pos.side_to_move();
+    const int   queenBucket = (pos.pieces(stm, QUEEN) ? 2 : 0) | (pos.pieces(~stm, QUEEN) ? 1 : 0);
+    const int   bucket      = pcBucket * 4 + queenBucket;
 
     NnueEvalTrace t{};
     t.correctBucket = bucket;
-    t.layerStacks = storedLayerStacks;
     NNZInfo<FTDimensions> nnzInfo;
     featureTransformer.transform(pos, accumulatorStack, cache, transformedFeatures, nnzInfo);
-    for (IndexType b = 0; b < storedLayerStacks; ++b)
+    for (IndexType b = 0; b < LayerStacks; ++b)
     {
         const auto positional = network[b].propagate(transformedFeatures, nnzInfo);
 
@@ -349,10 +338,8 @@ usize Network<Arch, Transformer>::get_content_hash() const {
 
     usize h = 0;
     hash_combine(h, featureTransformer);
-    for (const u16 f : layerStackFallback)
-        hash_combine(h, f);
-    for (usize i = 0; i < storedLayerStacks; ++i)
-        hash_combine(h, network[i]);
+    for (auto&& layerstack : network)
+        hash_combine(h, layerstack);
     hash_combine(h, static_cast<int>(embeddedType));
     return h;
 }
@@ -409,31 +396,9 @@ bool Network<Arch, Transformer>::read_parameters(std::istream& stream,
         return false;
     if (hashValue != Network::hash)
         return false;
-    if (read_little_endian<u32>(stream) != LayerStackTableHash
-        || read_little_endian<u32>(stream) != RawLayerStacks)
-        return false;
-    storedLayerStacks = read_little_endian<u32>(stream);
-    if (storedLayerStacks == 0 || storedLayerStacks > LayerStacks)
-        return false;
-    for (u16& f : layerStackFallback)
-        if ((f = read_little_endian<u16>(stream)) >= RawLayerStacks)
-            return false;
-    IndexType stored = 0;
-    for (IndexType s = 0; s < RawLayerStacks; ++s)
-        if (layerStackFallback[s] == s)
-            layerStackIndex[s] = u16(stored++);
-    if (stored != storedLayerStacks)
-        return false;
-    for (IndexType s = 0; s < RawLayerStacks; ++s)
-    {
-        const u16 f = layerStackFallback[s];
-        if (layerStackFallback[f] != f)
-            return false;
-        layerStackIndex[s] = layerStackIndex[f];
-    }
     if (!Detail::read_parameters(stream, featureTransformer))
         return false;
-    for (usize i = 0; i < storedLayerStacks; ++i)
+    for (usize i = 0; i < LayerStacks; ++i)
     {
         if (!Detail::read_parameters(stream, network[i]))
             return false;
@@ -447,14 +412,9 @@ bool Network<Arch, Transformer>::write_parameters(std::ostream&      stream,
                                                   const std::string& netDescription) const {
     if (!write_header(stream, Network::hash, netDescription))
         return false;
-    write_little_endian<u32>(stream, LayerStackTableHash);
-    write_little_endian<u32>(stream, RawLayerStacks);
-    write_little_endian<u32>(stream, storedLayerStacks);
-    for (const u16 f : layerStackFallback)
-        write_little_endian<u16>(stream, f);
     if (!Detail::write_parameters(stream, featureTransformer))
         return false;
-    for (usize i = 0; i < storedLayerStacks; ++i)
+    for (usize i = 0; i < LayerStacks; ++i)
     {
         if (!Detail::write_parameters(stream, network[i]))
             return false;
