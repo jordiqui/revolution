@@ -55,7 +55,6 @@ using Stockfish::load_as;
 using vec_t      = __m512i;
 using vec_i8_t   = __m256i;
 using vec128_t   = __m128i;
-using psqt_vec_t = __m256i;
 using vec_uint_t = __m512i;
     #define vec_load(a) _mm512_load_si512(a)
     #define vec_store(a, b) _mm512_store_si512(a, b)
@@ -70,11 +69,6 @@ using vec_uint_t = __m512i;
     #define vec_slli_16(a, b) _mm512_slli_epi16(a, b)
     // Inverse permuted at load time
     #define vec_packus_16(a, b) _mm512_packus_epi16(a, b)
-    #define vec_load_psqt(a) _mm256_load_si256(a)
-    #define vec_store_psqt(a, b) _mm256_store_si256(a, b)
-    #define vec_add_psqt_32(a, b) _mm256_add_epi32(a, b)
-    #define vec_sub_psqt_32(a, b) _mm256_sub_epi32(a, b)
-    #define vec_zero_psqt() _mm256_setzero_si256()
 
     #ifdef USE_SSSE3
         #define vec_nnz(a) _mm512_cmpgt_epi32_mask(a, _mm512_setzero_si512())
@@ -92,7 +86,6 @@ using vec_uint_t = __m512i;
 using vec_t      = __m256i;
 using vec_i8_t   = __m128i;
 using vec128_t   = __m128i;
-using psqt_vec_t = __m256i;
 using vec_uint_t = __m256i;
     #define vec_load(a) _mm256_load_si256(a)
     #define vec_store(a, b) _mm256_store_si256(a, b)
@@ -107,11 +100,6 @@ using vec_uint_t = __m256i;
     #define vec_slli_16(a, b) _mm256_slli_epi16(a, b)
     // Inverse permuted at load time
     #define vec_packus_16(a, b) _mm256_packus_epi16(a, b)
-    #define vec_load_psqt(a) _mm256_load_si256(a)
-    #define vec_store_psqt(a, b) _mm256_store_si256(a, b)
-    #define vec_add_psqt_32(a, b) _mm256_add_epi32(a, b)
-    #define vec_sub_psqt_32(a, b) _mm256_sub_epi32(a, b)
-    #define vec_zero_psqt() _mm256_setzero_si256()
 
     #ifdef USE_SSSE3
         #if defined(USE_VNNI) && !defined(USE_AVXVNNI)
@@ -136,7 +124,6 @@ using vec_uint_t = __m256i;
 using vec_t      = __m128i;
 using vec_i8_t   = u64;  // for the correct size -- will be loaded into an xmm reg
 using vec128_t   = __m128i;
-using psqt_vec_t = __m128i;
 using vec_uint_t = __m128i;
     #define vec_load(a) (*(a))
     #define vec_store(a, b) *(a) = (b)
@@ -149,11 +136,6 @@ using vec_uint_t = __m128i;
     #define vec_min_16(a, b) _mm_min_epi16(a, b)
     #define vec_slli_16(a, b) _mm_slli_epi16(a, b)
     #define vec_packus_16(a, b) _mm_packus_epi16(a, b)
-    #define vec_load_psqt(a) (*(a))
-    #define vec_store_psqt(a, b) *(a) = (b)
-    #define vec_add_psqt_32(a, b) _mm_add_epi32(a, b)
-    #define vec_sub_psqt_32(a, b) _mm_sub_epi32(a, b)
-    #define vec_zero_psqt() _mm_setzero_si128()
 
     #ifdef USE_SSSE3
         #define vec_nnz(a) \
@@ -199,7 +181,6 @@ using vec_i32x4_t __attribute__((may_alias)) = int32x4_t;
 
 using vec_t __attribute__((may_alias))      = int16x8_t;
 using vec_i8_t __attribute__((may_alias))   = int8x16_t;
-using psqt_vec_t __attribute__((may_alias)) = int32x4_t;
 using vec128_t __attribute__((may_alias))   = uint16x8_t;
 using vec_uint_t __attribute__((may_alias)) = uint32x4_t;
     #define vec_load(a) (*(a))
@@ -213,11 +194,6 @@ using vec_uint_t __attribute__((may_alias)) = uint32x4_t;
     #define vec_min_16(a, b) vminq_s16(a, b)
     #define vec_slli_16(a, b) vshlq_s16(a, vec_set_16(b))
     #define vec_packus_16(a, b) reinterpret_cast<vec_t>(vcombine_u8(vqmovun_s16(a), vqmovun_s16(b)))
-    #define vec_load_psqt(a) (*(a))
-    #define vec_store_psqt(a, b) *(a) = (b)
-    #define vec_add_psqt_32(a, b) vaddq_s32(a, b)
-    #define vec_sub_psqt_32(a, b) vsubq_s32(a, b)
-    #define vec_zero_psqt() psqt_vec_t{0}
 
 static constexpr u32 Mask[4] = {1, 2, 4, 8};
     #define vec_nnz(a) vaddvq_u32(vandq_u32(vtstq_u32(a, a), vld1q_u32(Mask)))
@@ -238,6 +214,10 @@ inline int16x8_t vmovl_high_s8(int8x16_t val) { return vmovl_s8(vget_high_s8(val
 #else
     #undef VECTOR
 
+#endif
+
+#ifdef VECTOR
+static_assert(MaxChunkSize == sizeof(vec_t), "MaxChunkSize must equal one vector.");
 #endif
 
 #if defined(USE_AVX512)
@@ -338,7 +318,7 @@ dotprod_m128_add_dpbusd_epi32(int32x4_t& acc, int8x16_t a, int8x16_t b) {
 
 
 // Compute optimal SIMD register count for feature transformer accumulation.
-template<IndexType TransformedFeatureWidth, IndexType HalfDimensions, IndexType PSQTBuckets>
+template<IndexType TransformedFeatureWidth, IndexType HalfDimensions>
 class SIMDTiling {
 #ifdef VECTOR
         // We use __m* types as template arguments, which causes GCC to emit warnings
@@ -380,14 +360,10 @@ class SIMDTiling {
    public:
     static constexpr int NumRegs =
       BestRegisterCount<vec_t, WeightType, TransformedFeatureWidth, NumRegistersSIMD>();
-    static constexpr int NumPsqtRegs =
-      BestRegisterCount<psqt_vec_t, PSQTWeightType, PSQTBuckets, NumRegistersSIMD>();
 
     static constexpr IndexType TileHeight     = NumRegs * sizeof(vec_t) / 2;
-    static constexpr IndexType PsqtTileHeight = NumPsqtRegs * sizeof(psqt_vec_t) / 4;
 
     static_assert(HalfDimensions % TileHeight == 0, "TileHeight must divide HalfDimensions");
-    static_assert(PSQTBuckets % PsqtTileHeight == 0, "PsqtTileHeight must divide PSQTBuckets");
 #endif
 };
 }
