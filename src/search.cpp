@@ -346,10 +346,6 @@ void Search::Worker::iterative_deepening() {
     while (++rootDepth < MAX_PLY && !threads.stop
            && !(limits.depth && mainThread && rootDepth > limits.depth))
     {
-        // Age out PV variability metric
-        if (mainThread)
-            totBestMoveChanges /= 2;
-
         // Save the last iteration's scores before the first PV line is searched and
         // all the move scores except the (new) PV are set to -VALUE_INFINITE.
         for (usize i = 0; i < rootMoves.size(); ++i)
@@ -568,13 +564,6 @@ void Search::Worker::iterative_deepening() {
         if (skill.enabled() && skill.time_to_pick(rootDepth))
             skill.pick_best(rootMoves, multiPV);
 
-        // Use part of the gained time from a previous stable move for the current move
-        for (auto&& th : threads)
-        {
-            totBestMoveChanges += th->worker->bestMoveChanges;
-            th->worker->bestMoveChanges = 0;
-        }
-
         // Do we have time for the next iteration? Can we stop searching now?
         if (limits.use_time_management() && !threads.stop && !mainThread->stopOnPonderhit)
         {
@@ -592,6 +581,14 @@ void Search::Worker::iterative_deepening() {
 
             double reduction =
               (1.468 + mainThread->previousTimeReduction) / (2.284 * timeReduction);
+
+            // Age out and update PV variability metric
+            totBestMoveChanges /= 2;
+            for (auto&& th : threads)
+            {
+                totBestMoveChanges += th->worker->bestMoveChanges;
+                th->worker->bestMoveChanges = 0;
+            }
 
             double bestMoveInstability = 1.077 + 2.229 * totBestMoveChanges / threads.size();
 

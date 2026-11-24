@@ -195,6 +195,7 @@ class Position {
     Key  compute_material_key() const;
     void set_state() const;
     void set_extra_bitboards() const;
+    void compute_threats() const;
 
     // Other helpers
     template<bool ComputeRay = true>
@@ -308,7 +309,11 @@ inline Bitboard Position::xattacks_by(PieceType pt, Color c, Bitboard occupied) 
     }
 }
 
-inline Bitboard Position::threats_by(PieceType pt) const { return st->threats[pt]; }
+inline Bitboard Position::threats_by(PieceType pt) const {
+    if (!st->threats[ALL_PIECES])
+        compute_threats();
+    return st->threats[pt];
+}
 
 inline Bitboard Position::checkers() const { return st->checkersBB; }
 
