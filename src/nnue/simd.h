@@ -76,6 +76,7 @@ using vec_uint_t = __m512i;
     #define vec_set_8(a) _mm512_set1_epi8(a)
     #define vec_unpacklo_8(a, b) _mm512_unpacklo_epi8(a, b)
     #define vec_unpackhi_8(a, b) _mm512_unpackhi_epi8(a, b)
+    #define vec_xor(a, b) _mm512_xor_si512(a, b)
     #define vec_maddubs_16(a, b) _mm512_maddubs_epi16(a, b)
     // Inverse permuted at load time
     #define vec_packus_16(a, b) _mm512_packus_epi16(a, b)
@@ -112,6 +113,7 @@ using vec_uint_t = __m256i;
     #define vec_set_8(a) _mm256_set1_epi8(a)
     #define vec_unpacklo_8(a, b) _mm256_unpacklo_epi8(a, b)
     #define vec_unpackhi_8(a, b) _mm256_unpackhi_epi8(a, b)
+    #define vec_xor(a, b) _mm256_xor_si256(a, b)
     #define vec_maddubs_16(a, b) _mm256_maddubs_epi16(a, b)
     // Inverse permuted at load time
     #define vec_packus_16(a, b) _mm256_packus_epi16(a, b)
@@ -154,6 +156,7 @@ using vec_uint_t = __m128i;
     #define vec_set_8(a) _mm_set1_epi8(a)
     #define vec_unpacklo_8(a, b) _mm_unpacklo_epi8(a, b)
     #define vec_unpackhi_8(a, b) _mm_unpackhi_epi8(a, b)
+    #define vec_xor(a, b) _mm_xor_si128(a, b)
     #define vec_packus_16(a, b) _mm_packus_epi16(a, b)
 
     #ifdef USE_SSSE3

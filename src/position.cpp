@@ -822,9 +822,7 @@ void Position::do_move(
     // Move the piece. The tricky Chess960 castling is handled earlier
     if (m.type_of() != CASTLING)
     {
-        Piece toPc = pc;
-        if (m.type_of() == PROMOTION)
-            toPc = make_piece(us, m.promotion_type());
+        const Piece toPc = m.type_of() == PROMOTION ? make_piece(us, m.promotion_type()) : pc;
 
         if (captured && m.type_of() != EN_PASSANT)
         {
@@ -1170,13 +1168,13 @@ Key Position::prefetch_key(Move m) const {
 // Helper used to do/undo a castling move. This is a bit
 // tricky in Chess960 where from/to squares can overlap.
 template<bool Do>
-void Position::do_castling(Color               us,
-                           Square              from,
-                           Square&             to,
-                           Square&             rfrom,
-                           Square&             rto,
-                           DirtyThreats* const dts,
-                           DirtyPiece* const   dp) {
+void Position::do_castling(Color                              us,
+                           Square                             from,
+                           Square&                            to,
+                           Square&                            rfrom,
+                           Square&                            rto,
+                           DirtyThreats* const                dts,
+                           [[maybe_unused]] DirtyPiece* const dp) {
 
     bool kingSide = to > from;
     rfrom         = to;  // Castling is encoded as "king captures friendly rook"
@@ -1185,7 +1183,7 @@ void Position::do_castling(Color               us,
 
     assert(!Do || dp);
 
-    if (Do)
+    if constexpr (Do)
     {
         dp->to        = to;
         dp->remove_pc = dp->add_pc = make_piece(us, ROOK);
@@ -1208,7 +1206,8 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
     assert(!checkers());
     assert(&newSt != st);
 
-    std::memcpy(&newSt, st, sizeof(StateInfo));
+    // Remaining fields are recomputed, invalidated or overwritten below.
+    std::memcpy(&newSt, st, offsetof(StateInfo, blockersForKing));
 
     newSt.previous = st;
     st             = &newSt;
@@ -1415,16 +1414,10 @@ bool Position::upcoming_repetition(int ply) const {
             Square s1   = move.from_sq();
             Square s2   = move.to_sq();
 
-            if (!((between_bb(s1, s2) ^ s2) & pieces()))
-            {
-                if (ply > i)
-                    return true;
-
-                // For nodes before or at the root, check that the move is a
-                // repetition rather than a move to the current position.
-                if (stp->repetition)
-                    return true;
-            }
+            // For nodes before or at the root, check that the move is a
+            // repetition rather than a move to the current position.
+            if (!((between_bb(s1, s2) ^ s2) & pieces()) && (ply > i || stp->repetition))
+                return true;
         }
     }
     return false;
@@ -1500,8 +1493,8 @@ bool Position::pos_is_ok() const {
         assert(0 && "pos_is_ok: Bitboards");
 
     for (PieceType p1 = PAWN; p1 <= KING; ++p1)
-        for (PieceType p2 = PAWN; p2 <= KING; ++p2)
-            if (p1 != p2 && (pieces(p1) & pieces(p2)))
+        for (PieceType p2 = PieceType(p1 + 1); p2 <= KING; ++p2)
+            if (pieces(p1) & pieces(p2))
                 assert(0 && "pos_is_ok: Bitboards");
 
 

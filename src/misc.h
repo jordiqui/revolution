@@ -171,7 +171,7 @@ inline std::vector<std::string_view> split(std::string_view s, std::string_view 
     for (;;)
     {
         const usize end = s.find(delimiter, begin);
-        if (end == std::string::npos)
+        if (end == std::string_view::npos)
             break;
 
         res.emplace_back(s.substr(begin, end - begin));
@@ -473,7 +473,7 @@ u64 hash_bytes(const char*, usize);
 template<typename T>
 inline usize get_raw_data_hash(const T& value) {
     // We must have no padding bytes because we're reinterpreting as char
-    static_assert(std::has_unique_object_representations<T>());
+    static_assert(std::has_unique_object_representations_v<T>);
 
     return static_cast<usize>(
       hash_bytes(reinterpret_cast<const char*>(&value), sizeof(value)));
@@ -484,7 +484,7 @@ inline void hash_combine(usize& seed, const T& v) {
     usize x;
     // For primitive types we avoid using the default hasher, which may be
     // nondeterministic across program invocations
-    if constexpr (std::is_integral<T>())
+    if constexpr (std::is_integral_v<T>)
         x = v;
     else
         x = std::hash<T>{}(v);

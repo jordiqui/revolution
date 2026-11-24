@@ -93,7 +93,7 @@ bool TTEntry::is_occupied() const { return bool(depth8); }
 // Three 8-byte entries and one packed 63-bit key word fit in 32 bytes.
 static constexpr int ClusterSize = 3;
 static constexpr int KeyBits = 21;
-constexpr u64 MASK21 = (1ULL << KeyBits) - 1;
+static constexpr u64 KeyMask = (1ULL << KeyBits) - 1;
 
 struct Cluster {
     RelaxedAtomic<u64> keys;
@@ -109,25 +109,24 @@ static_assert(sizeof(Cluster) == 32, "Suboptimal Cluster size");
 void TTWriter::write(
   Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, u8 generation8) {
 
-    u64 keys = cluster->keys;
-    const u64 key21 = (keys >> (KeyBits * index)) & MASK21;
-    auto& entry = cluster->entry[index];
+    const int shift   = KeyBits * index;
+    const u64 keys    = cluster->keys;
+    const u64 keyDiff = ((keys >> shift) ^ k) & KeyMask;
+    auto&     entry   = cluster->entry[index];
 
     // Preserve the old ttmove if we don't have a new one
-    if (m || (k & MASK21) != key21)
+    if (m || keyDiff)
         entry.move16 = m;
 
     // Overwrite less valuable entries (cheapest checks first)
-    if (b == BOUND_EXACT || (k & MASK21) != key21
+    if (b == BOUND_EXACT || keyDiff
         || d - DEPTH_ENTRY_OFFSET + 2 * pv > entry.depth8 - 4
         || entry.relative_age(generation8))
     {
         assert(d > DEPTH_ENTRY_OFFSET);
         assert(d < 256 + DEPTH_ENTRY_OFFSET);
 
-        keys &= ~(MASK21 << (KeyBits * index));
-        keys |= (k & MASK21) << (KeyBits * index);
-        cluster->keys   = keys;
+        cluster->keys   = keys ^ (keyDiff << shift);
         entry.depth8    = u8(d - DEPTH_ENTRY_OFFSET);
         entry.genBound8 = u8(generation8 | u8(pv) << 2 | b);
         entry.value16   = i16(v);
@@ -237,7 +236,7 @@ std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) cons
 
     Cluster* const cluster = get_cluster(key);
     auto& tte = cluster->entry;
-    const u64 key21 = key & MASK21;
+    const u64 key21 = key & KeyMask;
 
     constexpr u64 KeyLsb = 1ULL | (1ULL << KeyBits) | (1ULL << (2 * KeyBits));
     constexpr u64 KeyMsb = KeyLsb << (KeyBits - 1);
@@ -246,16 +245,23 @@ std::tuple<bool, TTData, TTWriter> TranspositionTable::probe(const Key key) cons
     const u64 matches = (keyXors - KeyLsb) & ~keyXors & KeyMsb;
     if (matches)
     {
-        const int i = int(lsb(matches)) / KeyBits;
+        static_assert(KeyBits == 21, "Index computation below assumes KeyBits == 21");
+        const int i = (int(lsb(matches)) >> 4) - 1;
         return {tte[i].is_occupied(), tte[i].read(), TTWriter(cluster, i)};
     }
 
     // Retain Revolution's existing age weighting in the replacement policy.
-    int replace = 0;
+    int replace      = 0;
+    int replaceValue = tte[0].depth8 - tte[0].relative_age(generation8);
     for (int i = 1; i < ClusterSize; ++i)
-        if (tte[replace].depth8 - tte[replace].relative_age(generation8)
-            > tte[i].depth8 - tte[i].relative_age(generation8))
-            replace = i;
+    {
+        const int value = tte[i].depth8 - tte[i].relative_age(generation8);
+        if (replaceValue > value)
+        {
+            replace      = i;
+            replaceValue = value;
+        }
+    }
 
     return {false,
             TTData{Move::none(), VALUE_NONE, VALUE_NONE, DEPTH_ENTRY_OFFSET, BOUND_NONE, false},

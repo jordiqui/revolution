@@ -71,9 +71,9 @@ class ClippedReLU {
     void propagate(const InputType* input, OutputType* output) const {
 
 #if defined(USE_AVX2)
-        if constexpr (InputDimensions % SimdWidth == 0)
+        if constexpr (InputDimensions % 32 == 0)
         {
-            constexpr IndexType NumChunks = InputDimensions / SimdWidth;
+            constexpr IndexType NumChunks = InputDimensions / 32;
             const __m256i       Offsets   = _mm256_set_epi32(7, 3, 6, 2, 5, 1, 4, 0);
             const auto          in        = reinterpret_cast<const __m256i*>(input);
             const auto          out       = reinterpret_cast<__m256i*>(output);
@@ -93,7 +93,7 @@ class ClippedReLU {
         }
         else
         {
-            constexpr IndexType NumChunks = InputDimensions / (SimdWidth / 2);
+            constexpr IndexType NumChunks = InputDimensions / 16;
             const auto          in        = reinterpret_cast<const __m128i*>(input);
             const auto          out       = reinterpret_cast<__m128i*>(output);
             for (IndexType i = 0; i < NumChunks; ++i)
@@ -107,12 +107,12 @@ class ClippedReLU {
                 _mm_store_si128(&out[i], _mm_packs_epi16(words0, words1));
             }
         }
-        constexpr IndexType Start = InputDimensions % SimdWidth == 0
-                                    ? InputDimensions / SimdWidth * SimdWidth
-                                    : InputDimensions / (SimdWidth / 2) * (SimdWidth / 2);
+        constexpr IndexType Start = InputDimensions % 32 == 0
+                                    ? InputDimensions / 32 * 32
+                                    : InputDimensions / 16 * 16;
 
 #elif defined(USE_SSE2)
-        constexpr IndexType NumChunks = InputDimensions / SimdWidth;
+        constexpr IndexType NumChunks = InputDimensions / 16;
 
     #ifndef USE_SSE41
         const __m128i k0x80s = _mm_set1_epi8(-128);
@@ -141,7 +141,7 @@ class ClippedReLU {
             _mm_store_si128(&out[i], _mm_subs_epi8(_mm_adds_epi8(packedbytes, k0x80s), k0x80s));
     #endif
         }
-        constexpr IndexType Start = NumChunks * SimdWidth;
+        constexpr IndexType Start = NumChunks * 16;
 
 #elif defined(USE_LASX)
         constexpr IndexType NumChunks = InputDimensions / 32;
@@ -169,7 +169,7 @@ class ClippedReLU {
         constexpr IndexType Start = NumChunks * 16;
 
 #elif defined(USE_NEON)
-        constexpr IndexType    NumChunks = InputDimensions / (SimdWidth / 2);
+        constexpr IndexType    NumChunks = InputDimensions / 8;
         const SIMD::vec_i8x8_t Zero      = {0};
         const auto             in        = reinterpret_cast<const SIMD::vec_i32x4_t*>(input);
         const auto             out       = reinterpret_cast<SIMD::vec_i8x8_t*>(output);
@@ -181,7 +181,7 @@ class ClippedReLU {
             pack[1]         = vqshrn_n_s32(in[i * 2 + 1], WeightScaleBitsLocal);
             out[i]          = vmax_s8(vqmovn_s16(shifted), Zero);
         }
-        constexpr IndexType Start = NumChunks * (SimdWidth / 2);
+        constexpr IndexType Start = NumChunks * 8;
 #else
         constexpr IndexType Start = 0;
 #endif
