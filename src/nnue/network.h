@@ -99,18 +99,25 @@ class Network {
     bool read_parameters(std::istream&, std::string&);
     bool write_parameters(std::ostream&, const std::string&) const;
 
+    int layer_stack(const Position& pos) const;
+
     // Input feature converter
     Transformer featureTransformer;
 
     // Evaluation function
     Arch network[LayerStacks];
+    u16 layerStackFallback[RawLayerStacks];
+    u16 layerStackIndex[RawLayerStacks];
+    IndexType storedLayerStacks = 0;
 
     EmbeddedNNUEType embeddedType;
 
     bool initialized = false;
 
     // Hash value of evaluation function structure
-    static constexpr u32 hash = Transformer::get_hash_value() ^ Arch::get_hash_value();
+    static constexpr u32 LayerStackTableHash = 0x5A7AB1E5u;
+    static constexpr u32 hash = Transformer::get_hash_value() ^ Arch::get_hash_value()
+                              ^ LayerStackTableHash;
 
     template<IndexType Size>
     friend struct AccumulatorCaches::Cache;
