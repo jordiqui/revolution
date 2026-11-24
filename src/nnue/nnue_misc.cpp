@@ -165,7 +165,7 @@ trace(Position& pos, const Eval::NNUE::NetworkBig& network, Eval::NNUE::Accumula
 
     for (usize bucket = 0; bucket < LayerStacks; ++bucket)
     {
-        ss << "|  " << bucket << "         |  ";
+        ss << "|  " << std::left << std::setw(10) << bucket << std::right << "|  ";
         format_cp_aligned_dot(t.positional[bucket], ss, pos);
         ss << "   |";
         if (bucket == t.correctBucket)
