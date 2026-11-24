@@ -1,7 +1,7 @@
-name: P0A28 Universal validation only
+name: P0A28 exact recovery validation only
 on:
   push:
-    branches: [validation/p0a28-run-only]
+    branches: [validation/p0a28-recovery-exact]
 permissions:
   contents: read
 jobs:
@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 0f925ed6f2e6b43f26230020e4ee50bf833207d8
+          ref: fe2ec61b6070bcbb1f465286be0f2bb060c807ce
           fetch-depth: 0
           persist-credentials: false
       - name: Check exact candidate tree and download authentic NNUE
@@ -19,6 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD^{tree})" = 3605abae2d5217e7a93c7428c32638a6750d6aaf
+          test "$(git rev-parse HEAD)" = fe2ec61b6070bcbb1f465286be0f2bb060c807ce
           git rev-parse HEAD
           git diff --check HEAD^ HEAD
           if git grep -nE 'K32Q2|k32q2|opponentHasQueen|FullThreats::OrientTBL' -- src; then exit 1; fi
@@ -46,6 +47,7 @@ jobs:
           test "$(stat -c %s "$net")" = 136247652
           echo "d1ee674a62ca754648fb8c2907ff4e92f0c3acff28f59afa0f5bd4e3949538f1  $net" | sha256sum -c -
       - name: Build Universal with Clang and LLD
+        id: verified_build
         shell: bash
         run: |
           set -euo pipefail
@@ -58,7 +60,7 @@ jobs:
           "$c" --version
           ld.lld --version
           llvm-objcopy --version
-          mkdir -p /tmp/embed-probe
+          mkdir -p /tmp/embed-probe "$RUNNER_TEMP/p0a28-evidence"
           printf '\000\177\200\372\377' > /tmp/embed-probe/bytes.bin
           cat > /tmp/embed-probe/probe.cpp <<'CPP'
           constexpr unsigned char bytes[] = {
@@ -73,9 +75,9 @@ jobs:
           # Test an actual source path with spaces, not only a dry run.
           mv src 'src with spaces'
           trap 'if test -d "src with spaces"; then mv "src with spaces" src; fi' EXIT
-          make -C 'src with spaces' clean 2>&1 | tee clean-universal.log
-          make -C 'src with spaces' -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee build-universal.log
-          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' clean-universal.log build-universal.log; then exit 1; fi
+          make -C 'src with spaces' clean 2>&1 | tee "$RUNNER_TEMP/p0a28-evidence/clean-universal.log"
+          make -C 'src with spaces' -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee "$RUNNER_TEMP/p0a28-evidence/build-universal.log"
+          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' "$RUNNER_TEMP/p0a28-evidence/clean-universal.log" "$RUNNER_TEMP/p0a28-evidence/build-universal.log"; then exit 1; fi
           mv 'src with spaces' src
           trap - EXIT
           echo 'UNIVERSAL_PATH_WITH_SPACES=PASS'
@@ -99,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           cd src
-          python3 -u - <<'PY' | tee ../runtime-validation.log
+          python3 -u - <<'PY' | tee "$RUNNER_TEMP/p0a28-evidence/runtime-validation.log"
           import subprocess, threading, queue, re, time
           bin='./Revolution-6.40-150926-x86-64-universal'
           p=subprocess.Popen([bin],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
@@ -266,19 +268,55 @@ jobs:
           print(result.stdout)
           assert result.returncode==0 and 'Nodes searched' in result.stdout
           bench_nodes=re.search(r'Nodes searched\s*:\s*(\d+)',result.stdout)
-          assert bench_nodes and int(bench_nodes.group(1))>0
-          # Optimism precision and TT key width are functional changes; require repeatability, not the old node count.
+          assert bench_nodes and int(bench_nodes.group(1)) == 114876
+          # Require the exact frozen P0A28 reference in two independent processes.
           result2=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+          print(result2.stdout)
           nodes2=re.search(r'Nodes searched\s*:\s*(\d+)',result2.stdout)
           assert result2.returncode==0 and nodes2 and nodes2.group(1)==bench_nodes.group(1)
           print('BENCH_REPEATABILITY=PASS NODES='+bench_nodes.group(1))
           print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
           PY
+      - name: Extended runtime and fixture validation
+        if: ${{ !cancelled() && steps.verified_build.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/p0a28-evidence"
+          fixtures="$RUNNER_TEMP/p0a28-harness"
+          mkdir -p "$fixtures"
+          binary="$PWD/src/Revolution-6.40-150926-x86-64-universal"
+          {
+            git rev-parse HEAD HEAD^{tree}
+            file "$binary"
+            readelf -h "$binary"
+            stat -c 'EXECUTABLE_BYTES=%s' "$binary"
+            sha256sum "$binary"
+          } | tee "$evidence/executable.log"
+          git show "$GITHUB_SHA:.github/p0a28-validation/validate.py" > "$fixtures/validate.py"
+          cd "$fixtures"
+          curl --proto '=https' -fsSL --retry 2 --max-time 90 'https://files.pythonhosted.org/packages/93/09/7d04d7581ae3bb8b598017941781bceb7959dd1b13e3ebf7b6a2cd843bc9/chess-1.11.2.tar.gz' -o chess-1.11.2.tar.gz
+          echo 'a8b43e5678fdb3000695bdaa573117ad683761e5ca38e591c4826eba6d25bb39  chess-1.11.2.tar.gz' | sha256sum -c -
+          tar -xf chess-1.11.2.tar.gz chess-1.11.2/chess chess-1.11.2/data/polyglot chess-1.11.2/data/syzygy/regular
+          export PYTHONPATH="$fixtures/chess-1.11.2"
+          set +e
+          python3 -u validate.py "$binary" --outdir "$RUNNER_TEMP/p0a28-runtime" 2>&1 | tee "$evidence/extended-runtime.log"
+          codes=("${PIPESTATUS[@]}")
+          set -e
+          {
+            echo '### P0A28 exact recovery'
+            echo '```text'
+            cat "$evidence/executable.log"
+            if test -f "$evidence/runtime-validation.log"; then
+              grep -E '^BENCH_REPEATABILITY=|^EXTENDED_PERFT=|^SFNNV19_|^UCI=|^Nodes searched +:' "$evidence/runtime-validation.log" | tail -18 || true
+            fi
+            tail -11 "$evidence/extended-runtime.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          test "${codes[0]}" -eq 0
+          test "${codes[1]}" -eq 0
       - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: p0a28-universal-validation-logs
-          path: |
-            clean-universal.log
-            build-universal.log
-            runtime-validation.log
+          path: ${{ runner.temp }}/p0a28-evidence/*.log

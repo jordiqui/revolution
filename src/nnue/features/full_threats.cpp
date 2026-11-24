@@ -182,7 +182,7 @@ void FullThreats::append_changed_indices(Color                   perspective,
                                          IndexList&              added,
                                          const ThreatWeightType* prefetchBase,
                                          IndexType               prefetchStride) {
-    const unsigned orient    = u8(OrientTBL[ksq]) ^ (56 * perspective);
+    const unsigned orient    = OrientTBL[ksq] ^ (56 * perspective);
     const unsigned pair_swap = 0x88 * perspective;
 
     for (const auto& dirty : diff.list)
@@ -218,8 +218,8 @@ void FullThreats::append_changed_indices_both(Square                  white_ksq,
                                               IndexList&              black_added,
                                               const ThreatWeightType* prefetchBase,
                                               IndexType               prefetchStride) {
-    const unsigned w_orient  = u8(OrientTBL[white_ksq]);
-    const unsigned b_orient  = u8(OrientTBL[black_ksq]) ^ 56;
+    const unsigned w_orient  = OrientTBL[white_ksq];
+    const unsigned b_orient  = OrientTBL[black_ksq] ^ 56;
 
     for (const auto& dirty : diff.list)
     {
