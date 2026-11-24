@@ -346,6 +346,9 @@ void Search::Worker::iterative_deepening() {
     while (++rootDepth < MAX_PLY && !threads.stop
            && !(limits.depth && mainThread && rootDepth > limits.depth))
     {
+        // Do not tune these values. They are not intended for playing strength.
+        const int seekMateThreshold = 750 + 220000 / (rootDepth * rootDepth);
+
         // Save the last iteration's scores before the first PV line is searched and
         // all the move scores except the (new) PV are set to -VALUE_INFINITE.
         for (usize i = 0; i < rootMoves.size(); ++i)
@@ -381,11 +384,13 @@ void Search::Worker::iterative_deepening() {
             alpha     = std::max(avg - delta, -VALUE_INFINITE);
             beta      = std::min(avg + delta, VALUE_INFINITE);
 
-            // Do not tune these values. They are not intended for playing strength.
-            seekMate = std::abs(rootMoves[pvIdx].score) >= 750 + 220000 / (rootDepth * rootDepth);
+            // For multiPV we use previousScore because score is often -VALUE_INFINITE
+            Value seekMateScore = pvIdx ? rootMoves[pvIdx].previousScore : rootMoves[pvIdx].score;
+            seekMate =
+              seekMateScore != -VALUE_INFINITE && std::abs(seekMateScore) >= seekMateThreshold;
 
             // Adjust optimism based on root move's averageScore
-            optimism[us]  = 114 * avg / (std::abs(avg) + 85);
+            optimism[us]  = 456 * avg / (std::abs(avg) + 85);
             optimism[~us] = -optimism[us];
 
             // Start with a small aspiration window and, in the case of a fail
@@ -648,7 +653,7 @@ void Search::Worker::do_move(
     // prefetch_key() does not model castling, en passant or promotion exactly.
     // The correction-history prefetches also approximate castling and promotion.
     // For these rare moves the prefetches land on unused lines.
-    prefetch(tt.first_entry(pos.prefetch_key(move)));
+    prefetch(tt.get_cluster(pos.prefetch_key(move)));
 
     if (ss != nullptr)
     {

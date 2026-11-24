@@ -56,7 +56,7 @@ static Value scale_evaluation(Value nnue, int optimism, const Position& pos) {
     int se_norm   = (se * 1024) / (std::abs(se) + 1024);
     int nnue_norm = (nnue * 1024) / (std::abs(nnue) + 1024);
     int correl    = (se_norm * nnue_norm) / 512;
-    int v = nnue + (nnue * correl) / 65536 + (optimism * correl) / 16384;
+    int v = nnue + (nnue + optimism) * correl / 65536;
     int material = 521 * pos.count<PAWN>() + pos.non_pawn_material();
     v += i64(material) * v / 90649;
     v -= v * pos.rule50_count() / 189;

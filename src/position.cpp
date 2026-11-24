@@ -1220,7 +1220,7 @@ void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
     }
 
     st->key ^= Zobrist::side;
-    prefetch(tt.first_entry(key()));
+    prefetch(tt.get_cluster(key()));
 
     st->pliesFromNull = 0;
 
