@@ -638,14 +638,10 @@ bool Position::gives_check(Move m) const {
 
 // Makes a move, and saves all information necessary
 // to a StateInfo object. The move is assumed to be legal.
-// If a pointer to the TT table is passed, the entry for the new position
-// will be prefetched, and likewise for shared history.
-void Position::do_move(Move                      m,
-                       StateInfo&                newSt,
-                       bool                      givesCheck,
-                       Dirties&                  dirties,
-                       const TranspositionTable* tt      = nullptr,
-                       const SharedHistories*    history = nullptr) {
+// If a pointer to the shared histories is passed, their entries for the
+// new position will be prefetched.
+void Position::do_move(
+  Move m, StateInfo& newSt, bool givesCheck, Dirties& dirties, const SharedHistories* history) {
 
     assert(m.is_ok());
     assert(&newSt != st);
@@ -814,10 +810,6 @@ void Position::do_move(Move                      m,
             st->minorPieceKey ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
     }
 
-    // If en passant is impossible, then k will not change and we can prefetch earlier
-    if (tt && !checkEP)
-        prefetch(tt->first_entry(adjust_key50(k)));
-
     if (history)
     {
         prefetch(&history->pawn_entry(*this)[pc][to]);
@@ -913,8 +905,6 @@ void Position::do_move(Move                      m,
 
     // Update the key with the final value
     st->key = k;
-    if (tt)
-        prefetch(tt->first_entry(key()));
 
     // Calculate the repetition info. It is the ply distance from the previous
     // occurrence of the same position, negative in the 3-fold case, or zero
