@@ -290,7 +290,6 @@ bool Search::Worker::iterative_deepening() {
     Value             lastBestMoveScore = -VALUE_INFINITE;
 
     Value  alpha, beta, bestValue;
-    Color  us            = rootPos.side_to_move();
     double timeReduction = 1, totBestMoveChanges = 0;
     int    delta, iterIdx                        = 0;
 
@@ -385,10 +384,6 @@ bool Search::Worker::iterative_deepening() {
 
             seekMate = rootMoves[pvIdx].previousScore != -VALUE_INFINITE
                     && std::abs(rootMoves[pvIdx].previousScore) >= seekMateThreshold;
-
-            // Adjust optimism based on root move's averageScore
-            optimism[us]  = 456 * avg / (std::abs(avg) + 85);
-            optimism[~us] = -optimism[us];
 
             // Start with a small aspiration window and, in the case of a fail
             // high/low, enlarge the window progressively.
@@ -1907,9 +1902,8 @@ TimePoint Search::Worker::elapsed() const {
   const Eval::NNUE::ActiveNetwork&                                                         network,
   const Position&                                                                        pos,
   Eval::NNUE::AccumulatorStack&                                                          accumulators,
-  Eval::NNUE::ActiveAccumulatorCache& cache,
-  Value                                                                                  optimism) {
-    return Eval::evaluate(network, pos, accumulators, cache, optimism);
+  Eval::NNUE::ActiveAccumulatorCache& cache) {
+    return Eval::evaluate(network, pos, accumulators, cache);
 }
 
 const Eval::NNUE::ActiveNetwork& Search::Worker::big_network() const {
@@ -1921,8 +1915,7 @@ Eval::NNUE::ActiveAccumulatorCache& Search::Worker::big_cache() { return refresh
 // Evaluate the current position of the game tree, from the point of view of
 // the side to move.
 Value Search::Worker::evaluate(const Position& pos) {
-    return evaluate_with_big_network_bridge(big_network(), pos, accumulatorStack, big_cache(),
-                                            optimism[pos.side_to_move()]);
+    return evaluate_with_big_network_bridge(big_network(), pos, accumulatorStack, big_cache());
 }
 
 namespace {

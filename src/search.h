@@ -215,8 +215,7 @@ class Worker;
   const Eval::NNUE::ActiveNetwork&                                                         network,
   const Position&                                                                        pos,
   Eval::NNUE::AccumulatorStack&                                                          accumulators,
-  Eval::NNUE::ActiveAccumulatorCache& cache,
-  Value                                                                                  optimism);
+  Eval::NNUE::ActiveAccumulatorCache& cache);
 
 struct InfoShort {
     int   depth;
@@ -383,8 +382,6 @@ class Worker {
     usize              pvIdx, pvLast;
     RelaxedAtomic<u64> nodes, tbHits, bestMoveChanges;
     int                selDepth, nmpMinPly;
-
-    Value optimism[COLOR_NB];
 
     Position  rootPos;
     RootMoves rootMoves;
