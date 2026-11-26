@@ -49,7 +49,8 @@ constexpr int       L3Big                              = 32;
 
 static_assert(ActiveTransformedFeatureDimensions == TransformedFeatureDimensionsBig);
 
-constexpr IndexType LayerStacks = 32;
+constexpr IndexType RawLayerStacks = 192;
+constexpr IndexType LayerStacks    = RawLayerStacks;
 
 template<IndexType L1, int L2, int L3>
 struct NetworkArchitecture {
