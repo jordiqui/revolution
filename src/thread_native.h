@@ -95,9 +95,7 @@ class NativeThread {
             return;
         }
         if (options.largeStack)
-        {
             pthread_attr_setstacksize(attr, TH_STACK_SIZE);
-        }
 
         auto start_routine = [](void* ptr) -> void* {
             auto f = reinterpret_cast<ThreadCallableBase*>(ptr);

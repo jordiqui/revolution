@@ -4,6 +4,6 @@
 // This header is used by src/nnue/net.sh to locate the default NNUE filenames.
 // Keep these in sync with ../evaluate.h.
 
-#define EvalFileDefaultName "nn-d1ee674a62ca.nnue"
+#define EvalFileDefaultName "nn-18cd32e11a9c.nnue"
 
 #endif  // REVOLUTION_NNUE_EVALUATE_H_INCLUDED
