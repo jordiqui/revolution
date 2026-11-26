@@ -207,6 +207,15 @@ inline constexpr T2 interpolate(T1 x, T1 x0, T1 x1, T2 y0, T2 y1) {
 }
 
 
+// std::swap is not constexpr until C++20
+template<typename T>
+constexpr void swap_constexpr(T& a, T& b) {
+    T tmp = a;
+    a     = b;
+    b     = tmp;
+}
+
+
 template<typename T, usize MaxSize>
 class ValueList {
 

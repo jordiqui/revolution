@@ -29,6 +29,7 @@
 
 #include "attacks.h"
 #include "bitboard.h"
+#include "misc.h"
 #include "types.h"
 
 namespace Stockfish {
@@ -72,6 +73,7 @@ struct StateInfo {
     Bitboard   threats[PIECE_TYPE_NB];
     Piece      capturedPiece;
     int        repetition;
+    std::array<u8, 32> piecePlacement;
 };
 
 
@@ -87,8 +89,6 @@ using StateListPtr = std::unique_ptr<std::deque<StateInfo>>;
 // traversing the search tree.
 class Position {
    public:
-    static void init();
-
     Position()                           = default;
     Position(const Position&)            = delete;
     Position& operator=(const Position&) = delete;
