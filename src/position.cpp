@@ -162,9 +162,12 @@ void Position::init() {
 
 
 // Initializes the position object with the given FEN string.
-// This function is not very robust - make sure that input FENs are correct,
-// this is assumed to be the responsibility of the GUI.
 Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
+    return set(fenStr, isChess960, si, true);
+}
+
+
+Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, bool checkKingSafety) {
     /*
    A FEN string defines a particular position using only the ASCII character set.
 
@@ -200,100 +203,143 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
       incremented after Black's move.
 */
 
-    unsigned char      col, row, token;
-    usize             idx;
-    Square             sq = SQ_A8;
+    // The Position& API requires a complete position even when the input is malformed.
+    const auto reset = [&]() -> Position& {
+        return set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                   isChess960, si);
+    };
+
     std::istringstream ss(fenStr);
+    string             boardField, activeColor, castling, ep;
+    if (!(ss >> boardField >> activeColor >> castling >> ep))
+        return reset();
 
     std::memset(reinterpret_cast<char*>(this), 0, sizeof(Position));
     std::memset(si, 0, sizeof(StateInfo));
     st = si;
 
-    ss >> std::noskipws;
-
     // 1. Piece placement
-    while ((ss >> token) && !isspace(token))
+    int file = FILE_A;
+    int rank = RANK_8;
+    for (const char token : boardField)
     {
-        if (isdigit(token))
-            sq += (token - '0') * EAST;  // Advance the given number of files
-
-        else if (token == '/')
-            sq += 2 * SOUTH;
-
-        else if ((idx = PieceToChar.find(token)) != string::npos)
+        if (token == '/')
         {
-            put_piece(Piece(idx), sq);
-            ++sq;
+            if (file != FILE_NB || rank == RANK_1)
+                return reset();
+
+            file = FILE_A;
+            --rank;
+        }
+        else if (token >= '1' && token <= '8')
+        {
+            file += token - '0';
+            if (file > FILE_NB)
+                return reset();
+        }
+        else
+        {
+            const usize idx = PieceToChar.find(token);
+            if (file >= FILE_NB || idx == string::npos)
+                return reset();
+
+            put_piece(Piece(idx), make_square(File(file), Rank(rank)));
+            ++file;
         }
     }
 
-    // 2. Active color
-    ss >> token;
-    sideToMove = (token == 'w' ? WHITE : BLACK);
-    ss >> token;
+    if (rank != RANK_1 || file != FILE_NB || count<KING>(WHITE) != 1 || count<KING>(BLACK) != 1
+        || (pieces(PAWN) & (Rank1BB | Rank8BB)))
+        return reset();
 
-    // 3. Castling availability. Compatible with 3 standards: Normal FEN standard,
-    // Shredder-FEN that uses the letters of the columns on which the rooks began
-    // the game instead of KQkq and also X-FEN standard that, in case of Chess960,
-    // if an inner rook is associated with the castling right, the castling tag is
-    // replaced by the file letter of the involved rook, as for the Shredder-FEN.
-    while ((ss >> token) && !isspace(token))
+    for (const Color c : {WHITE, BLACK})
     {
-        Square rsq;
-        Color  c    = islower(token) ? BLACK : WHITE;
-        Piece  rook = make_piece(c, ROOK);
+        const int additional = std::max(count<KNIGHT>(c) - 2, 0)
+                             + std::max(count<BISHOP>(c) - 2, 0)
+                             + std::max(count<ROOK>(c) - 2, 0)
+                             + std::max(count<QUEEN>(c) - 1, 0);
+        if (additional > 8 - count<PAWN>(c))
+            return reset();
+    }
 
-        token = char(toupper(token));
+    // 2. Active color
+    if (activeColor != "w" && activeColor != "b")
+        return reset();
 
-        if (token == 'K')
-            for (rsq = relative_square(c, SQ_H1); piece_on(rsq) != rook; --rsq)
-            {}
+    sideToMove = activeColor == "w" ? WHITE : BLACK;
+    if (checkKingSafety && (attackers_to(square<KING>(~sideToMove)) & pieces(sideToMove)))
+        return reset();
 
-        else if (token == 'Q')
-            for (rsq = relative_square(c, SQ_A1); piece_on(rsq) != rook; ++rsq)
-            {}
-
-        else if (token >= 'A' && token <= 'H')
-            rsq = make_square(File(token - 'A'), relative_rank(c, RANK_1));
-
-        else
+    // 3. Castling availability. Accept standard, Shredder-FEN and X-FEN rights.
+    // Keep valid rights and ignore unsupported or duplicate castling tags.
+    for (const unsigned char tag : castling)
+    {
+        const Color  c = islower(tag) ? BLACK : WHITE;
+        const Square king = square<KING>(c);
+        if (relative_rank(c, king) != RANK_1 || file_of(king) < FILE_B || file_of(king) > FILE_G)
             continue;
 
-        set_castling_right(c, rsq);
+        const char  token = char(toupper(tag));
+        const Piece rook  = make_piece(c, ROOK);
+        Square      rsq   = SQ_NONE;
+        if (token == 'K' || token == 'Q')
+        {
+            const int step = token == 'K' ? -1 : 1;
+            int       f    = token == 'K' ? FILE_H : FILE_A;
+            for (; f != file_of(king); f += step)
+            {
+                const Square sq = make_square(File(f), rank_of(king));
+                if (piece_on(sq) == rook)
+                {
+                    rsq = sq;
+                    break;
+                }
+            }
+        }
+        else if (token >= 'A' && token <= 'H')
+            rsq = make_square(File(token - 'A'), rank_of(king));
+
+        if (is_ok(rsq) && piece_on(rsq) == rook
+            && !can_castle(c & (king < rsq ? KING_SIDE : QUEEN_SIDE)))
+            set_castling_right(c, rsq);
     }
 
-    // 4. En passant square.
-    // Ignore if square is invalid or not on side to move relative rank 6.
-    bool enpassant = false;
-
-    if (((ss >> col) && (col >= 'a' && col <= 'h'))
-        && ((ss >> row) && (row == (sideToMove == WHITE ? '6' : '3'))))
+    // 4. En passant square. Preserve the historical hash of geometrically
+    // possible captures. Move generation filters captures that expose the king.
+    st->epSquare = SQ_NONE;
+    if (ep.size() == 2 && ep[0] >= 'a' && ep[0] <= 'h'
+        && ep[1] == (sideToMove == WHITE ? '6' : '3'))
     {
-        st->epSquare = make_square(File(col - 'a'), Rank(row - '1'));
-
-        // En passant square will be considered only if
-        // a) side to move have a pawn threatening epSquare
-        // b) there is an enemy pawn in front of epSquare
-        // c) there is no piece on epSquare or behind epSquare
-        enpassant = attacks_bb(PAWN, st->epSquare, ~sideToMove) & pieces(sideToMove, PAWN)
-                 && (pieces(~sideToMove, PAWN) & (st->epSquare + pawn_push(~sideToMove)))
-                 && !(pieces() & (st->epSquare | (st->epSquare + pawn_push(sideToMove))));
+        const Square sq = make_square(File(ep[0] - 'a'), Rank(ep[1] - '1'));
+        if ((attacks_bb(PAWN, sq, ~sideToMove) & pieces(sideToMove, PAWN))
+            && (pieces(~sideToMove, PAWN) & (sq + pawn_push(~sideToMove)))
+            && !(pieces() & (sq | (sq + pawn_push(sideToMove)))))
+            st->epSquare = sq;
     }
 
-    if (!enpassant)
-        st->epSquare = SQ_NONE;
+    // 5-6. Halfmove clock and fullmove number. The clocks may be omitted.
+    int fullmove = 0;
+    ss >> std::ws;
+    if (!ss.eof())
+    {
+        if (!(ss >> st->rule50))
+            return reset();
 
-    // 5-6. Halfmove clock and fullmove number
-    ss >> std::skipws >> st->rule50 >> gamePly;
+        ss >> std::ws;
+        if (!ss.eof() && !(ss >> fullmove))
+            return reset();
+    }
 
-    // Convert from fullmove starting from 1 to gamePly starting from 0,
-    // handle also common incorrect FEN with fullmove = 0.
-    gamePly = std::max(2 * (gamePly - 1), 0) + (sideToMove == BLACK);
+    // Bound the counters as in the official parser before evaluation and ply arithmetic.
+    if (st->rule50 < 0 || st->rule50 > 32767 || fullmove < 0 || fullmove > 100000)
+        return reset();
 
+    // Handle the common incorrect value of zero like fullmove one.
+    gamePly = std::max(2 * (fullmove - 1), 0) + (sideToMove == BLACK);
     chess960 = isChess960;
     set_state();
 
-    assert(pos_is_ok());
+    assert(pos_is_ok(checkKingSafety));
 
     return *this;
 }
@@ -424,7 +470,8 @@ Position& Position::set(const string& code, Color c, StateInfo* si) {
     string fenStr = "8/" + sides[0] + char(8 - sides[0].length() + '0') + "/8/8/8/8/" + sides[1]
                   + char(8 - sides[1].length() + '0') + "/8 w - - 0 10";
 
-    return set(fenStr, false, si);
+    // The synthetic arrangement is used for material, and need not be a legal game position.
+    return set(fenStr, false, si, false);
 }
 
 
@@ -1467,7 +1514,7 @@ bool Position::material_key_is_ok() const { return compute_material_key() == st-
 // Performs some consistency checks for the position object
 // and raise an assert if something wrong is detected.
 // This is meant to be helpful when debugging.
-bool Position::pos_is_ok() const {
+bool Position::pos_is_ok(bool checkKingSafety) const {
 
     constexpr bool Fast = false;  // fast or full check?
 
@@ -1480,7 +1527,7 @@ bool Position::pos_is_ok() const {
         return true;
 
     if (pieceCount[W_KING] != 1 || pieceCount[B_KING] != 1
-        || (attackers_to(square<KING>(~sideToMove)) & pieces(sideToMove)))
+        || (checkKingSafety && (attackers_to(square<KING>(~sideToMove)) & pieces(sideToMove))))
         assert(0 && "pos_is_ok: Kings");
 
     const bool pawnsOnInvalidRanks = pieces(PAWN) & (Rank1BB | Rank8BB);

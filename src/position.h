@@ -175,7 +175,7 @@ class Position {
     bool  dtz_is_dtm() const;  // Pawnless && (3-men || 4-men-minors-only)
 
     // Position consistency check, for debugging
-    bool pos_is_ok() const;
+    bool pos_is_ok(bool checkKingSafety = true) const;
     bool material_key_is_ok() const;
     void flip();
 
@@ -186,6 +186,8 @@ class Position {
     void swap_piece(Square s, Piece pc, DirtyThreats* const dts = nullptr);
 
    private:
+    Position& set(const std::string& fenStr, bool isChess960, StateInfo* si, bool checkKingSafety);
+
     // Initialization helpers (used while setting up a position)
     void set_castling_right(Color c, Square rfrom);
     Key  compute_material_key() const;
