@@ -98,15 +98,15 @@ constexpr Key search_key(Key legacy, Color stm) {
 static_assert(
   [] {
       for (int a = 0; a < CASTLING_RIGHT_NB; ++a)
-          for (int b = 0; b < CASTLING_RIGHT_NB; ++b)
+          for (int b = a; b < CASTLING_RIGHT_NB; ++b)
               for (int f1 = 0; f1 <= FILE_NB; ++f1)      // 0 means no ep component
-                  for (int f2 = 0; f2 <= FILE_NB; ++f2)  // 0 means no ep component
+                  for (int f2 = f1; f2 <= FILE_NB; ++f2)  // 0 means no ep component
                       for (int stm = 0; stm < 2; ++stm)
                       {
                           Key cr   = castling[a] ^ castling[b];
                           Key ep   = (f1 ? enpassant[f1 - 1] : 0) ^ (f2 ? enpassant[f2 - 1] : 0);
                           Key stmd = stm ? side : 0;
-                          if (cr == 0 && ep == 0 && stmd == 0)
+                          if (a == b && f1 == f2 && stm == 0)
                               continue;  // identical components
                           if ((cr ^ ep ^ stmd) == 0)
                               return false;  // a cancellation exists

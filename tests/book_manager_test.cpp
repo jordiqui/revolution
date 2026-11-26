@@ -90,9 +90,8 @@ int main() {
     manager.set_book_for_testing(0, new StubBook("BIN", binMove));
     manager.set_book_for_testing(1, new StubBook("CTG", ctgMove));
 
-    StateListPtr states(new std::deque<StateInfo>(1));
-    Position     pos;
-    pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false, &states->back());
+    Position pos;
+    pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", false);
 
     Move result = manager.probe(pos, options);
     assert(result == binMove);
