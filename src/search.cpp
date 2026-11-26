@@ -156,8 +156,7 @@ void update_all_stats(const Position& pos,
                       SearchedList&   quietsSearched,
                       SearchedList&   capturesSearched,
                       Depth           depth,
-                      Move            TTMove,
-                      bool            PvNode);
+                      Move            TTMove);
 
 bool is_shuffling(Move move, Stack* const ss, const Position& pos) {
     if (pos.capture_stage(move) || pos.rule50_count() < 10)
@@ -1577,7 +1576,7 @@ moves_loop:  // When in check, search starts here
     else if (bestMove)
     {
         update_all_stats(pos, ss, *this, bestMove, prevSq, quietsSearched, capturesSearched, depth,
-                         ttData.move, PvNode);
+                         ttData.move);
         if (!PvNode)
             ttMoveHistory << (bestMove == ttData.move ? 918 : -747);
     }
@@ -1988,8 +1987,7 @@ void update_all_stats(const Position& pos,
                       SearchedList&   quietsSearched,
                       SearchedList&   capturesSearched,
                       Depth           depth,
-                      Move            ttMove,
-                      bool            PvNode) {
+                      Move            ttMove) {
 
     CapturePieceToHistory& captureHistory = workerThread.captureHistory;
     Piece                  movedPiece     = pos.moved_piece(bestMove);
@@ -1999,9 +1997,8 @@ void update_all_stats(const Position& pos,
       std::min(133 * depth - 81, 1487) + 364 * (bestMove == ttMove) + (ss - 1)->statScore / 28;
     int malus = std::min(968 * depth - 235, 2244);
 
-    if (!PvNode)
-        // Keep the multiplication 64-bit so 32-bit builds retain the same behavior.
-        bonus += bonus * u64(quietsSearched.size() + capturesSearched.size()) / 256;
+    // Keep the multiplication 64-bit so 32-bit builds retain the same behavior.
+    bonus += int(bonus * u64(quietsSearched.size() + capturesSearched.size()) / 256);
 
     if (!pos.capture_stage(bestMove))
     {
