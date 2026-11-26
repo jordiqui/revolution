@@ -20,7 +20,6 @@
 
 #include <algorithm>
 #include <cassert>
-#include <deque>
 #include <filesystem>
 #include <iosfwd>
 #include <memory>
@@ -74,12 +73,11 @@ std::unique_ptr<NN::ActiveNetwork> make_default_big_network(
 Engine::Engine(std::optional<std::filesystem::path> path) :
     binaryDirectory(path ? CommandLine::get_binary_directory(*path) : std::filesystem::path{}),
     numaContext(NumaConfig::from_system(DefaultNumaPolicy)),
-    states(new std::deque<StateInfo>(1)),
     threads(),
     networkFile{EvalFileDefaultName, std::nullopt, ""},
     networks(numaContext, get_default_network()) {
 
-    pos.set(StartFEN, false, &states->back());
+    pos.set(StartFEN, false);
 
     options.add(  //
       "Debug Log File", Option("", [](const Option& o) {
@@ -217,7 +215,7 @@ void Engine::go(Search::LimitsType& limits) {
         }
     }
 
-    threads.start_thinking(options, pos, states, limits);
+    threads.start_thinking(options, pos, limits);
 }
 void Engine::stop() { threads.stop = true; }
 
@@ -260,9 +258,7 @@ void Engine::set_on_verify_network(std::function<void(std::string_view)>&& f) {
 void Engine::wait_for_search_finished() { threads.main_thread()->wait_for_search_finished(); }
 
 void Engine::set_position(const std::string& fen, const std::vector<std::string>& moves) {
-    // Drop the old state and create a new one
-    states = StateListPtr(new std::deque<StateInfo>(1));
-    pos.set(fen, options["UCI_Chess960"], &states->back());
+    pos.set(fen, options["UCI_Chess960"]);
 
     for (const auto& move : moves)
     {
@@ -271,8 +267,7 @@ void Engine::set_position(const std::string& fen, const std::vector<std::string>
         if (m == Move::none())
             break;
 
-        states->emplace_back();
-        pos.do_move(m, states->back());
+        pos.do_move(m);
     }
 }
 
@@ -405,13 +400,12 @@ void Engine::save_network(const std::optional<std::filesystem::path>& file) {
 // utility functions
 
 void Engine::trace_eval() const {
-    StateListPtr trace_states(new std::deque<StateInfo>(1));
-    Position     p;
-    p.set(pos.fen(), options["UCI_Chess960"], &trace_states->back());
+    auto p = std::make_unique<Position>();
+    p->set(pos.fen(), options["UCI_Chess960"]);
 
     verify_network();
 
-    sync_cout << "\n" << Eval::trace(p, *networks) << sync_endl;
+    sync_cout << "\n" << Eval::trace(*p, *networks) << sync_endl;
 }
 
 const OptionsMap& Engine::get_options() const { return options; }
