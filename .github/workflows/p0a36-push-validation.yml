@@ -1,7 +1,7 @@
-name: P0A35 Universal validation only
+name: P0A36 Universal validation only
 on:
   push:
-    branches: [validation/p0a35-run-only]
+    branches: [validation/p0a36-run-only]
 permissions:
   contents: read
 jobs:
@@ -11,27 +11,31 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: 5ce9055e82bc78af48cda0b5d606a23bafe1abbe
+          ref: 8adedd632d7d24d51258c9121a1ac5fbe87cbbed
           fetch-depth: 0
           persist-credentials: false
       - name: Check exact candidate tree and download authentic NNUE
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD^{tree})" = d507003a5a57db82f555ff5a49f2300a7c2d6f70
+          test "$(git rev-parse HEAD^{tree})" = 16c77500d2aba3d398255c98d8b92a66327b71cf
           git rev-parse HEAD
-          git diff --check f0d0d81c94af7ffa6743cbe716b1523d24bb72df HEAD
-          test "$(git rev-parse HEAD)" = 5ce9055e82bc78af48cda0b5d606a23bafe1abbe
-          git diff --exit-code f0d0d81c94af7ffa6743cbe716b1523d24bb72df HEAD -- src/book src/experience.cpp src/experience.h src/experience_compat.h src/experience_zobrist.h src/revolution_zobrist.h src/sparsehash src/evaluate.h src/nnue/evaluate.h src/nnue src/Makefile src/universal scripts/get_native_properties.sh src/tt.cpp src/tt.h
+          git diff --check afee0376a838e54cc2ada7d4051bb1f9f5f2dcd5 HEAD
+          test "$(git rev-parse HEAD)" = 8adedd632d7d24d51258c9121a1ac5fbe87cbbed
+          git diff --exit-code afee0376a838e54cc2ada7d4051bb1f9f5f2dcd5 HEAD -- src/book src/experience.cpp src/experience.h src/experience_compat.h src/experience_zobrist.h src/revolution_zobrist.h src/sparsehash src/nnue src/Makefile src/universal scripts/get_native_properties.sh src/tt.cpp src/tt.h src/position.cpp src/position.h src/history.h src/engine.cpp src/engine.h src/thread.cpp src/thread.h src/uci.cpp src/uci.h src/attacks.cpp src/syzygy
           echo 'PROTECTED_SOURCE=PASS'
-          git diff --exit-code f0d0d81c94af7ffa6743cbe716b1523d24bb72df HEAD -- src/syzygy ':!src/syzygy/tbprobe.cpp'
-          test "$(git rev-list --count f0d0d81c94af7ffa6743cbe716b1523d24bb72df..HEAD)" = 9
-          test "$(git diff --name-only f0d0d81c94af7ffa6743cbe716b1523d24bb72df HEAD | wc -l)" = 22
+          git diff --exit-code afee0376a838e54cc2ada7d4051bb1f9f5f2dcd5 HEAD -- src/syzygy ':!src/syzygy/tbprobe.cpp'
+          test "$(git rev-list --count afee0376a838e54cc2ada7d4051bb1f9f5f2dcd5..HEAD)" = 3
+          test "$(git diff --name-only afee0376a838e54cc2ada7d4051bb1f9f5f2dcd5 HEAD | wc -l)" = 6
           if git grep -nE 'StateListPtr|st->previous|newSt\.previous|rootState|setupStates|USE_DUAL_HYPERBOLA_QUINT|USE_HYPERBOLA_QUINT' -- src ':!src/sparsehash'; then exit 1; fi
-          echo 'P0A35_RING_AND_HQ_SOURCE_GUARDS=PASS'
+          echo 'P0A36_RING_AND_HQ_SOURCE_GUARDS=PASS'
+          if git grep -niE '\boptimism\b' -- src; then exit 1; fi
+          git grep -nF 'std::clamp((ss->staticEval - beta) / 256, 0, ss->ply / 2)' -- src/search.cpp
+          git grep -nF '__wasm_simd128__' -- src/attacks.h
+          echo 'P0A36_SOURCE_GUARDS=PASS'
           if git grep -nF 'do_move(Position& pos, const Move move, StateInfo& st, Stack* const ss)' -- src/search.cpp src/search.h; then exit 1; fi
           if git grep -nF 'nn-18cd32e11a9c.nnue' -- src/evaluate.h src/nnue/evaluate.h; then exit 1; fi
-          echo 'P0A35_OVERLOAD_REMOVED=PASS'
+          echo 'P0A36_OVERLOAD_REMOVED=PASS'
           if git grep -nE 'K32Q2|k32q2|opponentHasQueen|FullThreats::OrientTBL' -- src; then exit 1; fi
           # Verify failed downloads propagate without accessing the network.
           tmp=$(mktemp -d)
@@ -319,10 +323,10 @@ jobs:
               print('SFNNV20_LAYER_LAYOUT_SEARCH=PASS')
               # Export must round-trip the official bytes, including the fallback table.
               send('position startpos')
-              send('export_net /tmp/revolution-p0a35-export.nnue')
+              send('export_net /tmp/revolution-p0a36-export.nnue')
               wait(r'Network saved successfully')
               import hashlib
-              with open('/tmp/revolution-p0a35-export.nnue','rb') as exported:
+              with open('/tmp/revolution-p0a36-export.nnue','rb') as exported:
                   assert hashlib.file_digest(exported,'sha256').hexdigest()=='bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e'
               print('SFNNV20_EXPORT_ROUNDTRIP=PASS')
               send('setoption name Threads value 2')
@@ -433,6 +437,18 @@ jobs:
               send('isready');wait(r'^readyok$')
               send('setoption name Hash value 64')
               print('RING_WRAP_640_PLIES=PASS IDLE_MUTATION=PASS')
+              # Upstream NMP mate regression positions, single-threaded.
+              for fen,expected in [
+                  ('8/7p/7R/3p1N2/3P2pN/4p1P1/3pPppk/3Kbr2 b - - 0 1',-2),
+                  ('rk6/p1r3p1/P3B1Kp/1p2B3/8/8/8/8 w - - 0 1',5)
+              ]:
+                  send('ucinewgame');send('isready');wait(r'^readyok$')
+                  send('position fen '+fen);send('go depth 20')
+                  out=wait(r'^bestmove ',timeout=120)
+                  assert out[-1].split()[1] not in ('(none)','0000'),out[-1]
+                  mates=[int(m.group(1)) for l in out if (m:=re.search(r'score mate (-?\d+)',l))]
+                  assert mates and mates[-1]==expected,(fen,mates,out[-1])
+              print('NMP_MATE_REGRESSIONS=PASS')
               send('setoption name MultiPV value 3')
               send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
               send('position startpos');send('go wtime 5000 btime 5000 winc 0 binc 0');assert any('multipv 3 ' in l for l in wait(r'^bestmove ',timeout=30))
@@ -455,7 +471,7 @@ jobs:
       - uses: actions/upload-artifact@v6
         if: always()
         with:
-          name: p0a35-universal-validation-logs
+          name: p0a36-universal-validation-logs
           path: |
             clean-universal.log
             build-universal.log
