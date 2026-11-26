@@ -28,6 +28,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <iostream>
+#include <memory>
 #include <ratio>
 #include <string>
 #include <utility>
@@ -56,7 +57,7 @@ namespace TB = Tablebases;
 
 void syzygy_extend_pv(const OptionsMap&            options,
                       const Search::LimitsType&    limits,
-                      Stockfish::Position&         pos,
+                      Stockfish::Position&         root,
                       Stockfish::Search::RootMove& rootMove,
                       Value&                       v,
                       const usize                  multiPV);
@@ -2162,7 +2163,7 @@ void SearchManager::check_time(Search::Worker& worker) {
 // possible continuation (but not a proven mating line).
 void syzygy_extend_pv(const OptionsMap&         options,
                       const Search::LimitsType& limits,
-                      Position&                 pos,
+                      Position&                 root,
                       RootMove&                 rootMove,
                       Value&                    v,
                       const usize               multiPV) {
@@ -2182,6 +2183,12 @@ void syzygy_extend_pv(const OptionsMap&         options,
 
     if (time_abort())
         return;
+
+    // Walk the PV on a copy that is never undone: the PV may exceed MAX_HIST.
+    auto walker = std::make_unique<Position>();
+    Position& pos = *walker;
+    pos.set(root.fen(), root.is_chess960());
+    pos.copy_state_infos(root);
 
     // Step 0, do the rootMove, no correction allowed, as needed for MultiPV in TB
     pos.do_move(rootMove.pv[0]);
@@ -2280,10 +2287,6 @@ void syzygy_extend_pv(const OptionsMap&         options,
     // will figure it out (e.g. 1kq5/q2r4/5K2/8/8/8/8/7Q w - - 96 1 )
     if (pos.is_draw(0))
         v = VALUE_DRAW;
-
-    // Undo the PV moves
-    for (auto it = rootMove.pv.rbegin(); it != rootMove.pv.rend(); ++it)
-        pos.undo_move(*it);
 
     // Inform if we couldn't get a full extension in time
     if (time_abort())
