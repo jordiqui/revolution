@@ -92,13 +92,12 @@ inline int lmr_divisor(int depth) {
 }
 
 int correction_value(const Worker& w, const Position& pos, const Stack* const ss) {
-    const Color us     = pos.side_to_move();
     const auto  m      = (ss - 1)->currentMove;
     const auto& shared = w.sharedHistory;
-    const int   pcv    = shared.pawn_correction_entry(pos).at(us).pawn;
-    const int   micv   = shared.minor_piece_correction_entry(pos).at(us).minor;
-    const int   wnpcv  = shared.nonpawn_correction_entry<WHITE>(pos).at(us).nonPawnWhite;
-    const int   bnpcv  = shared.nonpawn_correction_entry<BLACK>(pos).at(us).nonPawnBlack;
+    const int   pcv    = shared.pawn_correction_entry(pos).pawn;
+    const int   micv   = shared.minor_piece_correction_entry(pos).minor;
+    const int   wnpcv  = shared.nonpawn_correction_entry<WHITE>(pos).nonPawnWhite;
+    const int   bnpcv  = shared.nonpawn_correction_entry<BLACK>(pos).nonPawnBlack;
     const int   cntcv =
       m.is_ok()
           ? 7885
@@ -120,16 +119,15 @@ void update_correction_history(const Position& pos,
                                Stack* const    ss,
                                Search::Worker& workerThread,
                                const int       bonus) {
-    const Move  m  = (ss - 1)->currentMove;
-    const Color us = pos.side_to_move();
+    const Move m = (ss - 1)->currentMove;
 
     constexpr int nonPawnWeight = 178;
     auto&         shared        = workerThread.sharedHistory;
 
-    shared.pawn_correction_entry(pos)[us].pawn << bonus;
-    shared.minor_piece_correction_entry(pos)[us].minor << bonus * 150 / 128;
-    shared.nonpawn_correction_entry<WHITE>(pos)[us].nonPawnWhite << bonus * nonPawnWeight / 128;
-    shared.nonpawn_correction_entry<BLACK>(pos)[us].nonPawnBlack << bonus * nonPawnWeight / 128;
+    shared.pawn_correction_entry(pos).pawn << bonus;
+    shared.minor_piece_correction_entry(pos).minor << bonus * 150 / 128;
+    shared.nonpawn_correction_entry<WHITE>(pos).nonPawnWhite << bonus * nonPawnWeight / 128;
+    shared.nonpawn_correction_entry<BLACK>(pos).nonPawnBlack << bonus * nonPawnWeight / 128;
 
     if (m.is_ok())
     {
@@ -336,6 +334,7 @@ bool Search::Worker::iterative_deepening() {
 
     int searchAgainCounter = 0;
     int failHighRecovery   = 0;
+    u64 totalEffort        = 0;
 
     lowPlyHistory.fill(102);
 
@@ -510,6 +509,9 @@ bool Search::Worker::iterative_deepening() {
             if (mainThread && !threads.stop && (pvIdx + 1 == multiPV || nodes > 10000000))
                 main_manager()->output_pv(*this, threads, tt, rootDepth);
 
+            if (mainThread && !pvIdx)
+                totalEffort = u64(nodes);
+
             if (threads.stop)
                 break;
         }
@@ -571,10 +573,10 @@ bool Search::Worker::iterative_deepening() {
         // Do we have time for the next iteration? Can we stop searching now?
         if (limits.use_time_management() && !threads.stop && !mainThread->stopOnPonderhit)
         {
-            u64 nodesEffort = rootMoves[0].effort * 100000 / std::max(usize(1), usize(nodes));
+            u64 nodesEffort = rootMoves[0].effort * 100000 / std::max(u64(1), totalEffort);
 
-            double fallingEval = (11.48 + 2.30 * (mainThread->bestPreviousAverageScore - bestValue)
-                                  + 1.1 * (mainThread->iterValue[iterIdx] - bestValue))
+            double fallingEval = (11.48 + 2.30 * (mainThread->bestPreviousAverageScore - rootMoves[0].score)
+                                  + 1.1 * (mainThread->iterValue[iterIdx] - rootMoves[0].score))
                                / 100.0;
             fallingEval = std::clamp(fallingEval, 0.576, 1.728);
 
@@ -625,7 +627,7 @@ bool Search::Worker::iterative_deepening() {
                 threads.increaseDepth = mainThread->ponder || elapsedTime <= totalTime * 0.50;
         }
 
-        mainThread->iterValue[iterIdx] = bestValue;
+        mainThread->iterValue[iterIdx] = rootMoves[0].score;
         iterIdx                        = (iterIdx + 1) & 3;
     }
 
@@ -640,7 +642,10 @@ bool Search::Worker::iterative_deepening() {
         Move pick = skill.best ? skill.best : skill.pick_best(rootMoves, multiPV);
         if (pick != rootMoves[0].pv[0])
         {
+            const auto bestScore = rootMoves[0].score;
             std::swap(rootMoves[0], *std::find(rootMoves.begin(), rootMoves.end(), pick));
+            if (is_loss(rootMoves[0].score) && rootMoves[0].score < bestScore)
+                rootMoves[0].inexactLower = true;
             return true;
         }
     }
@@ -813,7 +818,7 @@ Value Search::Worker::search(
 
     // Step 4. Transposition table lookup
     excludedMove                   = ss->excludedMove;
-    posKey                         = pos.key();
+    posKey                         = pos.search_key();
     auto [ttHit, ttData, ttWriter] = tt.probe(posKey);
 
     ss->ttHit    = ttHit;
@@ -898,7 +903,7 @@ Value Search::Worker::search(
                     && !is_decisive(ttData.value))
                 {
                     pos.do_move(ttData.move, st);
-                    Key nextPosKey                             = pos.key();
+                    Key nextPosKey                             = pos.search_key();
                     auto [ttHitNext, ttDataNext, ttWriterNext] = tt.probe(nextPosKey);
                     pos.undo_move(ttData.move);
 
@@ -1228,8 +1233,7 @@ moves_loop:  // When in check, search starts here
                 // (*Scaler): Generally, more frequent futility pruning scales well
                 if (!ss->inCheck && lmrDepth < 13 && futilityValue <= alpha)
                 {
-                    if (bestValue <= futilityValue && !is_decisive(bestValue)
-                        && !is_win(futilityValue))
+                    if (bestValue <= futilityValue && !is_win(futilityValue))
                         bestValue = futilityValue;
                     continue;
                 }
@@ -1705,7 +1709,7 @@ Value Search::Worker::qsearch(Position& pos, Stack* ss, Value alpha, Value beta)
     assert(0 <= ss->ply && ss->ply < MAX_PLY);
 
     // Step 3. Transposition table lookup
-    posKey                         = pos.key();
+    posKey                         = pos.search_key();
     auto [ttHit, ttData, ttWriter] = tt.probe(posKey);
 
     ss->ttHit    = ttHit;
@@ -2387,7 +2391,7 @@ bool RootMove::extract_ponder_from_tt(const TranspositionTable& tt, Position& po
 
     pos.do_move(pv[0], st);
 
-    auto [ttHit, ttData, ttWriter] = tt.probe(pos.key());
+    auto [ttHit, ttData, ttWriter] = tt.probe(pos.search_key());
     if (ttHit)
     {
         if (ttData.move && pos.legal(ttData.move))

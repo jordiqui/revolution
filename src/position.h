@@ -155,6 +155,10 @@ class Position {
 
     // Accessing hash keys
     Key key() const;
+    Key search_key() const;
+    Key search_pawn_key() const;
+    Key search_minor_piece_key() const;
+    Key search_non_pawn_key(Color c) const;
     Key prefetch_key(Move m) const;
     Key material_key() const;
     Key pawn_key() const;
@@ -333,6 +337,14 @@ inline Key Position::pawn_key() const { return st->pawnKey; }
 inline Key Position::material_key() const { return st->materialKey; }
 
 inline Key Position::minor_piece_key() const { return st->minorPieceKey; }
+
+inline Key Position::search_minor_piece_key() const {
+    return (st->minorPieceKey << 1) | Key(sideToMove);
+}
+
+inline Key Position::search_non_pawn_key(Color c) const {
+    return (st->nonPawnKey[c] << 1) | Key(sideToMove);
+}
 
 inline Key Position::non_pawn_key(Color c) const { return st->nonPawnKey[c]; }
 

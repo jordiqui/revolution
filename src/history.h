@@ -163,7 +163,7 @@ struct CorrectionBundle {
     StatsEntry<T, D, true> nonPawnWhite;
     StatsEntry<T, D, true> nonPawnBlack;
 
-    void operator=(T val) {
+    void fill(T val) {
         pawn         = val;
         minor        = val;
         nonPawnWhite = val;
@@ -198,8 +198,7 @@ struct CorrHistTypedef<NonPawn> {
 }
 
 using UnifiedCorrectionHistory =
-  DynStats<MultiArray<CorrectionBundle<i16, CORRECTION_HISTORY_LIMIT>, COLOR_NB>,
-           CORRHIST_BASE_SIZE>;
+  DynStats<CorrectionBundle<i16, CORRECTION_HISTORY_LIMIT>, 2 * CORRHIST_BASE_SIZE>;
 
 template<CorrHistType T>
 using CorrectionHistory = typename Detail::CorrHistTypedef<T>::type;
@@ -229,33 +228,33 @@ struct SharedHistories {
     usize get_size() const { return sizeMinus1 + 1; }
 
     auto& pawn_entry(const Position& pos) {
-        return pawnHistory[pos.pawn_key() & pawnHistSizeMinus1];
+        return pawnHistory[(pos.search_pawn_key() >> 1) & pawnHistSizeMinus1];
     }
     const auto& pawn_entry(const Position& pos) const {
-        return pawnHistory[pos.pawn_key() & pawnHistSizeMinus1];
+        return pawnHistory[(pos.search_pawn_key() >> 1) & pawnHistSizeMinus1];
     }
 
     auto& pawn_correction_entry(const Position& pos) {
-        return correctionHistory[pos.pawn_key() & sizeMinus1];
+        return correctionHistory[pos.search_pawn_key() & sizeMinus1];
     }
     const auto& pawn_correction_entry(const Position& pos) const {
-        return correctionHistory[pos.pawn_key() & sizeMinus1];
+        return correctionHistory[pos.search_pawn_key() & sizeMinus1];
     }
 
     auto& minor_piece_correction_entry(const Position& pos) {
-        return correctionHistory[pos.minor_piece_key() & sizeMinus1];
+        return correctionHistory[pos.search_minor_piece_key() & sizeMinus1];
     }
     const auto& minor_piece_correction_entry(const Position& pos) const {
-        return correctionHistory[pos.minor_piece_key() & sizeMinus1];
+        return correctionHistory[pos.search_minor_piece_key() & sizeMinus1];
     }
 
     template<Color c>
     auto& nonpawn_correction_entry(const Position& pos) {
-        return correctionHistory[pos.non_pawn_key(c) & sizeMinus1];
+        return correctionHistory[pos.search_non_pawn_key(c) & sizeMinus1];
     }
     template<Color c>
     const auto& nonpawn_correction_entry(const Position& pos) const {
-        return correctionHistory[pos.non_pawn_key(c) & sizeMinus1];
+        return correctionHistory[pos.search_non_pawn_key(c) & sizeMinus1];
     }
 
     UnifiedCorrectionHistory               correctionHistory;
