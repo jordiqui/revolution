@@ -27,6 +27,7 @@
 #include <initializer_list>
 #include <iomanip>
 #include <iostream>
+#include <memory>
 #include <sstream>
 #include <string_view>
 
@@ -173,13 +174,11 @@ std::ostream& operator<<(std::ostream& os, const Position& pos) {
 
     if (Tablebases::MaxCardinality >= popcount(pos.pieces()) && !pos.can_castle(ANY_CASTLING))
     {
-        StateInfo st;
-
-        Position p;
-        p.set(pos.fen(), pos.is_chess960(), &st);
+        auto p = std::make_unique<Position>();
+        p->set(pos.fen(), pos.is_chess960());
         Tablebases::ProbeState s1, s2;
-        Tablebases::WDLScore   wdl = Tablebases::probe_wdl(p, &s1);
-        int                    dtz = Tablebases::probe_dtz(p, &s2);
+        Tablebases::WDLScore   wdl = Tablebases::probe_wdl(*p, &s1);
+        int                    dtz = Tablebases::probe_dtz(*p, &s2);
         os << "\nTablebases WDL: " << std::setw(4) << wdl << " (" << s1 << ")"
            << "\nTablebases DTZ: " << std::setw(4) << dtz << " (" << s2 << ")";
     }
@@ -304,12 +303,12 @@ static_assert(repetitionTable.maxDistance <= 255,
 static_assert(repetition_table_is_valid(), "repetition table lookup invariants must hold");
 
 // Initializes the position object with the given FEN string.
-Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si) {
-    return set(fenStr, isChess960, si, true);
+Position& Position::set(const string& fenStr, bool isChess960) {
+    return set(fenStr, isChess960, true);
 }
 
 
-Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, bool checkKingSafety) {
+Position& Position::set(const string& fenStr, bool isChess960, bool checkKingSafety) {
     /*
    A FEN string defines a particular position using only the ASCII character set.
 
@@ -348,7 +347,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, bo
     // The Position& API requires a complete position even when the input is malformed.
     const auto reset = [&]() -> Position& {
         return set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-                   isChess960, si);
+                   isChess960);
     };
 
     std::istringstream ss(fenStr);
@@ -357,8 +356,7 @@ Position& Position::set(const string& fenStr, bool isChess960, StateInfo* si, bo
         return reset();
 
     std::memset(reinterpret_cast<char*>(this), 0, sizeof(Position));
-    std::memset(si, 0, sizeof(StateInfo));
-    st = si;
+    st = &stateInfos[stateIdx];
 
     // 1. Piece placement
     int file = FILE_A;
@@ -599,7 +597,7 @@ Key Position::compute_material_key() const {
 
 // Overload to initialize the position object with the given endgame code string
 // like "KBPKN". It's mainly a helper to get the material key out of an endgame code.
-Position& Position::set(const string& code, Color c, StateInfo* si) {
+Position& Position::set(const string& code, Color c) {
 
     assert(code[0] == 'K');
 
@@ -615,7 +613,7 @@ Position& Position::set(const string& code, Color c, StateInfo* si) {
                   + char(8 - sides[1].length() + '0') + "/8 w - - 0 10";
 
     // The synthetic arrangement is used for material, and need not be a legal game position.
-    return set(fenStr, false, si, false);
+    return set(fenStr, false, false);
 }
 
 
@@ -832,19 +830,16 @@ bool Position::gives_check(Move m) const {
 // If a pointer to the shared histories is passed, their entries for the
 // new position will be prefetched.
 void Position::do_move(
-  Move m, StateInfo& newSt, bool givesCheck, Dirties& dirties, const SharedHistories* history) {
+  Move m, bool givesCheck, Dirties& dirties, const SharedHistories* history) {
 
     assert(m.is_ok());
-    assert(&newSt != st);
+    StateInfo* previousSt = st;
+    stateIdx = (stateIdx + 1) & (MAX_HIST - 1);
+    st = &stateInfos[stateIdx];
 
-    Key k = st->key ^ Zobrist::side;
-
-    // Copy some fields of the old state to our new StateInfo object except the
-    // ones which are going to be recalculated from scratch anyway and then switch
-    // our state pointer to point to the new (ready to be updated) state.
-    std::memcpy(&newSt, st, offsetof(StateInfo, key));
-    newSt.previous = st;
-    st             = &newSt;
+    // Copy fields that are not recomputed after the move.
+    std::memcpy(st, previousSt, offsetof(StateInfo, key));
+    Key k = previousSt->key ^ Zobrist::side;
 
     // Increment ply counters. In particular, rule50 will be reset to zero later on
     // in case of a capture or a pawn move.
@@ -1104,10 +1099,9 @@ void Position::do_move(
     int end        = std::min(st->rule50, st->pliesFromNull);
     if (end >= 4)
     {
-        StateInfo* stp = st->previous->previous;
         for (int i = 4; i <= end; i += 2)
         {
-            stp = stp->previous->previous;
+            const StateInfo* stp = &stateInfos[(stateIdx - i) & (MAX_HIST - 1)];
             // Verify piece placement in addition to the historical Zobrist key.
             if (stp->key == st->key && stp->piecePlacement == st->piecePlacement)
             {
@@ -1174,7 +1168,7 @@ void Position::undo_move(Move m) {
                 capsq -= pawn_push(us);
 
                 assert(type_of(pc) == PAWN);
-                assert(to == st->previous->epSquare);
+                assert(to == stateInfos[(stateIdx - 1) & (MAX_HIST - 1)].epSquare);
                 assert(relative_rank(us, to) == RANK_6);
                 assert(piece_on(capsq) == NO_PIECE);
                 assert(st->capturedPiece == make_piece(~us, PAWN));
@@ -1185,7 +1179,8 @@ void Position::undo_move(Move m) {
     }
 
     // Finally point our state pointer back to the previous state
-    st = st->previous;
+    stateIdx = (stateIdx - 1) & (MAX_HIST - 1);
+    st = &stateInfos[stateIdx];
     --gamePly;
 
     assert(pos_is_ok());
@@ -1401,17 +1396,16 @@ void Position::do_castling(Color                              us,
 
 // Used to do a "null move": it flips
 // the side to move without executing any move on the board.
-void Position::do_null_move(StateInfo& newSt, const TranspositionTable& tt) {
+void Position::do_null_move(const TranspositionTable& tt) {
 
     assert(!checkers());
-    assert(&newSt != st);
+    StateInfo* previousSt = st;
+    stateIdx = (stateIdx + 1) & (MAX_HIST - 1);
+    st = &stateInfos[stateIdx];
 
     // Remaining fields are recomputed, invalidated or overwritten below.
-    std::memcpy(&newSt, st, offsetof(StateInfo, blockersForKing));
-    newSt.piecePlacement = st->piecePlacement;
-
-    newSt.previous = st;
-    st             = &newSt;
+    std::memcpy(st, previousSt, offsetof(StateInfo, blockersForKing));
+    st->piecePlacement = previousSt->piecePlacement;
 
     if (st->epSquare != SQ_NONE)
     {
@@ -1441,7 +1435,8 @@ void Position::undo_null_move() {
 
     assert(!checkers());
 
-    st         = st->previous;
+    stateIdx = (stateIdx - 1) & (MAX_HIST - 1);
+    st = &stateInfos[stateIdx];
     sideToMove = ~sideToMove;
 }
 
@@ -1572,14 +1567,11 @@ bool Position::is_repetition(int ply) const { return st->repetition && st->repet
 // of positions since the last capture or pawn move.
 bool Position::has_repeated() const {
 
-    StateInfo* stc = st;
-    int        end = std::min(st->rule50, st->pliesFromNull);
-    while (end-- >= 4)
+    int end = std::min(st->rule50, st->pliesFromNull);
+    for (int i = 0; i <= end - 4; ++i)
     {
-        if (stc->repetition)
+        if (stateInfos[(stateIdx - i) & (MAX_HIST - 1)].repetition)
             return true;
-
-        stc = stc->previous;
     }
     return false;
 }
@@ -1594,15 +1586,14 @@ bool Position::upcoming_repetition(int ply) const {
     if (end < 3)
         return false;
 
-    Key        originalKey = st->key;
-    StateInfo* stp         = st->previous;
-    Key        other       = originalKey ^ stp->key ^ Zobrist::side;
+    Key originalKey = st->key;
+    Key other = originalKey ^ stateInfos[(stateIdx - 1) & (MAX_HIST - 1)].key ^ Zobrist::side;
 
     for (int i = 3; i <= end; i += 2)
     {
-        stp = stp->previous;
-        other ^= stp->key ^ stp->previous->key ^ Zobrist::side;
-        stp = stp->previous;
+        const StateInfo* stp0 = &stateInfos[(stateIdx - i + 1) & (MAX_HIST - 1)];
+        const StateInfo* stp = &stateInfos[(stateIdx - i) & (MAX_HIST - 1)];
+        other ^= stp0->key ^ stp->key ^ Zobrist::side;
 
         if (other != 0)
             continue;
@@ -1680,9 +1671,15 @@ void Position::flip() {
     std::getline(ss, token);  // Half and full moves
     f += token;
 
-    set(f, is_chess960(), st);
+    set(f, is_chess960());
 
     assert(pos_is_ok());
+}
+
+void Position::copy_state_infos(const Position& other) {
+    std::memcpy(stateInfos, other.stateInfos, sizeof(stateInfos));
+    stateIdx = other.stateIdx;
+    st = &stateInfos[stateIdx];
 }
 
 

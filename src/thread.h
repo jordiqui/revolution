@@ -31,7 +31,6 @@
 #include "memory.h"
 #include "misc.h"
 #include "numa.h"
-#include "position.h"
 #include "search.h"
 #include "thread_native.h"
 
@@ -39,6 +38,7 @@ namespace Stockfish {
 
 
 class OptionsMap;
+class Position;
 using Value = int;
 
 // Sometimes we don't want to actually bind the threads, but the recipient still
@@ -133,7 +133,7 @@ class ThreadPool {
     ThreadPool& operator=(const ThreadPool&) = delete;
     ThreadPool& operator=(ThreadPool&&)      = delete;
 
-    void   start_thinking(const OptionsMap&, Position&, StateListPtr&, Search::LimitsType);
+    void   start_thinking(const OptionsMap&, Position&, Search::LimitsType);
     void   run_on_thread(usize threadId, std::function<void()> f);
     void   wait_on_thread(usize threadId);
     usize num_threads() const;
@@ -164,7 +164,6 @@ class ThreadPool {
     auto empty() const noexcept { return threads.empty(); }
 
    private:
-    StateListPtr                         setupStates;
     std::vector<std::unique_ptr<Thread>> threads;
     std::vector<NumaIndex>               boundThreadToNumaNode;
 

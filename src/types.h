@@ -162,6 +162,8 @@ inline Bitboard pdep(Bitboard value, Bitboard mask) {
 
 constexpr int MAX_MOVES = 256;
 constexpr int MAX_PLY   = 246;
+constexpr int MAX_HIST  = 512;
+static_assert(MAX_HIST >= MAX_PLY + 10 + 50 * 2 + 1);
 
 enum Color : u8 {
     WHITE,
