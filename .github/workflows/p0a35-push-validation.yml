@@ -427,68 +427,10 @@ jobs:
               send('position startpos moves '+' '.join([cycle]*160)+' g1f3 g8f6 f3g1')
               send('go depth 6 searchmoves f6g8');out=wait(r'^bestmove ')
               assert out[-1].split()[1]=='f6g8',out
-              send('ucinewgame');send('isready');wait(r'^readyok
-              send('setoption name MultiPV value 3')
-              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
-              send('position startpos');send('go wtime 5000 btime 5000 winc 0 binc 0');assert any('multipv 3 ' in l for l in wait(r'^bestmove ',timeout=30))
-              print('MULTIPV_TIMED=PASS')
-              send('quit');assert p.wait(timeout=20)==0
-          finally:
-              if p.poll() is None: p.kill()
-          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
-          print(result.stdout)
-          assert result.returncode==0 and 'Nodes searched' in result.stdout
-          bench_nodes=re.search(r'Nodes searched\s*:\s*(\d+)',result.stdout)
-          assert bench_nodes and int(bench_nodes.group(1))>0
-          # Optimism precision and TT key width are functional changes; require repeatability, not the old node count.
-          result2=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
-          nodes2=re.search(r'Nodes searched\s*:\s*(\d+)',result2.stdout)
-          assert result2.returncode==0 and nodes2 and nodes2.group(1)==bench_nodes.group(1)
-          print('BENCH_REPEATABILITY=PASS NODES='+bench_nodes.group(1))
-          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
-          PY
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: p0a35-universal-validation-logs
-          path: |
-            clean-universal.log
-            build-universal.log
-            runtime-validation.log
-            zobrist-validation.log
-)
+              send('ucinewgame');send('isready');wait(r'^readyok$')
               send('position startpos');send('go infinite');wait(r'^info depth ')
               send('setoption name Hash value 32');wait(r'^bestmove ',timeout=30)
-              send('isready');wait(r'^readyok
-              send('setoption name MultiPV value 3')
-              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
-              send('position startpos');send('go wtime 5000 btime 5000 winc 0 binc 0');assert any('multipv 3 ' in l for l in wait(r'^bestmove ',timeout=30))
-              print('MULTIPV_TIMED=PASS')
-              send('quit');assert p.wait(timeout=20)==0
-          finally:
-              if p.poll() is None: p.kill()
-          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
-          print(result.stdout)
-          assert result.returncode==0 and 'Nodes searched' in result.stdout
-          bench_nodes=re.search(r'Nodes searched\s*:\s*(\d+)',result.stdout)
-          assert bench_nodes and int(bench_nodes.group(1))>0
-          # Optimism precision and TT key width are functional changes; require repeatability, not the old node count.
-          result2=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
-          nodes2=re.search(r'Nodes searched\s*:\s*(\d+)',result2.stdout)
-          assert result2.returncode==0 and nodes2 and nodes2.group(1)==bench_nodes.group(1)
-          print('BENCH_REPEATABILITY=PASS NODES='+bench_nodes.group(1))
-          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
-          PY
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: p0a35-universal-validation-logs
-          path: |
-            clean-universal.log
-            build-universal.log
-            runtime-validation.log
-            zobrist-validation.log
-)
+              send('isready');wait(r'^readyok$')
               send('setoption name Hash value 64')
               print('RING_WRAP_640_PLIES=PASS IDLE_MUTATION=PASS')
               send('setoption name MultiPV value 3')
