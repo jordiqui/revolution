@@ -1,0 +1,535 @@
+name: P0A37 pre-rebrand exact Universal validation
+on:
+  push:
+    branches: [validation/p0a37-pre-rebrand-run-only]
+permissions:
+  contents: read
+jobs:
+  universal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 2ac3d4e78a061e200a89da5beb300b6d13b1f94c
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact candidate tree and download authentic NNUE
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^{tree})" = 81381a473fa4972edee1a2affde2eca95d4155b3
+          git rev-parse HEAD
+          git diff --check 311a979094e0924d05cda04aa589f805654a05cc HEAD
+          test "$(git rev-parse HEAD)" = 2ac3d4e78a061e200a89da5beb300b6d13b1f94c
+          git diff --exit-code 311a979094e0924d05cda04aa589f805654a05cc HEAD -- src/book src/experience.cpp src/experience.h src/experience_compat.h src/experience_zobrist.h src/revolution_zobrist.h src/sparsehash src/nnue ':!src/nnue/features/full_threats.cpp' src/universal scripts/get_native_properties.sh src/tt.cpp src/tt.h src/history.h src/engine.cpp src/engine.h src/thread.cpp src/thread.h src/uci.cpp src/uci.h
+          git diff --exit-code 311a979094e0924d05cda04aa589f805654a05cc HEAD -- src ':!src/Makefile'
+          echo 'PROTECTED_SOURCE=PASS'
+          git diff --exit-code 311a979094e0924d05cda04aa589f805654a05cc HEAD -- src/syzygy ':!src/syzygy/tbprobe.cpp'
+          test "$(git rev-list --count 311a979094e0924d05cda04aa589f805654a05cc..HEAD)" = 1
+          test "$(git diff --name-only 311a979094e0924d05cda04aa589f805654a05cc HEAD | wc -l)" = 2
+          if git grep -nE 'StateListPtr|st->previous|newSt\.previous|rootState|setupStates|USE_DUAL_HYPERBOLA_QUINT|USE_HYPERBOLA_QUINT' -- src ':!src/sparsehash'; then exit 1; fi
+          echo 'P0A37_RING_AND_HQ_SOURCE_GUARDS=PASS'
+          if git grep -niE '\boptimism\b' -- src; then exit 1; fi
+          git grep -nF 'std::clamp((ss->staticEval - beta) / 256, 0, ss->ply / 2)' -- src/search.cpp
+          git grep -nF '__wasm_simd128__' -- src/attacks.h
+          git grep -nF 'repWindow' -- src/position.h
+          git grep -nF 'LONG_REVERSIBLE_MOVES' -- tests/instrumented.py
+          if git grep -nE 'pliesFromNull|plies_from_null\(' -- src; then exit 1; fi
+          if git grep -nE 'fconstexpr-(steps|ops-limit)' -- src/Makefile; then exit 1; fi
+          git grep -nF 'cmd_record' -- src/Makefile
+          git grep -nF 'SOURCE_DIRS = syzygy nnue nnue/features book' -- src/Makefile
+          echo 'P0A37_SOURCE_GUARDS=PASS'
+          if git grep -nF 'do_move(Position& pos, const Move move, StateInfo& st, Stack* const ss)' -- src/search.cpp src/search.h; then exit 1; fi
+          if git grep -nF 'nn-18cd32e11a9c.nnue' -- src/evaluate.h src/nnue/evaluate.h; then exit 1; fi
+          echo 'P0A37_OVERLOAD_REMOVED=PASS'
+          if git grep -nE 'K32Q2|k32q2|opponentHasQueen|FullThreats::OrientTBL' -- src; then exit 1; fi
+          # Verify failed downloads propagate without accessing the network.
+          tmp=$(mktemp -d)
+          mkdir "$tmp/mock"
+          printf '#!/bin/sh\nexit 1\n' > "$tmp/mock/wget"
+          chmod +x "$tmp/mock/wget"
+          cp src/evaluate.h "$tmp/evaluate.h"
+          script="$PWD/scripts/net.sh"
+          if (cd "$tmp" && PATH="$tmp/mock:$PATH" sh "$script" 0); then
+              echo 'Unexpected successful failed-download test'; exit 1
+          fi
+          test ! -e "$tmp/nn-bddd9d57eb87.nnue"
+          test ! -e "$tmp/universal/network_dump.inc"
+          rm -rf "$tmp"
+          echo 'NET_SH_FAILURE_PROPAGATION=PASS'
+          if git grep -nE 'HalfKAv2_hm|half_ka_v2_hm|read_leb_128|write_leb_128|Leb128MagicString' -- src; then exit 1; fi
+          if git grep -nE 'MoveList<LEGAL>|generate<LEGAL>|NON_EVASIONS|pseudo_legal\(|attackers_to_exist\(|set_check_info\(|\bRayPassBB\b' -- src ':!src/sparsehash'; then exit 1; fi
+          cd src
+          net=nn-bddd9d57eb87.nnue
+          if ! curl -fL --retry 2 --max-time 300 "https://tests.stockfishchess.org/api/nn/$net" -o "$net"; then
+            curl -fL --retry 2 --max-time 300 "https://media.githubusercontent.com/media/official-stockfish/networks/master/$net" -o "$net"
+          fi
+          test "$(stat -c %s "$net")" = 138360528
+          echo "bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e  $net" | sha256sum -c -
+      - name: Build Universal with Clang and LLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y clang-21 lld-21 llvm-21
+          export PATH="/usr/lib/llvm-21/bin:$PATH"
+          c=/usr/lib/llvm-21/bin/clang++
+          "$c" --version
+          ld.lld --version
+          llvm-objcopy --version
+          mkdir -p /tmp/embed-probe
+          printf '\000\177\200\372\377' > /tmp/embed-probe/bytes.bin
+          cat > /tmp/embed-probe/probe.cpp <<'CPP'
+          constexpr unsigned char bytes[] = {
+          #embed "bytes.bin"
+          };
+          static_assert(sizeof(bytes) == 5 && bytes[0] == 0 && bytes[1] == 127 && bytes[2] == 128 && bytes[3] == 250 && bytes[4] == 255);
+          int main() {}
+          CPP
+          "$c" -std=c++20 -Wno-c++26-extensions -Wno-c23-extensions -Werror --embed-dir=/tmp/embed-probe /tmp/embed-probe/probe.cpp -fuse-ld=lld -o /tmp/embed-probe/probe
+          /tmp/embed-probe/probe
+          echo 'EMBED_PROBE=PASS'
+          # Test all original PRNG keys and all 3668 reversible moves in the Robin Hood table.
+          cat > /tmp/zobrist-regression.cpp <<'CPP'
+          #include "position.cpp"
+          using namespace Stockfish;
+          int main() {
+              PRNG rng(1070372);
+              Key old[PIECE_NB][SQUARE_NB]{};
+              for (Piece pc : Pieces)
+                  for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
+                      old[pc][sq] = rng.rand<Key>();
+              std::fill_n(old[W_PAWN] + SQ_A8, 8, 0);
+              std::fill_n(old[B_PAWN], 8, 0);
+              for (int pc = 0; pc < PIECE_NB; ++pc)
+                  for (int sq = 0; sq < SQUARE_NB; ++sq)
+                      if (old[pc][sq] != Zobrist::psq[pc][sq]) return 1;
+              for (int f = 0; f < FILE_NB; ++f)
+                  if (rng.rand<Key>() != Zobrist::enpassant[f]) return 2;
+              for (int cr = 0; cr < CASTLING_RIGHT_NB; ++cr)
+                  if (rng.rand<Key>() != Zobrist::castling[cr]) return 3;
+              if (rng.rand<Key>() != Zobrist::side || rng.rand<Key>() != Zobrist::noPawns) return 4;
+              int count=0;
+              for (Piece pc : Pieces)
+                  for (Square a=SQ_A1; a<=SQ_H8; ++a)
+                      for (Square b=Square(a+1); b<=SQ_H8; ++b)
+                          if (type_of(pc)!=PAWN && (Attacks::PseudoAttacks[type_of(pc)][a] & b)) {
+                              const Move m(a,b);
+                              const Key k=old[pc][a]^old[pc][b]^Zobrist::side;
+                              int j=repetition_hash(k), distance=1;
+                              while(repetitionTable.distances[j]>=distance && repetitionTable.keys[j]!=k) {
+                                  ++distance; j=(j+1)&REPETITION_TABLE_MASK;
+                              }
+                              if(repetitionTable.distances[j]<distance || repetitionTable.keys[j]!=k
+                                 || repetitionTable.moves[j]!=m) return 5;
+                              ++count;
+                          }
+              if(count!=3668 || !repetition_table_is_valid()) return 7;
+              for(int i=0;i<10000;++i) {
+                  Key k=rng.rand<Key>();
+                  Key white=Zobrist::search_key(k,WHITE);
+                  Key black=Zobrist::search_key(k^Zobrist::side,BLACK);
+                  if((white&1)!=0 || (black&1)!=1 || (white^black)!=1 || white!=(k<<1)) return 8;
+              }
+              std::array<Piece, SQUARE_NB> board{};
+              for(int i=0;i<64;++i) board[i]=Pieces[i%12];
+              auto packed=pack_pieces(board);
+              for(int a=0;a<64;++a)
+                  for(int b=0;b<64;++b) {
+                      auto expected=board; std::swap(expected[a],expected[b]);
+                      auto actual=packed; swap_nibble(actual,Square(a),Square(b));
+                      if(actual!=pack_pieces(expected)) return 6;
+                  }
+              std::cout << "ZOBRIST_ALL_LEGACY_KEYS=PASS ROBIN_HOOD_3668=PASS TT_STM_LSB=PASS NIBBLE_SWAP=PASS" << std::endl;
+          }
+          CPP
+          "$c" -std=c++20 -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc /tmp/zobrist-regression.cpp -fuse-ld=lld -Wl,--gc-sections -o /tmp/zobrist-regression
+          /tmp/zobrist-regression | tee zobrist-validation.log
+          # Exhaustive scalar HQ attack regression on every occupancy along every ray.
+          cat > /tmp/hq-regression.cpp <<'CPP'
+          #include "attacks.h"
+          #include <iostream>
+          using namespace Stockfish;
+          int main() {
+              unsigned long long count = 0;
+              for (Square s = SQ_A1; s <= SQ_H8; ++s)
+                  for (PieceType pt : {BISHOP, ROOK}) {
+                      Bitboard mask = Attacks::sliding_attack(pt,s,0);
+                      Bitboard occ = 0;
+                      do {
+                          Bitboard ref = Attacks::sliding_attack(pt,s,occ);
+                          for (Bitboard o : {occ, occ | square_bb(s)}) {
+                              auto [bishop,rook] = Attacks::both_attacks_bb(s,o);
+                              if ((pt == BISHOP ? bishop : rook) != ref) return 1;
+                              if (Attacks::attacks_bb(pt,s,o) != ref) return 2;
+                              ++count;
+                          }
+                          occ = (occ-mask)&mask;
+                      } while(occ);
+                  }
+              std::cout << "HQ_ALL_RAY_SUBSETS=PASS CASES=" << count << std::endl;
+          }
+          CPP
+          "$c" -std=c++20 -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc /tmp/hq-regression.cpp src/attacks.cpp -fuse-ld=lld -Wl,--gc-sections -o /tmp/hq-regression
+          /tmp/hq-regression | tee hq-validation.log
+          # Compile and execute the derivative standalone Book Manager unit test (not another engine architecture).
+          "$c" -std=c++17 -O1 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc tests/book_manager_test.cpp src/book/book_manager.cpp src/book/book_utils.cpp src/position.cpp src/attacks.cpp src/bitboard.cpp src/movegen.cpp src/ucioption.cpp src/misc.cpp -fuse-ld=lld -Wl,--gc-sections -lpthread -o /tmp/revolution-book-test 2>&1 | tee book-validation.log
+          /tmp/revolution-book-test 2>&1 | tee -a book-validation.log
+          echo 'BOOK_MANAGER_UNIT_TEST=PASS' | tee -a book-validation.log
+          # Test an actual source path with spaces, not only a dry run.
+          mv src 'src with spaces'
+          trap 'if test -d "src with spaces"; then mv "src with spaces" src; fi' EXIT
+          make -C 'src with spaces' clean 2>&1 | tee clean-universal.log
+          make -C 'src with spaces' -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee build-universal.log
+          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' clean-universal.log build-universal.log; then exit 1; fi
+          exe='src with spaces/Revolution-6.40-150926-x86-64-universal'
+          before=$(stat -c %Y "$exe")
+          before_sha=$(sha256sum "$exe")
+          sleep 1
+          make -C 'src with spaces' -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee rebuild-universal.log
+          test "$before" = "$(stat -c %Y "$exe")"
+          test "$before_sha" = "$(sha256sum "$exe")"
+          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' rebuild-universal.log; then exit 1; fi
+          echo 'UNIVERSAL_NOOP_REBUILD=PASS'
+          make -C 'src with spaces' -n build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS='-fuse-ld=lld -Wl,--build-id=sha1' > rebuild-plan.log 2>&1
+          grep -F -- '-Wl,--build-id=sha1' rebuild-plan.log >/dev/null
+          test "$before_sha" = "$(sha256sum "$exe")"
+          echo 'COMMAND_CHANGE_DRY_RUN=PASS'
+          mv 'src with spaces' src
+          trap - EXIT
+          echo 'UNIVERSAL_PATH_WITH_SPACES=PASS'
+          test -x src/Revolution-6.40-150926-x86-64-universal
+          echo 'UNIVERSAL_BUILD_STATUS=0 WARNINGS=0 ERRORS=0'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          nnue=Path('src/nn-bddd9d57eb87.nnue').read_bytes()
+          exe=Path('src/Revolution-6.40-150926-x86-64-universal').read_bytes()
+          assert hashlib.sha256(nnue).hexdigest()=='bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e'
+          assert len(nnue)==138360528
+          offset=exe.find(nnue)
+          assert offset>=0,'Authentic NNUE bytes not found inside executable'
+          print('EMBEDDED_NNUE_SHA256=PASS OFFSET='+str(offset))
+          PY
+          mv src/nn-bddd9d57eb87.nnue "$RUNNER_TEMP/nn-bddd9d57eb87.nnue"
+
+      - name: Download authentic KQvK tablebase for long history regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/revolution-syzygy
+          for ext in rtbw rtbz; do
+            curl -fL --retry 2 --max-time 60 "https://raw.githubusercontent.com/niklasf/python-chess/9b9aa13f9f36d08aadfabff872882f4ab1494e95/KQvK.$ext" -o "/tmp/revolution-syzygy/KQvK.$ext"
+          done
+          test "$(git hash-object /tmp/revolution-syzygy/KQvK.rtbw)" = 0f4b29211eddd62f33b88471420f2674b35a5164
+          test "$(git hash-object /tmp/revolution-syzygy/KQvK.rtbz)" = 507469523978f81d52701a12cddb47545865f242
+          echo 'SYZYGY_KQVK_AUTHENTIC=PASS'
+      - name: UCI bench perft and legal search
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          python3 -u - <<'PY' | tee ../runtime-validation.log
+          import subprocess, threading, queue, re, time
+          bin='./Revolution-6.40-150926-x86-64-universal'
+          p=subprocess.Popen([bin],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+          q=queue.Queue()
+          def reader():
+              for l in p.stdout: q.put(l.strip())
+              q.put(None)
+          threading.Thread(target=reader,daemon=True).start()
+          def send(s):
+              p.stdin.write(s+'\n'); p.stdin.flush()
+          def wait(pattern,timeout=120):
+              end=time.monotonic()+timeout; lines=[]
+              while time.monotonic()<end:
+                  l=q.get(timeout=max(0.1,end-time.monotonic()))
+                  if l is None: raise RuntimeError('unexpected EOF')
+                  print(l,flush=True); lines.append(l)
+                  if re.search(pattern,l): return lines
+              raise RuntimeError('timeout')
+          try:
+              send('uci'); lines=wait(r'^uciok$')
+              for opt in ['Experience Enabled','Experience File','Experience Book','CTG/BIN Book 1 File','EvalFile','SyzygyPath']:
+                  assert any('option name '+opt+' type' in l for l in lines),opt
+              send('setoption name Threads value 1')
+              send('setoption name Hash value 64')
+              send('setoption name Experience Enabled value false')
+              send('isready');wait(r'^readyok$')
+              send('position startpos');send('go perft 4')
+              assert wait(r'Nodes searched:')[ -1].split()[-1]=='197281'
+              send('position fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1')
+              send('go perft 4')
+              assert wait(r'Nodes searched:')[-1].split()[-1]=='4085603'
+              def perft(fen, depth):
+                  send('position '+fen)
+                  send('go perft '+str(depth))
+                  lines=wait(r'Nodes searched:',timeout=240)
+                  return int(lines[-1].split()[-1]), {l.split(':')[0] for l in lines if re.match(r'^[a-h][1-8][a-h][1-8][qrbn]?:',l)}
+              for fen,depth,n in [
+                  ('startpos',5,4865609),
+                  ('fen 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1',5,674624),
+                  ('fen r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1',4,422333),
+                  ('fen rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8',4,2103487),
+                  ('fen r7/4p3/5p1q/3P4/4pQ2/4pP2/6pp/R3K1kr w Q - 1 3',5,11609488)
+              ]:
+                  assert perft(fen,depth)[0]==n,(fen,depth,n)
+              for fen,move,legal in [
+                  ('fen 8/8/8/r4pPK/8/8/8/4k3 w - f6 0 1','g5f6',False),
+                  ('fen 4k3/8/8/5pP1/8/8/8/4K3 w - f6 0 1','g5f6',True),
+                  ('fen k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1','e5d6',False),
+                  ('fen 4k3/8/8/3pP3/4K3/8/8/8 w - d6 0 1','e5d6',True)
+              ]:
+                  assert (move in perft(fen,1)[1])==legal,(fen,move,legal)
+              _,promos=perft('fen 4k3/P7/8/8/8/8/7p/4K3 w - - 0 1',1)
+              assert {'a7a8q','a7a8r','a7a8b','a7a8n'} <= promos
+              _,double=perft('fen k3r3/8/8/8/1b6/8/8/4K2R w - - 0 1',1)
+              assert double and all(m.startswith('e1') for m in double)
+              send('setoption name UCI_Chess960 value true');send('isready');wait(r'^readyok$')
+              for fen,depth,n in [
+                  ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2R2R b E - 1 20',2,1438),
+                  ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 w E - 0 20',3,37340),
+                  ('fen rr6/2kpp3/1ppnb1p1/p2Q1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 b E - 2 19',4,2237725),
+                  ('fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19',4,2098209)
+              ]:
+                  assert perft(fen,depth)[0]==n,(fen,depth,n)
+              send('setoption name UCI_Chess960 value false');send('isready');wait(r'^readyok$')
+              print('EXTENDED_PERFT=PASS EP=PASS PROMOTIONS=PASS DOUBLE_CHECK=PASS CHESS960=PASS')
+              send('position fen 7k/5Q2/6K1/8/8/8/8/8 w - - 0 1');send('go depth 6')
+              assert any('score mate 1 ' in l for l in wait(r'^bestmove ')), 'mate in one not found'
+              print('MATE_IN_ONE=PASS')
+              # Exercise transitions in opponent queen presence, including promotions.
+              for fen in [
+                  '4k3/8/8/4q3/4R3/8/8/4K3 w - - 0 1',
+                  '4k3/P7/8/8/8/8/7p/4K3 w - - 0 1',
+                  '4k3/8/8/3q4/8/2Q5/8/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1',
+                  '4k3/8/8/8/8/8/8/4K3 w - - 0 1'
+              ]:
+                  _, legal = perft('fen '+fen, 1)
+                  send('position fen '+fen)
+                  send('go depth 8')
+                  out=wait(r'^bestmove ')
+                  assert out[-1].split()[1] in legal,(fen,out[-1],legal)
+              # Force a queen capture and both colours' queen promotions in actual search.
+              for fen,m in [
+                  ('4k3/8/8/4q3/4R3/8/8/4K3 w - - 0 1','e4e5'),
+                  ('4k3/P7/8/8/8/8/7p/4K3 w - - 0 1','a7a8q'),
+                  ('4k3/P7/8/8/8/8/7p/4K3 b - - 0 1','h2h1q')
+              ]:
+                  send('position fen '+fen)
+                  send('go depth 8 searchmoves '+m)
+                  assert wait(r'^bestmove ')[-1].split()[1]==m,(fen,m)
+              print('SFNNV20_QUEEN_TRANSITIONS=PASS')
+              # K32H3 transitions: last rook disappears, no heavy material becomes rook/queen.
+              for fen,m in [
+                  ('4k3/8/8/4r3/3B4/8/8/4K3 w - - 0 1','d4e5'),
+                  ('4k3/P7/8/8/8/8/8/4K3 w - - 0 1','a7a8r'),
+                  ('4k3/P7/8/8/8/8/8/4K3 w - - 0 1','a7a8q'),
+                  ('4k3/P7/8/8/8/8/8/4K3 w - - 0 1','a7a8n'),
+                  ('4k3/8/8/8/8/8/7p/4K3 b - - 0 1','h2h1r'),
+                  ('4k3/8/8/8/8/8/7p/4K3 b - - 0 1','h2h1q')
+              ]:
+                  _,legal=perft('fen '+fen,1)
+                  assert m in legal,(fen,m)
+                  send('position fen '+fen)
+                  send('go depth 8 searchmoves '+m)
+                  assert wait(r'^bestmove ')[-1].split()[1]==m,(fen,m)
+                  send('position fen '+fen+' moves '+m)
+                  _,replies=perft('fen '+fen+' moves '+m,1)
+                  if replies:
+                      send('go depth 8')
+                      assert wait(r'^bestmove ')[-1].split()[1] in replies
+              print('SFNNV20_HEAVY_BLOCK_TRANSITIONS=PASS')
+              # The new architecture must evaluate all pawn layouts, material counts and both sides.
+              for fen in [
+                  '4k3/8/8/8/8/8/P6P/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/PP6/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/8/RN2K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/8/R3K3 b - - 0 1',
+                  '4k3/8/8/8/8/8/5pp1/RN2K3 b - - 0 1'
+              ]:
+                  _,legal=perft('fen '+fen,1)
+                  send('position fen '+fen);send('go depth 6')
+                  assert wait(r'^bestmove ')[-1].split()[1] in legal,fen
+              print('SFNNV20_LAYER_LAYOUT_SEARCH=PASS')
+              # Export must round-trip the official bytes, including the fallback table.
+              send('position startpos')
+              send('export_net /tmp/revolution-p0a37-export.nnue')
+              wait(r'Network saved successfully')
+              import hashlib
+              with open('/tmp/revolution-p0a37-export.nnue','rb') as exported:
+                  assert hashlib.file_digest(exported,'sha256').hexdigest()=='bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e'
+              print('SFNNV20_EXPORT_ROUNDTRIP=PASS')
+              send('setoption name Threads value 2')
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              send('position startpos');send('go depth 10')
+              assert wait(r'^bestmove ')[-1].split()[1] in {f+'2'+f+r for f in 'abcdefgh' for r in ('3','4')} | {'b1a3','b1c3','g1f3','g1h3'}
+              send('setoption name Threads value 1')
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              print('ODD_THREAD_SEARCH_SMOKE=PASS')
+              send('position startpos');send('go depth 8')
+              move=wait(r'^bestmove ')[-1].split()[1]
+              assert move in {f+str(2)+f+str(r) for f in 'abcdefgh' for r in (3,4)} | {'b1a3','b1c3','g1f3','g1h3'},move
+              for opening in ['e2e4','d2d4','g1f3','c2c4']:
+                  send('position startpos moves '+opening);send('go depth 6')
+                  reply=wait(r'^bestmove ')[-1].split()[1]
+                  assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
+              send('position startpos')
+              send('go wtime 1000 btime 1000 winc 0 binc 0')
+              move=wait(r'^bestmove ')[-1].split()[1]
+              assert move in {f+'2'+f+r for f in 'abcdefgh' for r in ('3','4')} | {'b1a3','b1c3','g1f3','g1h3'},move
+              print('TIMED_SEARCH=PASS')
+              for npmsec in (0, 1000):
+                  send('ucinewgame')
+                  send('setoption name nodestime value '+str(npmsec))
+                  send('isready');wait(r'^readyok$')
+                  send('position fen 7k/8/6K1/8/8/8/8/7R b - - 0 1')
+                  send('go wtime 30000 btime 30000 winc 0 binc 0')
+                  assert wait(r'^bestmove ',timeout=30)[-1].split()[1]=='h8g8'
+              send('setoption name nodestime value 0')
+              send('isready');wait(r'^readyok$')
+              send('position startpos')
+              send('go depth 8 searchmoves e2e4')
+              assert wait(r'^bestmove ')[-1].split()[1]=='e2e4'
+              print('SINGLE_ROOT_NODESTIME_SEARCHMOVES=PASS')
+              # A misbehaving GUI may submit negative remaining time or movetime.
+              legal_start={f+'2'+f+r for f in 'abcdefgh' for r in ('3','4')} | {'b1a3','b1c3','g1f3','g1h3'}
+              for cmd in ('go wtime -100 btime -200 winc 0 binc 0','go movetime -100'):
+                  send('ucinewgame');send('isready');wait(r'^readyok$')
+                  send('position startpos');send(cmd)
+                  assert wait(r'^bestmove ',timeout=20)[-1].split()[1] in legal_start,cmd
+              print('NEGATIVE_TIME_SANITIZATION=PASS')
+              send('setoption name Hash value 1')
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              for opening in ('e2e4','d2d4','g1f3','c2c4'):
+                  send('position startpos moves '+opening);send('go nodes 50000')
+                  assert wait(r'^bestmove ')[-1].split()[1] in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'}
+              send('setoption name Hash value 64');send('ucinewgame');send('isready');wait(r'^readyok$')
+              print('TT_SMALL_HASH_PRESSURE=PASS')
+              send('setoption name Skill Level value 5')
+              send('position startpos');send('go depth 8')
+              out=wait(r'^bestmove ')
+              pvs=[l.split(' pv ',1)[1].split()[0] for l in out if ' multipv 1 ' in l and ' pv ' in l]
+              assert pvs and pvs[-1]==out[-1].split()[1],out[-1]
+              send('setoption name Skill Level value 20')
+              print('SKILL_FINAL_PV=PASS')
+              # Independently reconstruct legacy Zobrist keys for representative game positions.
+              mask=(1<<64)-1
+              seed=1070372
+              def rnd():
+                  global seed
+                  seed ^= seed >> 12
+                  seed ^= (seed << 25) & mask
+                  seed ^= seed >> 27
+                  return (seed*2685821657736338717)&mask
+              psq={c:[rnd() for _ in range(64)] for c in 'PNBRQKpnbrqk'}
+              ep=[rnd() for _ in range(8)]
+              castle=[rnd() for _ in range(16)]
+              side=rnd()
+              def legacy(fen):
+                  board,stm,rights,eps,*_=fen.split()
+                  k=castle[sum(v for c,v in zip('KQkq',(1,2,4,8)) if c in rights)]
+                  if stm=='b': k ^= side
+                  if eps!='-': k ^= ep[ord(eps[0])-97]
+                  for rank,row in enumerate(reversed(board.split('/'))):
+                      file=0
+                      for ch in row:
+                          if ch.isdigit(): file+=int(ch)
+                          else: k ^= psq[ch][rank*8+file]; file+=1
+                  return k
+              for command,fen in [
+                  ('startpos','rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
+                  ('startpos moves e2e4','rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'),
+                  ('startpos moves g1f3 g8f6 f3g1 f6g8','rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 4 3'),
+                  ('fen 4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1','4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1'),
+                  ('fen 4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1 moves e5d6','4k3/8/3P4/8/8/8/8/4K3 b - - 0 1'),
+                  ('fen 4k3/P7/8/8/8/8/8/4K3 w - - 0 1 moves a7a8q','Q3k3/8/8/8/8/8/8/4K3 b - - 0 1')
+              ]:
+                  send('position '+command);send('d');out=wait(r'^Checkers:')
+                  keys=[re.search(r'Key:\s*([0-9A-Fa-f]+)',l) for l in out]
+                  assert any(m and int(m.group(1),16)==legacy(fen) for m in keys),(command,out,hex(legacy(fen)))
+              print('LEGACY_POSITION_KEYS=PASS')
+              # Force the third occurrence of the initial position via a reversible move.
+              send('position startpos moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1')
+              send('go depth 6 searchmoves f6g8');out=wait(r'^bestmove ')
+              assert out[-1].split()[1]=='f6g8'
+              assert any('score cp 0 ' in l for l in out),out
+              print('THREEFOLD_REPETITION=PASS')
+              cycle='g1f3 g8f6 f3g1 f6g8'
+              send('position startpos moves '+' '.join([cycle]*160))
+              send('go perft 2')
+              assert wait(r'Nodes searched:')[-1].split()[-1]=='400'
+              send('position startpos moves '+' '.join([cycle]*160)+' g1f3 g8f6 f3g1')
+              send('go depth 6 searchmoves f6g8');out=wait(r'^bestmove ')
+              assert out[-1].split()[1]=='f6g8',out
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              send('position startpos');send('go infinite');wait(r'^info depth ')
+              send('setoption name Hash value 32');wait(r'^bestmove ',timeout=30)
+              send('isready');wait(r'^readyok$')
+              send('setoption name Hash value 64')
+              print('RING_WRAP_640_PLIES=PASS IDLE_MUTATION=PASS')
+              # Run the exact upstream 528-ply nonrepeating history with genuine KQvK tables.
+              from pathlib import Path
+              test_source=Path('../tests/instrumented.py').read_text()
+              moves=re.search(r'LONG_REVERSIBLE_MOVES = """(.*?)"""',test_source,re.S).group(1).split()
+              assert len(moves)==528,len(moves)
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              send('setoption name SyzygyPath value /tmp/revolution-syzygy')
+              send('setoption name Syzygy50MoveRule value false')
+              send('isready');wait(r'^readyok$')
+              send('position fen 8/8/8/3k4/8/8/2KQ4/8 b - - 0 1 moves '+' '.join(moves))
+              send('go depth 1');out=wait(r'^bestmove ')
+              assert any('score cp -20000' in l or 'score mate -' in l for l in out),out
+              assert any(re.search(r'tbhits [1-9][0-9]*',l) for l in out),out
+              send('setoption name Syzygy50MoveRule value true')
+              send('setoption name SyzygyPath value <empty>')
+              send('isready');wait(r'^readyok$')
+              print('SYZYGY_LONG_HISTORY_528_PLIES=PASS')
+              # Use the official go mate limit, not an arbitrary depth cutoff. Single-threaded; strict expected mate remains.
+              for fen,expected in [
+                  ('8/7p/7R/3p1N2/3P2pN/4p1P1/3pPppk/3Kbr2 b - - 0 1',-2),
+                  ('rk6/p1r3p1/P3B1Kp/1p2B3/8/8/8/8 w - - 0 1',5)
+              ]:
+                  send('ucinewgame');send('isready');wait(r'^readyok$')
+                  send('position fen '+fen);send('go mate '+str(abs(expected)))
+                  out=wait(r'^bestmove ',timeout=120)
+                  assert out[-1].split()[1] not in ('(none)','0000'),out[-1]
+                  mates=[int(m.group(1)) for l in out if (m:=re.search(r'score mate (-?\d+)',l))]
+                  assert mates and mates[-1]==expected,(fen,mates,out[-1])
+              print('NMP_MATE_REGRESSIONS=PASS')
+              send('setoption name MultiPV value 3')
+              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
+              send('position startpos');send('go wtime 5000 btime 5000 winc 0 binc 0');assert any('multipv 3 ' in l for l in wait(r'^bestmove ',timeout=30))
+              print('MULTIPV_TIMED=PASS')
+              send('quit');assert p.wait(timeout=20)==0
+          finally:
+              if p.poll() is None: p.kill()
+          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+          print(result.stdout)
+          assert result.returncode==0 and 'Nodes searched' in result.stdout
+          bench_nodes=re.search(r'Nodes searched\s*:\s*(\d+)',result.stdout)
+          assert bench_nodes and int(bench_nodes.group(1))>0
+          # Optimism precision and TT key width are functional changes; require repeatability, not the old node count.
+          result2=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+          nodes2=re.search(r'Nodes searched\s*:\s*(\d+)',result2.stdout)
+          assert result2.returncode==0 and nodes2 and nodes2.group(1)==bench_nodes.group(1)
+          print('BENCH_REPEATABILITY=PASS NODES='+bench_nodes.group(1))
+          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: p0a37-universal-validation-logs
+          path: |
+            clean-universal.log
+            build-universal.log
+            rebuild-universal.log
+            runtime-validation.log
+            zobrist-validation.log
+            hq-validation.log
+            book-validation.log
+            rebuild-plan.log
