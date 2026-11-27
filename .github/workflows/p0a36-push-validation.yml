@@ -437,13 +437,13 @@ jobs:
               send('isready');wait(r'^readyok$')
               send('setoption name Hash value 64')
               print('RING_WRAP_640_PLIES=PASS IDLE_MUTATION=PASS')
-              # Upstream NMP mate regression positions, single-threaded.
+              # Use the official go mate limit, not an arbitrary depth cutoff. Single-threaded; strict expected mate remains.
               for fen,expected in [
                   ('8/7p/7R/3p1N2/3P2pN/4p1P1/3pPppk/3Kbr2 b - - 0 1',-2),
                   ('rk6/p1r3p1/P3B1Kp/1p2B3/8/8/8/8 w - - 0 1',5)
               ]:
                   send('ucinewgame');send('isready');wait(r'^readyok$')
-                  send('position fen '+fen);send('go depth 20')
+                  send('position fen '+fen);send('go mate '+str(abs(expected)))
                   out=wait(r'^bestmove ',timeout=120)
                   assert out[-1].split()[1] not in ('(none)','0000'),out[-1]
                   mates=[int(m.group(1)) for l in out if (m:=re.search(r'score mate (-?\d+)',l))]
