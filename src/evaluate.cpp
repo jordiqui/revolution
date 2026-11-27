@@ -51,12 +51,12 @@ bool Eval::use_smallnet(const Position& pos) { return std::abs(simple_eval(pos))
 // Evaluate is the evaluator for the outer world. It returns a static evaluation
 // of the position from the point of view of the side to move.
 
-static Value scale_evaluation(Value nnue, int optimism, const Position& pos) {
+static Value scale_evaluation(Value nnue, const Position& pos) {
     Value se = Eval::simple_eval(pos);
     int se_norm   = (se * 1024) / (std::abs(se) + 1024);
     int nnue_norm = (nnue * 1024) / (std::abs(nnue) + 1024);
     int correl    = (se_norm * nnue_norm) / 512;
-    int v = nnue + (nnue + optimism) * correl / 65536;
+    int v = nnue + nnue * correl / 65536;
     int material = 521 * pos.count<PAWN>() + pos.non_pawn_material();
     v += i64(material) * v / 90649;
     v -= v * pos.rule50_count() / 189;
@@ -66,10 +66,9 @@ static Value scale_evaluation(Value nnue, int optimism, const Position& pos) {
 Value Eval::evaluate(const Eval::NNUE::ActiveNetwork& network,
                      const Position& pos,
                      Eval::NNUE::AccumulatorStack& accumulators,
-                     Eval::NNUE::ActiveAccumulatorCache& cache,
-                     int optimism) {
+                     Eval::NNUE::ActiveAccumulatorCache& cache) {
     assert(!pos.checkers());
-    return scale_evaluation(network.evaluate(pos, accumulators, cache), optimism, pos);
+    return scale_evaluation(network.evaluate(pos, accumulators, cache), pos);
 }
 
 // Like evaluate(), but instead of returning a value, it returns
@@ -88,7 +87,7 @@ std::string Eval::trace(Position& pos, const Eval::NNUE::ActiveNetwork& network)
     ss << std::showpoint << std::showpos << std::fixed << std::setprecision(2) << std::setw(15);
 
     Value nnue = network.evaluate(pos, *accumulators, *caches);
-    Value v = scale_evaluation(nnue, VALUE_ZERO, pos);
+    Value v = scale_evaluation(nnue, pos);
     ss << "NNUE evaluation          " << nnue << " (side to move, internal units)\n";
     nnue = pos.side_to_move() == WHITE ? nnue : -nnue;
     v = pos.side_to_move() == WHITE ? v : -v;
