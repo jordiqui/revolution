@@ -1,6 +1,12 @@
 # Files from build
 **/*.o
 **/*.s
+src/**/.*.o.cmd
+src/**/.*.o.cmd.tmp
+src/.stockfish*.cmd
+src/.stockfish*.cmd.tmp
+src/.Revolution*.cmd
+src/.Revolution*.cmd.tmp
 src/.depend
 src/temp_builds
 src/universal/network_dump.inc
