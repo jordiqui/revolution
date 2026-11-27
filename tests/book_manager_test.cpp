@@ -1,5 +1,4 @@
 #include <cassert>
-#include <deque>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -18,7 +17,6 @@
 using namespace Stockfish;
 
 namespace Stockfish {
-struct TTEntry {};
 
 // Minimal stubs to avoid linking the full UCI and tablebase stacks in tests.
 std::string UCIEngine::square(Square) { return ""; }
@@ -38,8 +36,6 @@ void        init(const Option&) {}
 }
 }  // namespace Stockfish
 
-static Stockfish::TTEntry g_tt_stub;
-Stockfish::TTEntry* Stockfish::TranspositionTable::first_entry(const Key) const { return &g_tt_stub; }
 
 class StubBook : public Book::Book {
    public:
@@ -68,8 +64,6 @@ class StubBook : public Book::Book {
 };
 
 int main() {
-    Bitboards::init();
-    Position::init();
 
     OptionsMap options;
     options.add(Stockfish::Book::format_option_key("CTG/BIN Book %d File", 1), Option("binbook.bin"));
@@ -119,8 +113,11 @@ int main() {
     std::cout.rdbuf(oldBuf);
     assert(withFallback.str().find("Live book fallback active") != std::string::npos);
 
-    fallbackOptions[Stockfish::Book::format_option_key("CTG/BIN Book %d File", 1)] = Option("");
-    fallbackOptions[Stockfish::Book::format_option_key("CTG/BIN Book %d File", 2)] = Option("");
+    for (int slot : {1, 2})
+    {
+        std::istringstream input("name " + Stockfish::Book::format_option_key("CTG/BIN Book %d File", slot) + " value <empty>");
+        fallbackOptions.setoption(input);
+    }
 
     failingManager.init(fallbackOptions);
 

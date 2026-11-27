@@ -1571,7 +1571,7 @@ $(NET_SENTINEL): | $(TEMP_DIR)
 	@cd "$(CURDIR)" && "$(SHELL)" ../scripts/net.sh $(EMBED_DIR_SUPPORTED)
 	@touch $@
 
-embed_cmd = $(CXX) -O2 -std=c++20 -Wno-c++26-extensions $(SLICE_DEF) $(mac_target_flags) $(EXTRACXXFLAGS) $(EMBED_DIR) -c $(UNIVERSAL_SRC_DIR)/nnue_embed.cpp -o $@
+embed_cmd = $(CXX) -O2 -std=c++20 -Wno-c++26-extensions -Wno-c23-extensions $(SLICE_DEF) $(mac_target_flags) $(EXTRACXXFLAGS) $(EMBED_DIR) -c $(UNIVERSAL_SRC_DIR)/nnue_embed.cpp -o $@
 $(NNUE_EMBED_OBJ): $(UNIVERSAL_SRC_DIR)/nnue_embed.cpp $(NET_SENTINEL) $$(call check_force,$$(call cmd_record,$$(embed_cmd))) | $(TEMP_DIR)
 	@$(call build_and_record,$(embed_cmd))
 
