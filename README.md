@@ -1,16 +1,16 @@
-# Revolution-6.40-150926
+# Revolution-6.50-271126
 
 <p align="center">
   <img src="assets/revolution-logo.svg" alt="Revolution UCI Chess Engine logo featuring a minimalist French tricolor cockade" width="360" />
 </p>
 
-Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-6.40-150926** developed by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file).
+Revolution UCI Chess Engines is a derivative of Stockfish that develops structural changes and explores new ideas to improve the project while complying with the GNU GPL v3 license. This release identifies itself as **Revolution-6.50-271126** developed by Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file).
 
-## Revolution-6.40-150926 technical release
+## Revolution-6.50-271126 technical release
 
-Released by Revolution on 15 September 2026, this release incorporates the accepted Stockfish development topology through `stockfish-dev-20260913-031dfeb4` (`031dfeb437fa6b06cdbdf4ef89dfb82f6b83c4d3`).
+Release identifier: 27 November 2026. The source includes the Stockfish development topology through `stockfish-dev-20261125-54845c3e` (`54845c3ebd3cab5a3c0b9373184eb82e78f83bba`).
 
-The baseline uses SFNNv16 with the `PP_3Wide` feature set, a hybrid accumulator path for applicable king moves, and the `nn-134a887f4c8f.nnue` network. Book, Experience, Zobrist, and Syzygy behavior is preserved.
+The active network is `nn-bddd9d57eb87.nnue`. This branding update does not modify Book, Experience, Zobrist, Syzygy, the network, or search logic.
 
 ## Overview
 
@@ -169,7 +169,7 @@ This distribution of Revolution consists of the following files:
 
 Revolution supports 32-bit and 64-bit CPUs and the same hardware instruction sets as Stockfish. On Unix-like systems you can compile the engine from the `src` directory with:
 
-The UCI `id name` header is the architecture-independent base identity `Revolution-6.40-150926`. Standalone startup and informational output use `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture as `Revolution-6.40-150926-<ARCH_TAG>`. The Universal informational identity is always `Revolution-6.40-150926-universal`, while its physical executable target is `Revolution-6.40-150926-x86-64-universal[.exe]`. The runtime dispatcher still selects the best supported internal slice normally; that selected slice does not change the Universal package identity.
+The UCI `id name` header is the architecture-independent base identity `Revolution-6.50-271126`. Standalone startup and informational output use `ENGINE_BASENAME`, `RELEASE_TAG`, and `ARCH_TAG` from `src/Makefile` to expose the compiled architecture as `Revolution-6.50-271126-<ARCH_TAG>`. The Universal informational identity is always `Revolution-6.50-271126-universal`, while its physical executable target is `Revolution-6.50-271126-x86-64-universal[.exe]`. The runtime dispatcher still selects the best supported internal slice normally; that selected slice does not change the Universal package identity. GUIs that use only the UCI `id name` as the default player name require an explicit engine display name (for example, `Revolution-6.50-271126-universal` in Cute Chess or Fritz) to display the architecture in game results.
 
 ```
 cd src
@@ -190,15 +190,15 @@ Targets normalizados para los binarios oficiales:
 
 | Target (`ARCH`) | Identidad visible de análisis | Ejecutable esperado |
 | --- | --- | --- |
-| `x86-64` | `Revolution-6.40-150926-x86-64` | `Revolution-6.40-150926-x86-64[.exe]` |
-| `x86-64-sse41-popcnt` | `Revolution-6.40-150926-sse41popcnt` | `Revolution-6.40-150926-sse41popcnt[.exe]` |
-| `x86-64-avx2` | `Revolution-6.40-150926-avx2` | `Revolution-6.40-150926-avx2[.exe]` |
-| `x86-64-bmi2` | `Revolution-6.40-150926-bmi2` | `Revolution-6.40-150926-bmi2[.exe]` |
-| `x86-64-avxvnni` | `Revolution-6.40-150926-x86-64-avxvnni` | `Revolution-6.40-150926-x86-64-avxvnni[.exe]` |
-| `x86-64-avx512` | `Revolution-6.40-150926-avx512` | `Revolution-6.40-150926-avx512[.exe]` |
-| `x86-64-vnni512` | `Revolution-6.40-150926-x86-64-vnni512` | `Revolution-6.40-150926-x86-64-vnni512[.exe]` |
-| `x86-64-avx512icl` | `Revolution-6.40-150926-avx512icl` | `Revolution-6.40-150926-avx512icl[.exe]` |
-| `x86-64-universal` | `Revolution-6.40-150926-universal` | `Revolution-6.40-150926-x86-64-universal[.exe]` |
+| `x86-64` | `Revolution-6.50-271126-x86-64` | `Revolution-6.50-271126-x86-64[.exe]` |
+| `x86-64-sse41-popcnt` | `Revolution-6.50-271126-sse41popcnt` | `Revolution-6.50-271126-sse41popcnt[.exe]` |
+| `x86-64-avx2` | `Revolution-6.50-271126-avx2` | `Revolution-6.50-271126-avx2[.exe]` |
+| `x86-64-bmi2` | `Revolution-6.50-271126-bmi2` | `Revolution-6.50-271126-bmi2[.exe]` |
+| `x86-64-avxvnni` | `Revolution-6.50-271126-x86-64-avxvnni` | `Revolution-6.50-271126-x86-64-avxvnni[.exe]` |
+| `x86-64-avx512` | `Revolution-6.50-271126-avx512` | `Revolution-6.50-271126-avx512[.exe]` |
+| `x86-64-vnni512` | `Revolution-6.50-271126-x86-64-vnni512` | `Revolution-6.50-271126-x86-64-vnni512[.exe]` |
+| `x86-64-avx512icl` | `Revolution-6.50-271126-avx512icl` | `Revolution-6.50-271126-avx512icl[.exe]` |
+| `x86-64-universal` | `Revolution-6.50-271126-universal` | `Revolution-6.50-271126-x86-64-universal[.exe]` |
 
 ### Prefetch explícito y LTO en x86-64-bmi2
 
