@@ -1,0 +1,682 @@
+name: Revolution 6.50-271126 exact Universal validation
+on:
+  push:
+    branches: [validation/rebrand-650-271126-run-only]
+permissions:
+  contents: read
+jobs:
+  universal:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: 3c14ca41f583b6bf40be7be36a28df809e6cf14d
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check exact candidate tree and download authentic NNUE
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD^{tree})" = 090afa4a2866fb3693c8f3c450237a199d68b21b
+          git rev-parse HEAD
+          git diff --check ef2fcf32b77062288e83907fbcffde5f62391e43 HEAD
+          test "$(git rev-parse HEAD)" = 3c14ca41f583b6bf40be7be36a28df809e6cf14d
+          git diff --exit-code ef2fcf32b77062288e83907fbcffde5f62391e43 HEAD -- src/book src/experience.cpp src/experience.h src/experience_compat.h src/experience_zobrist.h src/revolution_zobrist.h src/sparsehash src/nnue ':!src/nnue/features/full_threats.cpp' src/universal scripts/get_native_properties.sh src/tt.cpp src/tt.h src/history.h src/engine.cpp src/engine.h src/thread.cpp src/thread.h src/uci.cpp src/uci.h
+          git diff --exit-code ef2fcf32b77062288e83907fbcffde5f62391e43 HEAD -- . ':!src/Makefile' ':!src/misc.cpp' ':!README.md'
+          python3 - <<'PY'
+          import subprocess
+          from pathlib import Path
+          for p in ('src/Makefile','src/misc.cpp'):
+              old=subprocess.check_output(['git','show','ef2fcf32b77062288e83907fbcffde5f62391e43:'+p]).decode()
+              assert old.replace('6.40-150926','6.50-271126')==Path(p).read_text(),p
+          print('REBRAND_ONLY_SOURCE_DIFF=PASS')
+          PY
+          echo 'PROTECTED_SOURCE=PASS'
+          git diff --exit-code ef2fcf32b77062288e83907fbcffde5f62391e43 HEAD -- src/syzygy ':!src/syzygy/tbprobe.cpp'
+          test "$(git rev-list --count ef2fcf32b77062288e83907fbcffde5f62391e43..HEAD)" = 1
+          test "$(git diff --name-only ef2fcf32b77062288e83907fbcffde5f62391e43 HEAD | wc -l)" = 3
+          if git grep -nE 'StateListPtr|st->previous|newSt\.previous|rootState|setupStates|USE_DUAL_HYPERBOLA_QUINT|USE_HYPERBOLA_QUINT' -- src ':!src/sparsehash'; then exit 1; fi
+          echo 'P0A37_RING_AND_HQ_SOURCE_GUARDS=PASS'
+          if git grep -niE '\boptimism\b' -- src; then exit 1; fi
+          git grep -nF 'std::clamp((ss->staticEval - beta) / 256, 0, ss->ply / 2)' -- src/search.cpp
+          git grep -nF '__wasm_simd128__' -- src/attacks.h
+          git grep -nF 'repWindow' -- src/position.h
+          git grep -nF 'LONG_REVERSIBLE_MOVES' -- tests/instrumented.py
+          if git grep -nE 'pliesFromNull|plies_from_null\(' -- src; then exit 1; fi
+          if git grep -nE 'fconstexpr-(steps|ops-limit)' -- src/Makefile; then exit 1; fi
+          git grep -nF 'cmd_record' -- src/Makefile
+          git grep -nF 'SOURCE_DIRS = syzygy nnue nnue/features book' -- src/Makefile
+          echo 'P0A37_SOURCE_GUARDS=PASS'
+          if git grep -nF 'do_move(Position& pos, const Move move, StateInfo& st, Stack* const ss)' -- src/search.cpp src/search.h; then exit 1; fi
+          if git grep -nF 'nn-18cd32e11a9c.nnue' -- src/evaluate.h src/nnue/evaluate.h; then exit 1; fi
+          echo 'P0A37_OVERLOAD_REMOVED=PASS'
+          if git grep -nE 'K32Q2|k32q2|opponentHasQueen|FullThreats::OrientTBL' -- src; then exit 1; fi
+          # Verify failed downloads propagate without accessing the network.
+          tmp=$(mktemp -d)
+          mkdir "$tmp/mock"
+          printf '#!/bin/sh\nexit 1\n' > "$tmp/mock/wget"
+          chmod +x "$tmp/mock/wget"
+          cp src/evaluate.h "$tmp/evaluate.h"
+          script="$PWD/scripts/net.sh"
+          if (cd "$tmp" && PATH="$tmp/mock:$PATH" sh "$script" 0); then
+              echo 'Unexpected successful failed-download test'; exit 1
+          fi
+          test ! -e "$tmp/nn-bddd9d57eb87.nnue"
+          test ! -e "$tmp/universal/network_dump.inc"
+          rm -rf "$tmp"
+          echo 'NET_SH_FAILURE_PROPAGATION=PASS'
+          if git grep -nE 'HalfKAv2_hm|half_ka_v2_hm|read_leb_128|write_leb_128|Leb128MagicString' -- src; then exit 1; fi
+          if git grep -nE 'MoveList<LEGAL>|generate<LEGAL>|NON_EVASIONS|pseudo_legal\(|attackers_to_exist\(|set_check_info\(|\bRayPassBB\b' -- src ':!src/sparsehash'; then exit 1; fi
+          cd src
+          net=nn-bddd9d57eb87.nnue
+          if ! curl -fL --retry 2 --max-time 300 "https://tests.stockfishchess.org/api/nn/$net" -o "$net"; then
+            curl -fL --retry 2 --max-time 300 "https://media.githubusercontent.com/media/official-stockfish/networks/master/$net" -o "$net"
+          fi
+          test "$(stat -c %s "$net")" = 138360528
+          echo "bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e  $net" | sha256sum -c -
+      - name: Build Universal with Clang and LLD
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor | sudo tee /usr/share/keyrings/llvm-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-21 main' | sudo tee /etc/apt/sources.list.d/llvm-21.list
+          sudo apt-get update
+          sudo apt-get install -y clang-21 lld-21 llvm-21
+          export PATH="/usr/lib/llvm-21/bin:$PATH"
+          c=/usr/lib/llvm-21/bin/clang++
+          "$c" --version
+          ld.lld --version
+          llvm-objcopy --version
+          mkdir -p /tmp/embed-probe
+          printf '\000\177\200\372\377' > /tmp/embed-probe/bytes.bin
+          cat > /tmp/embed-probe/probe.cpp <<'CPP'
+          constexpr unsigned char bytes[] = {
+          #embed "bytes.bin"
+          };
+          static_assert(sizeof(bytes) == 5 && bytes[0] == 0 && bytes[1] == 127 && bytes[2] == 128 && bytes[3] == 250 && bytes[4] == 255);
+          int main() {}
+          CPP
+          "$c" -std=c++20 -Wno-c++26-extensions -Wno-c23-extensions -Werror --embed-dir=/tmp/embed-probe /tmp/embed-probe/probe.cpp -fuse-ld=lld -o /tmp/embed-probe/probe
+          /tmp/embed-probe/probe
+          echo 'EMBED_PROBE=PASS'
+          # Test all original PRNG keys and all 3668 reversible moves in the Robin Hood table.
+          cat > /tmp/zobrist-regression.cpp <<'CPP'
+          #include "position.cpp"
+          using namespace Stockfish;
+          int main() {
+              PRNG rng(1070372);
+              Key old[PIECE_NB][SQUARE_NB]{};
+              for (Piece pc : Pieces)
+                  for (Square sq = SQ_A1; sq <= SQ_H8; ++sq)
+                      old[pc][sq] = rng.rand<Key>();
+              std::fill_n(old[W_PAWN] + SQ_A8, 8, 0);
+              std::fill_n(old[B_PAWN], 8, 0);
+              for (int pc = 0; pc < PIECE_NB; ++pc)
+                  for (int sq = 0; sq < SQUARE_NB; ++sq)
+                      if (old[pc][sq] != Zobrist::psq[pc][sq]) return 1;
+              for (int f = 0; f < FILE_NB; ++f)
+                  if (rng.rand<Key>() != Zobrist::enpassant[f]) return 2;
+              for (int cr = 0; cr < CASTLING_RIGHT_NB; ++cr)
+                  if (rng.rand<Key>() != Zobrist::castling[cr]) return 3;
+              if (rng.rand<Key>() != Zobrist::side || rng.rand<Key>() != Zobrist::noPawns) return 4;
+              int count=0;
+              for (Piece pc : Pieces)
+                  for (Square a=SQ_A1; a<=SQ_H8; ++a)
+                      for (Square b=Square(a+1); b<=SQ_H8; ++b)
+                          if (type_of(pc)!=PAWN && (Attacks::PseudoAttacks[type_of(pc)][a] & b)) {
+                              const Move m(a,b);
+                              const Key k=old[pc][a]^old[pc][b]^Zobrist::side;
+                              int j=repetition_hash(k), distance=1;
+                              while(repetitionTable.distances[j]>=distance && repetitionTable.keys[j]!=k) {
+                                  ++distance; j=(j+1)&REPETITION_TABLE_MASK;
+                              }
+                              if(repetitionTable.distances[j]<distance || repetitionTable.keys[j]!=k
+                                 || repetitionTable.moves[j]!=m) return 5;
+                              ++count;
+                          }
+              if(count!=3668 || !repetition_table_is_valid()) return 7;
+              for(int i=0;i<10000;++i) {
+                  Key k=rng.rand<Key>();
+                  Key white=Zobrist::search_key(k,WHITE);
+                  Key black=Zobrist::search_key(k^Zobrist::side,BLACK);
+                  if((white&1)!=0 || (black&1)!=1 || (white^black)!=1 || white!=(k<<1)) return 8;
+              }
+              std::array<Piece, SQUARE_NB> board{};
+              for(int i=0;i<64;++i) board[i]=Pieces[i%12];
+              auto packed=pack_pieces(board);
+              for(int a=0;a<64;++a)
+                  for(int b=0;b<64;++b) {
+                      auto expected=board; std::swap(expected[a],expected[b]);
+                      auto actual=packed; swap_nibble(actual,Square(a),Square(b));
+                      if(actual!=pack_pieces(expected)) return 6;
+                  }
+              std::cout << "ZOBRIST_ALL_LEGACY_KEYS=PASS ROBIN_HOOD_3668=PASS TT_STM_LSB=PASS NIBBLE_SWAP=PASS" << std::endl;
+          }
+          CPP
+          "$c" -std=c++20 -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc /tmp/zobrist-regression.cpp -fuse-ld=lld -Wl,--gc-sections -o /tmp/zobrist-regression
+          /tmp/zobrist-regression | tee zobrist-validation.log
+          # Exhaustive scalar HQ attack regression on every occupancy along every ray.
+          cat > /tmp/hq-regression.cpp <<'CPP'
+          #include "attacks.h"
+          #include <iostream>
+          using namespace Stockfish;
+          int main() {
+              unsigned long long count = 0;
+              for (Square s = SQ_A1; s <= SQ_H8; ++s)
+                  for (PieceType pt : {BISHOP, ROOK}) {
+                      Bitboard mask = Attacks::sliding_attack(pt,s,0);
+                      Bitboard occ = 0;
+                      do {
+                          Bitboard ref = Attacks::sliding_attack(pt,s,occ);
+                          for (Bitboard o : {occ, occ | square_bb(s)}) {
+                              auto [bishop,rook] = Attacks::both_attacks_bb(s,o);
+                              if ((pt == BISHOP ? bishop : rook) != ref) return 1;
+                              if (Attacks::attacks_bb(pt,s,o) != ref) return 2;
+                              ++count;
+                          }
+                          occ = (occ-mask)&mask;
+                      } while(occ);
+                  }
+              std::cout << "HQ_ALL_RAY_SUBSETS=PASS CASES=" << count << std::endl;
+          }
+          CPP
+          "$c" -std=c++20 -O2 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc /tmp/hq-regression.cpp src/attacks.cpp -fuse-ld=lld -Wl,--gc-sections -o /tmp/hq-regression
+          /tmp/hq-regression | tee hq-validation.log
+          # Compile and execute the derivative standalone Book Manager unit test (not another engine architecture).
+          "$c" -std=c++17 -O1 -Wall -Wextra -Werror -ffunction-sections -fdata-sections -Isrc tests/book_manager_test.cpp src/book/book_manager.cpp src/book/book_utils.cpp src/position.cpp src/attacks.cpp src/bitboard.cpp src/movegen.cpp src/ucioption.cpp src/misc.cpp -fuse-ld=lld -Wl,--gc-sections -lpthread -o /tmp/revolution-book-test 2>&1 | tee book-validation.log
+          /tmp/revolution-book-test 2>&1 | tee -a book-validation.log
+          echo 'BOOK_MANAGER_UNIT_TEST=PASS' | tee -a book-validation.log
+          # Test an actual source path with spaces, not only a dry run.
+          mv src 'src with spaces'
+          trap 'if test -d "src with spaces"; then mv "src with spaces" src; fi' EXIT
+          make -C 'src with spaces' clean 2>&1 | tee clean-universal.log
+          make -C 'src with spaces' -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee build-universal.log
+          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' clean-universal.log build-universal.log; then exit 1; fi
+          exe='src with spaces/Revolution-6.50-271126-x86-64-universal'
+          before=$(stat -c %Y "$exe")
+          before_sha=$(sha256sum "$exe")
+          sleep 1
+          make -C 'src with spaces' -j2 build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS="-fuse-ld=lld" 2>&1 | tee rebuild-universal.log
+          test "$before" = "$(stat -c %Y "$exe")"
+          test "$before_sha" = "$(sha256sum "$exe")"
+          if grep -Ein 'warning:|error:|undefined reference|undefined symbol|make: \*\*\*' rebuild-universal.log; then exit 1; fi
+          echo 'UNIVERSAL_NOOP_REBUILD=PASS'
+          make -C 'src with spaces' -n build ARCH=x86-64-universal COMP=clang COMPCXX="$c" OBJCOPY=/usr/lib/llvm-21/bin/llvm-objcopy EXTRALDFLAGS='-fuse-ld=lld -Wl,--build-id=sha1' > rebuild-plan.log 2>&1
+          grep -F -- '-Wl,--build-id=sha1' rebuild-plan.log >/dev/null
+          test "$before_sha" = "$(sha256sum "$exe")"
+          echo 'COMMAND_CHANGE_DRY_RUN=PASS'
+          mv 'src with spaces' src
+          trap - EXIT
+          echo 'UNIVERSAL_PATH_WITH_SPACES=PASS'
+          test -x src/Revolution-6.50-271126-x86-64-universal
+          echo 'UNIVERSAL_BUILD_STATUS=0 WARNINGS=0 ERRORS=0'
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          nnue=Path('src/nn-bddd9d57eb87.nnue').read_bytes()
+          exe=Path('src/Revolution-6.50-271126-x86-64-universal').read_bytes()
+          assert hashlib.sha256(nnue).hexdigest()=='bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e'
+          assert len(nnue)==138360528
+          offset=exe.find(nnue)
+          assert offset>=0,'Authentic NNUE bytes not found inside executable'
+          print('EMBEDDED_NNUE_SHA256=PASS OFFSET='+str(offset))
+          PY
+          mv src/nn-bddd9d57eb87.nnue "$RUNNER_TEMP/nn-bddd9d57eb87.nnue"
+
+      - name: Download authentic KQvK tablebase for long history regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/revolution-syzygy
+          # Exact test fixtures retrieved from python-chess data/syzygy/regular; verify Git blob SHA below.
+          base64 -d > /tmp/revolution-syzygy/KQvK.rtbw <<'BASE64'
+          cegjXTEA7mZVAIAEAAYPAAIAAAAIARQAFAAUABIACgADAAIAAAAYAAqgAAkAARKAAAAAAAVQABLg
+          ABIgAQ7gAA/wABfgAAZgAAMAABZgARcwAQLw/xVQAQpgABAgAAiAABXgAAMwAADw/wGQAAjwAAAA
+          AAAAQNlbiR4AAAAAAAAFkolIx6jrFWhb/+UiBwSMOGVSUDlIBc5VM63WKtC3/8pEDgkYcMqkoHKQ
+          C5yqZ1usVaFv/////////gBBhRRXCCDZzGAQLhBBslAzqOM6jjOo4zqOM6jmMYxjGH///wSBiMlx
+          GS4jJcRkuIyX7AAAAAAAAAAAAAAAAAAAAAAAAOJlgYENU8plXZby1r/zx0k=
+          BASE64
+          base64 -d > /tmp/revolution-syzygy/KQvK.rtbz <<'BASE64'
+          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
+          AAAAAAAAAAAAAACoa0QXHd27OYc/iQ+3Atve
+          BASE64
+          test "$(git hash-object /tmp/revolution-syzygy/KQvK.rtbw)" = 0f4b29211eddd62f33b88471420f2674b35a5164
+          test "$(git hash-object /tmp/revolution-syzygy/KQvK.rtbz)" = 507469523978f81d52701a12cddb47545865f242
+          echo 'SYZYGY_KQVK_AUTHENTIC=PASS'
+      - name: UCI bench perft and legal search
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          python3 -u - <<'PY' | tee ../runtime-validation.log
+          import subprocess, threading, queue, re, time
+          bin='./Revolution-6.50-271126-x86-64-universal'
+          p=subprocess.Popen([bin],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+          q=queue.Queue()
+          def reader():
+              for l in p.stdout: q.put(l.strip())
+              q.put(None)
+          threading.Thread(target=reader,daemon=True).start()
+          def send(s):
+              p.stdin.write(s+'\n'); p.stdin.flush()
+          def wait(pattern,timeout=120):
+              end=time.monotonic()+timeout; lines=[]
+              while time.monotonic()<end:
+                  l=q.get(timeout=max(0.1,end-time.monotonic()))
+                  if l is None: raise RuntimeError('unexpected EOF')
+                  print(l,flush=True); lines.append(l)
+                  if re.search(pattern,l): return lines
+              raise RuntimeError('timeout')
+          try:
+              send('uci'); lines=wait(r'^uciok$')
+              assert lines[0].startswith('Revolution-6.50-271126-universal by '),lines[0]
+              assert [l for l in lines if l.startswith('id name ')]==['id name Revolution-6.50-271126'],lines
+              assert any(l.startswith('info string Revolution-6.50-271126-universal by ') for l in lines),lines
+              assert any(l=='id author Jorge Ruiz Centelles and the Stockfish developers (see AUTHORS file)' for l in lines),lines
+              print('UCI_BASE_AND_FIXED_UNIVERSAL_ID=PASS')
+              for opt in ['Experience Enabled','Experience File','Experience Book','CTG/BIN Book 1 File','EvalFile','SyzygyPath']:
+                  assert any('option name '+opt+' type' in l for l in lines),opt
+              send('setoption name Threads value 1')
+              send('setoption name Hash value 64')
+              send('setoption name Experience Enabled value false')
+              send('isready');wait(r'^readyok$')
+              send('position startpos');send('go perft 4')
+              assert wait(r'Nodes searched:')[ -1].split()[-1]=='197281'
+              send('position fen r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1')
+              send('go perft 4')
+              assert wait(r'Nodes searched:')[-1].split()[-1]=='4085603'
+              def perft(fen, depth):
+                  send('position '+fen)
+                  send('go perft '+str(depth))
+                  lines=wait(r'Nodes searched:',timeout=240)
+                  return int(lines[-1].split()[-1]), {l.split(':')[0] for l in lines if re.match(r'^[a-h][1-8][a-h][1-8][qrbn]?:',l)}
+              for fen,depth,n in [
+                  ('startpos',5,4865609),
+                  ('fen 8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1',5,674624),
+                  ('fen r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1',4,422333),
+                  ('fen rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8',4,2103487),
+                  ('fen r7/4p3/5p1q/3P4/4pQ2/4pP2/6pp/R3K1kr w Q - 1 3',5,11609488)
+              ]:
+                  assert perft(fen,depth)[0]==n,(fen,depth,n)
+              for fen,move,legal in [
+                  ('fen 8/8/8/r4pPK/8/8/8/4k3 w - f6 0 1','g5f6',False),
+                  ('fen 4k3/8/8/5pP1/8/8/8/4K3 w - f6 0 1','g5f6',True),
+                  ('fen k3r3/8/8/3pP3/8/8/8/4K3 w - d6 0 1','e5d6',False),
+                  ('fen 4k3/8/8/3pP3/4K3/8/8/8 w - d6 0 1','e5d6',True)
+              ]:
+                  assert (move in perft(fen,1)[1])==legal,(fen,move,legal)
+              _,promos=perft('fen 4k3/P7/8/8/8/8/7p/4K3 w - - 0 1',1)
+              assert {'a7a8q','a7a8r','a7a8b','a7a8n'} <= promos
+              _,double=perft('fen k3r3/8/8/8/1b6/8/8/4K2R w - - 0 1',1)
+              assert double and all(m.startswith('e1') for m in double)
+              send('setoption name UCI_Chess960 value true');send('isready');wait(r'^readyok$')
+              for fen,depth,n in [
+                  ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2R2R b E - 1 20',2,1438),
+                  ('fen rr6/2kpp3/1ppn2p1/p2b1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 w E - 0 20',3,37340),
+                  ('fen rr6/2kpp3/1ppnb1p1/p2Q1q1p/P4P1P/1PNN2P1/2PP4/1K2RR2 b E - 2 19',4,2237725),
+                  ('fen rr6/2kpp3/1ppnb1p1/p4q1p/P4P1P/1PNN2P1/2PP2Q1/1K2RR2 w E - 1 19',4,2098209)
+              ]:
+                  assert perft(fen,depth)[0]==n,(fen,depth,n)
+              send('setoption name UCI_Chess960 value false');send('isready');wait(r'^readyok$')
+              print('EXTENDED_PERFT=PASS EP=PASS PROMOTIONS=PASS DOUBLE_CHECK=PASS CHESS960=PASS')
+              send('position fen 7k/5Q2/6K1/8/8/8/8/8 w - - 0 1');send('go depth 6')
+              assert any('score mate 1 ' in l for l in wait(r'^bestmove ')), 'mate in one not found'
+              print('MATE_IN_ONE=PASS')
+              # Exercise transitions in opponent queen presence, including promotions.
+              for fen in [
+                  '4k3/8/8/4q3/4R3/8/8/4K3 w - - 0 1',
+                  '4k3/P7/8/8/8/8/7p/4K3 w - - 0 1',
+                  '4k3/8/8/3q4/8/2Q5/8/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/4Q3/4K3 b - - 0 1',
+                  '4k3/8/8/8/8/8/8/4K3 w - - 0 1'
+              ]:
+                  _, legal = perft('fen '+fen, 1)
+                  send('position fen '+fen)
+                  send('go depth 8')
+                  out=wait(r'^bestmove ')
+                  assert out[-1].split()[1] in legal,(fen,out[-1],legal)
+              # Force a queen capture and both colours' queen promotions in actual search.
+              for fen,m in [
+                  ('4k3/8/8/4q3/4R3/8/8/4K3 w - - 0 1','e4e5'),
+                  ('4k3/P7/8/8/8/8/7p/4K3 w - - 0 1','a7a8q'),
+                  ('4k3/P7/8/8/8/8/7p/4K3 b - - 0 1','h2h1q')
+              ]:
+                  send('position fen '+fen)
+                  send('go depth 8 searchmoves '+m)
+                  assert wait(r'^bestmove ')[-1].split()[1]==m,(fen,m)
+              print('SFNNV20_QUEEN_TRANSITIONS=PASS')
+              # K32H3 transitions: last rook disappears, no heavy material becomes rook/queen.
+              for fen,m in [
+                  ('4k3/8/8/4r3/3B4/8/8/4K3 w - - 0 1','d4e5'),
+                  ('4k3/P7/8/8/8/8/8/4K3 w - - 0 1','a7a8r'),
+                  ('4k3/P7/8/8/8/8/8/4K3 w - - 0 1','a7a8q'),
+                  ('4k3/P7/8/8/8/8/8/4K3 w - - 0 1','a7a8n'),
+                  ('4k3/8/8/8/8/8/7p/4K3 b - - 0 1','h2h1r'),
+                  ('4k3/8/8/8/8/8/7p/4K3 b - - 0 1','h2h1q')
+              ]:
+                  _,legal=perft('fen '+fen,1)
+                  assert m in legal,(fen,m)
+                  send('position fen '+fen)
+                  send('go depth 8 searchmoves '+m)
+                  assert wait(r'^bestmove ')[-1].split()[1]==m,(fen,m)
+                  send('position fen '+fen+' moves '+m)
+                  _,replies=perft('fen '+fen+' moves '+m,1)
+                  if replies:
+                      send('go depth 8')
+                      assert wait(r'^bestmove ')[-1].split()[1] in replies
+              print('SFNNV20_HEAVY_BLOCK_TRANSITIONS=PASS')
+              # The new architecture must evaluate all pawn layouts, material counts and both sides.
+              for fen in [
+                  '4k3/8/8/8/8/8/P6P/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/PP6/4K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/8/RN2K3 w - - 0 1',
+                  '4k3/8/8/8/8/8/8/R3K3 b - - 0 1',
+                  '4k3/8/8/8/8/8/5pp1/RN2K3 b - - 0 1'
+              ]:
+                  _,legal=perft('fen '+fen,1)
+                  send('position fen '+fen);send('go depth 6')
+                  assert wait(r'^bestmove ')[-1].split()[1] in legal,fen
+              print('SFNNV20_LAYER_LAYOUT_SEARCH=PASS')
+              # Export must round-trip the official bytes, including the fallback table.
+              send('position startpos')
+              send('export_net /tmp/revolution-p0a37-export.nnue')
+              wait(r'Network saved successfully')
+              import hashlib
+              with open('/tmp/revolution-p0a37-export.nnue','rb') as exported:
+                  assert hashlib.file_digest(exported,'sha256').hexdigest()=='bddd9d57eb87bf09a6c4e1a3b3f1cc18855c83ee45fdbe18018ac3763b56b38e'
+              print('SFNNV20_EXPORT_ROUNDTRIP=PASS')
+              send('setoption name Threads value 2')
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              send('position startpos');send('go depth 10')
+              assert wait(r'^bestmove ')[-1].split()[1] in {f+'2'+f+r for f in 'abcdefgh' for r in ('3','4')} | {'b1a3','b1c3','g1f3','g1h3'}
+              send('setoption name Threads value 1')
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              print('ODD_THREAD_SEARCH_SMOKE=PASS')
+              send('position startpos');send('go depth 8')
+              move=wait(r'^bestmove ')[-1].split()[1]
+              assert move in {f+str(2)+f+str(r) for f in 'abcdefgh' for r in (3,4)} | {'b1a3','b1c3','g1f3','g1h3'},move
+              for opening in ['e2e4','d2d4','g1f3','c2c4']:
+                  send('position startpos moves '+opening);send('go depth 6')
+                  reply=wait(r'^bestmove ')[-1].split()[1]
+                  assert reply in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'},(opening,reply)
+              send('position startpos')
+              send('go wtime 1000 btime 1000 winc 0 binc 0')
+              move=wait(r'^bestmove ')[-1].split()[1]
+              assert move in {f+'2'+f+r for f in 'abcdefgh' for r in ('3','4')} | {'b1a3','b1c3','g1f3','g1h3'},move
+              print('TIMED_SEARCH=PASS')
+              for npmsec in (0, 1000):
+                  send('ucinewgame')
+                  send('setoption name nodestime value '+str(npmsec))
+                  send('isready');wait(r'^readyok$')
+                  send('position fen 7k/8/6K1/8/8/8/8/7R b - - 0 1')
+                  send('go wtime 30000 btime 30000 winc 0 binc 0')
+                  assert wait(r'^bestmove ',timeout=30)[-1].split()[1]=='h8g8'
+              send('setoption name nodestime value 0')
+              send('isready');wait(r'^readyok$')
+              send('position startpos')
+              send('go depth 8 searchmoves e2e4')
+              assert wait(r'^bestmove ')[-1].split()[1]=='e2e4'
+              print('SINGLE_ROOT_NODESTIME_SEARCHMOVES=PASS')
+              # A misbehaving GUI may submit negative remaining time or movetime.
+              legal_start={f+'2'+f+r for f in 'abcdefgh' for r in ('3','4')} | {'b1a3','b1c3','g1f3','g1h3'}
+              for cmd in ('go wtime -100 btime -200 winc 0 binc 0','go movetime -100'):
+                  send('ucinewgame');send('isready');wait(r'^readyok$')
+                  send('position startpos');send(cmd)
+                  assert wait(r'^bestmove ',timeout=20)[-1].split()[1] in legal_start,cmd
+              print('NEGATIVE_TIME_SANITIZATION=PASS')
+              send('setoption name Hash value 1')
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              for opening in ('e2e4','d2d4','g1f3','c2c4'):
+                  send('position startpos moves '+opening);send('go nodes 50000')
+                  assert wait(r'^bestmove ')[-1].split()[1] in {f+'7'+f+r for f in 'abcdefgh' for r in ('5','6')} | {'b8a6','b8c6','g8f6','g8h6'}
+              send('setoption name Hash value 64');send('ucinewgame');send('isready');wait(r'^readyok$')
+              print('TT_SMALL_HASH_PRESSURE=PASS')
+              send('setoption name Skill Level value 5')
+              send('position startpos');send('go depth 8')
+              out=wait(r'^bestmove ')
+              pvs=[l.split(' pv ',1)[1].split()[0] for l in out if ' multipv 1 ' in l and ' pv ' in l]
+              assert pvs and pvs[-1]==out[-1].split()[1],out[-1]
+              send('setoption name Skill Level value 20')
+              print('SKILL_FINAL_PV=PASS')
+              # Independently reconstruct legacy Zobrist keys for representative game positions.
+              mask=(1<<64)-1
+              seed=1070372
+              def rnd():
+                  global seed
+                  seed ^= seed >> 12
+                  seed ^= (seed << 25) & mask
+                  seed ^= seed >> 27
+                  return (seed*2685821657736338717)&mask
+              psq={c:[rnd() for _ in range(64)] for c in 'PNBRQKpnbrqk'}
+              ep=[rnd() for _ in range(8)]
+              castle=[rnd() for _ in range(16)]
+              side=rnd()
+              def legacy(fen):
+                  board,stm,rights,eps,*_=fen.split()
+                  k=castle[sum(v for c,v in zip('KQkq',(1,2,4,8)) if c in rights)]
+                  if stm=='b': k ^= side
+                  if eps!='-': k ^= ep[ord(eps[0])-97]
+                  for rank,row in enumerate(reversed(board.split('/'))):
+                      file=0
+                      for ch in row:
+                          if ch.isdigit(): file+=int(ch)
+                          else: k ^= psq[ch][rank*8+file]; file+=1
+                  return k
+              for command,fen in [
+                  ('startpos','rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'),
+                  ('startpos moves e2e4','rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1'),
+                  ('startpos moves g1f3 g8f6 f3g1 f6g8','rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 4 3'),
+                  ('fen 4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1','4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1'),
+                  ('fen 4k3/8/8/3pP3/8/8/8/4K3 w - d6 0 1 moves e5d6','4k3/8/3P4/8/8/8/8/4K3 b - - 0 1'),
+                  ('fen 4k3/P7/8/8/8/8/8/4K3 w - - 0 1 moves a7a8q','Q3k3/8/8/8/8/8/8/4K3 b - - 0 1')
+              ]:
+                  send('position '+command);send('d');out=wait(r'^Checkers:')
+                  keys=[re.search(r'Key:\s*([0-9A-Fa-f]+)',l) for l in out]
+                  assert any(m and int(m.group(1),16)==legacy(fen) for m in keys),(command,out,hex(legacy(fen)))
+              print('LEGACY_POSITION_KEYS=PASS')
+              # Force the third occurrence of the initial position via a reversible move.
+              send('position startpos moves g1f3 g8f6 f3g1 f6g8 g1f3 g8f6 f3g1')
+              send('go depth 6 searchmoves f6g8');out=wait(r'^bestmove ')
+              assert out[-1].split()[1]=='f6g8'
+              assert any('score cp 0 ' in l for l in out),out
+              print('THREEFOLD_REPETITION=PASS')
+              cycle='g1f3 g8f6 f3g1 f6g8'
+              send('position startpos moves '+' '.join([cycle]*160))
+              send('go perft 2')
+              assert wait(r'Nodes searched:')[-1].split()[-1]=='400'
+              send('position startpos moves '+' '.join([cycle]*160)+' g1f3 g8f6 f3g1')
+              send('go depth 6 searchmoves f6g8');out=wait(r'^bestmove ')
+              assert out[-1].split()[1]=='f6g8',out
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              send('position startpos');send('go infinite');wait(r'^info depth ')
+              send('setoption name Hash value 32');wait(r'^bestmove ',timeout=30)
+              send('isready');wait(r'^readyok$')
+              send('setoption name Hash value 64')
+              print('RING_WRAP_640_PLIES=PASS IDLE_MUTATION=PASS')
+              # Run the exact upstream 528-ply nonrepeating history with genuine KQvK tables.
+              from pathlib import Path
+              test_source=Path('../tests/instrumented.py').read_text()
+              moves=re.search(r'LONG_REVERSIBLE_MOVES = """(.*?)"""',test_source,re.S).group(1).split()
+              assert len(moves)==528,len(moves)
+              send('ucinewgame');send('isready');wait(r'^readyok$')
+              send('setoption name SyzygyPath value /tmp/revolution-syzygy')
+              send('setoption name Syzygy50MoveRule value false')
+              send('isready');wait(r'^readyok$')
+              send('position fen 8/8/8/3k4/8/8/2KQ4/8 b - - 0 1 moves '+' '.join(moves))
+              send('go depth 1');out=wait(r'^bestmove ')
+              assert any('score cp -20000' in l or 'score mate -' in l for l in out),out
+              assert any(re.search(r'tbhits [1-9][0-9]*',l) for l in out),out
+              send('setoption name Syzygy50MoveRule value true')
+              send('setoption name SyzygyPath value <empty>')
+              send('isready');wait(r'^readyok$')
+              print('SYZYGY_LONG_HISTORY_528_PLIES=PASS')
+              send('setoption name MultiPV value 3')
+              send('position startpos');send('go depth 6');assert any('multipv 3 ' in l for l in wait(r'^bestmove '))
+              send('position startpos');send('go wtime 5000 btime 5000 winc 0 binc 0');assert any('multipv 3 ' in l for l in wait(r'^bestmove ',timeout=30))
+              print('MULTIPV_TIMED=PASS')
+              send('quit');assert p.wait(timeout=20)==0
+          finally:
+              if p.poll() is None: p.kill()
+          result=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+          print(result.stdout)
+          assert result.returncode==0 and 'Nodes searched' in result.stdout
+          bench_nodes=re.search(r'Nodes searched\s*:\s*(\d+)',result.stdout)
+          assert bench_nodes and int(bench_nodes.group(1))>0
+          # Optimism precision and TT key width are functional changes; require repeatability, not the old node count.
+          result2=subprocess.run([bin,'bench','16','1','8','default','depth'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=300)
+          nodes2=re.search(r'Nodes searched\s*:\s*(\d+)',result2.stdout)
+          assert result2.returncode==0 and nodes2 and nodes2.group(1)==bench_nodes.group(1)
+          print('BENCH_REPEATABILITY=PASS NODES='+bench_nodes.group(1))
+          print('UCI=PASS PERFT=PASS SEARCH=PASS MULTIPV=PASS BENCH=PASS')
+          PY
+      - name: Strict NMP mate regressions (fresh process per FEN)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          python3 -u - <<'PY' | tee ../nmp-validation.log
+          import subprocess, threading, queue, re, time
+          binary='./Revolution-6.50-271126-x86-64-universal'
+          for fen,expected in [
+              ('8/7p/7R/3p1N2/3P2pN/4p1P1/3pPppk/3Kbr2 b - - 0 1',-2),
+              ('rk6/p1r3p1/P3B1Kp/1p2B3/8/8/8/8 w - - 0 1',5)
+          ]:
+              p=subprocess.Popen([binary],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,bufsize=1)
+              q=queue.Queue()
+              def reader():
+                  for line in p.stdout: q.put(line.strip())
+                  q.put(None)
+              threading.Thread(target=reader,daemon=True).start()
+              def send(s):
+                  p.stdin.write(s+'\n');p.stdin.flush()
+              def wait(pattern,timeout=120):
+                  end=time.monotonic()+timeout; lines=[]
+                  while time.monotonic()<end:
+                      l=q.get(timeout=max(0.1,end-time.monotonic()))
+                      if l is None: raise RuntimeError('unexpected EOF')
+                      print(l,flush=True);lines.append(l)
+                      if re.search(pattern,l): return lines
+                  raise RuntimeError('timeout')
+              try:
+                  send('uci');wait(r'^uciok$')
+                  send('setoption name Threads value 1')
+                  send('setoption name Hash value 64')
+                  send('setoption name Experience Enabled value false')
+                  send('ucinewgame');send('isready');wait(r'^readyok$')
+                  send('position fen '+fen);send('go mate '+str(abs(expected)))
+                  out=wait(r'^bestmove ',timeout=120)
+                  mates=[int(m.group(1)) for l in out if (m:=re.search(r'score mate (-?\d+)',l))]
+                  assert mates and mates[-1]==expected,(fen,mates,out[-1])
+                  print('NMP_MATE_CASE=PASS '+str(expected))
+                  send('quit');assert p.wait(timeout=20)==0
+              finally:
+                  if p.poll() is None: p.kill();p.wait()
+          print('NMP_MATE_REGRESSIONS=PASS')
+          PY
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: rebrand-650-universal-validation-logs
+          path: |
+            clean-universal.log
+            build-universal.log
+            rebuild-universal.log
+            runtime-validation.log
+            nmp-validation.log
+            zobrist-validation.log
+            hq-validation.log
+            book-validation.log
+            rebuild-plan.log
