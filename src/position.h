@@ -58,7 +58,7 @@ struct StateInfo {
     Value  nonPawnMaterial[COLOR_NB];
     int    castlingRights;
     int    rule50;
-    int    pliesFromNull;
+    u16    repWindow;
     Square epSquare;
 
     // Not copied when making a move (will be recomputed anyhow)
@@ -165,7 +165,7 @@ class Position {
     bool  upcoming_repetition(int ply) const;
     bool  has_repeated() const;
     int   rule50_count() const;
-    int   plies_from_null() const;
+    int   rep_window() const;
     Value non_pawn_material(Color c) const;
     Value non_pawn_material() const;
     bool  dtz_is_dtm() const;  // Pawnless && (3-men || 4-men-minors-only)
@@ -435,7 +435,7 @@ inline void Position::do_move(Move m) {
     do_move(m, gives_check(m), scratchDirties);
 }
 
-inline int Position::plies_from_null() const { return st->pliesFromNull; }
+inline int Position::rep_window() const { return st->repWindow; }
 
 }  // namespace Stockfish
 
